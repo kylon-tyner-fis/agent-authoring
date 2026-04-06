@@ -9,6 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@langchain/core": "^1.1.39",
+    "@langchain/langgraph": "^1.2.7",
+    "@langchain/openai": "^1.4.2",
+    "@supabase/supabase-js": "^2.101.1",
+    "ai": "^6.0.146",
     "next": "16.2.2",
     "react": "19.2.4",
     "react-dom": "19.2.4"
