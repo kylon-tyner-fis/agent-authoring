@@ -8,12 +8,14 @@ import {
   AlertCircle,
   Network,
   ShieldCheck,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { RecursiveJsonViewer } from "./RecursiveJsonViewer";
 import { AgentConfig, Message } from "@/lib/constants";
 
-// --- MARKDOWN INTERCEPTOR (Defined outside to prevent React state bugs) ---
+// --- MARKDOWN INTERCEPTOR ---
+// Defined safely outside the component to prevent React state bugs
 const MarkdownComponents = {
   code(props: any) {
     const { children, className, node, ...rest } = props;
@@ -23,13 +25,12 @@ const MarkdownComponents = {
       try {
         const data = JSON.parse(String(children).replace(/\n$/, ""));
 
-        // If the backend returned our wrapped payload, split into two containers
+        // Split payload if we receive LangGraph structure
         if (data && typeof data === "object" && "extracted_data" in data) {
           const { extracted_data, ...systemData } = data;
 
           return (
             <div className="my-4 flex flex-col gap-4 w-full not-prose font-sans">
-              {/* SYSTEM CONTAINER */}
               <div className="bg-purple-50 border border-purple-200 rounded-lg shadow-sm overflow-hidden">
                 <div className="bg-purple-100 border-b border-purple-200 px-4 py-2.5 flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-purple-700" />
@@ -42,12 +43,11 @@ const MarkdownComponents = {
                 </div>
               </div>
 
-              {/* USER CONTAINER */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-sm overflow-hidden">
                 <div className="bg-blue-100 border-b border-blue-200 px-4 py-2.5 flex items-center gap-2">
                   <User className="w-4 h-4 text-blue-700" />
                   <h3 className="font-bold text-blue-900 m-0 text-xs uppercase tracking-wider">
-                    User
+                    User State
                   </h3>
                 </div>
                 <div className="p-4 overflow-x-auto">
@@ -58,7 +58,6 @@ const MarkdownComponents = {
           );
         }
 
-        // Fallback for generic JSON
         return (
           <div className="my-4 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden font-sans not-prose w-full">
             <div className="bg-slate-50 border-b border-gray-200 px-4 py-2.5 flex items-center gap-2">
@@ -88,12 +87,14 @@ interface PlaygroundProps {
   config: AgentConfig;
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  onClose: () => void;
 }
 
 export const Playground = ({
   config,
   messages,
   setMessages,
+  onClose,
 }: PlaygroundProps) => {
   const [input, setInput] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
@@ -139,11 +140,18 @@ export const Playground = ({
   };
 
   return (
-    <div className="w-1/2 flex flex-col bg-gray-50 relative">
-      <div className="p-6 border-b border-gray-200 bg-white">
+    <div className="w-full flex flex-col h-full bg-gray-50 relative border-l border-gray-200">
+      {/* DRAWER HEADER */}
+      <div className="p-5 border-b border-gray-200 bg-white flex items-center justify-between shrink-0 shadow-sm z-10">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Bot className="w-5 h-5 text-gray-500" /> Playground
+          <Bot className="w-5 h-5 text-indigo-600" /> Playground
         </h2>
+        <button
+          onClick={onClose}
+          className="p-2 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {error && (
@@ -159,12 +167,13 @@ export const Playground = ({
         </div>
       )}
 
-      <div className="flex-1 p-6 overflow-y-auto space-y-4">
+      {/* CHAT LOG */}
+      <div className="flex-1 p-6 overflow-y-auto space-y-6">
         {messages.map((msg, i) => {
           const isMiss = msg.content.includes('is_relevant": false');
           const bgClass =
             msg.role === "user"
-              ? "bg-blue-600 text-white"
+              ? "bg-indigo-600 text-white"
               : isMiss
                 ? "bg-amber-50 border border-amber-200"
                 : "bg-white border border-gray-200";
@@ -176,12 +185,12 @@ export const Playground = ({
             >
               {msg.role === "assistant" && (
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${isMiss ? "bg-amber-100" : "bg-blue-100"}`}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-sm ${isMiss ? "bg-amber-100" : "bg-indigo-100"}`}
                 >
                   {isMiss ? (
                     <AlertCircle className="w-5 h-5 text-amber-600" />
                   ) : (
-                    <Bot className="w-5 h-5 text-blue-600" />
+                    <Bot className="w-4 h-4 text-indigo-600" />
                   )}
                 </div>
               )}
@@ -190,7 +199,7 @@ export const Playground = ({
                 className={`p-4 rounded-xl max-w-[85%] w-full shadow-sm ${bgClass}`}
               >
                 {msg.role === "user" ? (
-                  <p className="text-sm m-0">{msg.content}</p>
+                  <p className="text-sm m-0 leading-relaxed">{msg.content}</p>
                 ) : (
                   <div className="prose prose-sm max-w-none prose-p:leading-relaxed">
                     <ReactMarkdown components={MarkdownComponents}>
@@ -201,37 +210,36 @@ export const Playground = ({
               </div>
 
               {msg.role === "user" && (
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-1">
-                  <User className="w-5 h-5 text-gray-600" />
+                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-1 shadow-sm">
+                  <User className="w-4 h-4 text-gray-600" />
                 </div>
               )}
             </div>
           );
         })}
         {isSimulating && (
-          <div className="flex gap-3 text-gray-400 items-center">
+          <div className="flex gap-3 text-gray-400 items-center animate-pulse pl-2">
             <Bot className="w-5 h-5" />
-            <span className="text-sm animate-pulse">
-              {config.name} is thinking...
-            </span>
+            <span className="text-sm">Executing Agent...</span>
           </div>
         )}
       </div>
 
-      <div className="p-4 bg-white border-t border-gray-200">
+      {/* INPUT BAR */}
+      <div className="p-5 bg-white border-t border-gray-200 shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={`E.g., Photosynthesis`}
-            className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100"
+            placeholder="Type a message to test..."
+            className="flex-1 p-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-100 shadow-sm transition-all"
             disabled={isSimulating}
           />
           <button
             type="submit"
             disabled={isSimulating || !input.trim()}
-            className="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="bg-indigo-600 text-white p-3.5 rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
           >
             <Send className="w-5 h-5" />
           </button>
