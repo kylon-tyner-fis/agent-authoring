@@ -1,14 +1,14 @@
 import { Handle, Position, NodeProps, type Node } from "@xyflow/react";
-import { Bot, Hand, ChevronRight, Play } from "lucide-react";
+import { Bot, Hand, ChevronRight, Play, Wrench } from "lucide-react";
 
 export type WorkflowNodeData = {
   label: string;
-  prompt?: string;
-  tools?: string[];
+  skillId?: string;
+  description?: string;
   isStart?: boolean;
 };
 
-export type WorkflowNodeType = Node<WorkflowNodeData, "task" | "interrupt">;
+export type WorkflowNodeType = Node<WorkflowNodeData, "skill" | "interrupt">;
 
 export function WorkflowNode({
   data,
@@ -21,7 +21,7 @@ export function WorkflowNode({
     iconBg: "bg-blue-100",
     text: "text-blue-600",
     ring: "border-blue-500 shadow-md ring-4 ring-blue-50",
-    label: "Task Node",
+    label: "Skill Node",
     Icon: Bot,
   };
 
@@ -37,7 +37,6 @@ export function WorkflowNode({
     };
   }
 
-  // Common styles for both handles to ensure perfect consistency
   const handleStyle: React.CSSProperties = {
     background: "none",
     border: "none",
@@ -52,13 +51,12 @@ export function WorkflowNode({
     <div
       className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${selected ? theme.ring : "border-slate-200"}`}
     >
-      {/* --- START BADGE --- */}
       {data.isStart === true && (
         <div className="absolute -top-3 -right-3 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm border-2 border-white z-10">
           <Play className="w-3 h-3 fill-white" /> Start
         </div>
       )}
-      {/* TARGET HANDLE (LEFT) */}
+
       {data.isStart === false && (
         <Handle
           type="target"
@@ -74,7 +72,6 @@ export function WorkflowNode({
         </Handle>
       )}
 
-      {/* HEADER */}
       <div
         className={`${theme.bg} border-b ${theme.border} p-3 flex items-center gap-3 rounded-t-xl`}
       >
@@ -95,12 +92,16 @@ export function WorkflowNode({
         </div>
       </div>
 
-      {/* BODY */}
       <div className="p-3 bg-white rounded-b-xl min-h-[60px]">
-        {type === "task" ? (
-          <p className="text-xs text-slate-500 line-clamp-2">
-            {data.prompt || "No instructions..."}
-          </p>
+        {type === "skill" ? (
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500 line-clamp-2">
+              {data.description || "No description provided."}
+            </p>
+            <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-1 rounded border border-slate-100">
+              <Wrench className="w-3 h-3" /> {data.skillId}
+            </div>
+          </div>
         ) : (
           <p className="text-xs text-slate-500 italic">
             Human approval required.
@@ -108,7 +109,6 @@ export function WorkflowNode({
         )}
       </div>
 
-      {/* SOURCE HANDLE (RIGHT) */}
       <Handle
         type="source"
         position={Position.Right}

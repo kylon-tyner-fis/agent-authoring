@@ -11,7 +11,6 @@ export async function POST(req: Request) {
   try {
     const config: AgentConfig = await req.json();
 
-    // Upsert allows us to overwrite the config if the agent_id already exists
     const { data, error } = await supabase
       .from("agents")
       .upsert(
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
             model_name: config.model.model_name,
             temperature: config.model.temperature,
             max_tokens: config.model.max_tokens,
-            tools: config.skills,
+            mcp_servers: config.mcp_servers,
             system_prompt: config.system_prompt,
             state_schema: config.state_schema,
             graph: config.graph,

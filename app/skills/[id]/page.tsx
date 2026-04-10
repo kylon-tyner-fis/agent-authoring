@@ -1,0 +1,279 @@
+"use client";
+
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Save, Wrench, Database } from "lucide-react";
+import { SkillConfig, MOCK_SKILLS, MOCK_MCP_SERVERS } from "@/lib/constants";
+import { SchemaEditor, SchemaNode } from "@/components/SchemaEditor";
+
+// Utility to parse/stringify schemas
+const parseSchema = (schema: Record<string, any>): SchemaNode[] => {
+  return Object.entries(schema).map(([key, val]) => {
+    if (Array.isArray(val) && typeof val[0] === "object") {
+      return {
+        id: Math.random().toString(),
+        key,
+        typeHint: "array<object>",
+        isNullable: false,
+        children: parseSchema(val[0]),
+      };
+    }
+    if (typeof val === "object" && val !== null) {
+      return {
+        id: Math.random().toString(),
+        key,
+        typeHint: "object",
+        isNullable: false,
+        children: parseSchema(val),
+      };
+    }
+    const strVal = String(val);
+    const isNullable = strVal.endsWith("?");
+    return {
+      id: Math.random().toString(),
+      key,
+      typeHint: isNullable ? strVal.slice(0, -1) : strVal,
+      isNullable,
+    };
+  });
+};
+
+const compileSchema = (nodes: SchemaNode[]): any => {
+  const result: any = {};
+  nodes.forEach((n) => {
+    if (!n.key.trim()) return;
+    const typeLower = n.typeHint.toLowerCase().trim();
+    if ((typeLower === "object" || typeLower === "dict") && n.children) {
+      result[n.key.trim()] = compileSchema(n.children);
+    } else if (
+      (typeLower === "array<object>" || typeLower === "object[]") &&
+      n.children
+    ) {
+      result[n.key.trim()] = [compileSchema(n.children)];
+    } else {
+      result[n.key.trim()] = n.typeHint + (n.isNullable ? "?" : "");
+    }
+  });
+  return result;
+};
+
+export default function SkillEditorPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const router = useRouter();
+  const { id } = use(params);
+
+  // FIX: Initialize state directly using a lazy initializer function.
+  // This prevents the synchronous setState inside useEffect and avoids a double render.
+  const [skill, setSkill] = useState<SkillConfig>(() => {
+    if (id !== "new") {
+      const existing = MOCK_SKILLS.find((s) => s.id === id);
+      if (existing) return existing;
+    }
+    return {
+      id: id === "new" ? "" : id, // Leave empty initially if new
+      name: "",
+      description: "",
+      prompt_template: "",
+      input_schema: {},
+      output_schema: {},
+      mcp_dependencies: [],
+    };
+  });
+
+  const [inputNodes, setInputNodes] = useState<SchemaNode[]>(() => {
+    const existing = id !== "new" ? MOCK_SKILLS.find((s) => s.id === id) : null;
+    return existing ? parseSchema(existing.input_schema) : [];
+  });
+
+  const [outputNodes, setOutputNodes] = useState<SchemaNode[]>(() => {
+    const existing = id !== "new" ? MOCK_SKILLS.find((s) => s.id === id) : null;
+    return existing ? parseSchema(existing.output_schema) : [];
+  });
+
+  // NO useEffect needed anymore!
+
+  const handleSave = async () => {
+    // Generate the ID on save if it doesn't have one
+    const finalId = skill.id || `skill_${Date.now()}`;
+
+    const finalSkill = {
+      ...skill,
+      id: finalId,
+      input_schema: compileSchema(inputNodes),
+      output_schema: compileSchema(outputNodes),
+    };
+
+    console.log("Saving Skill:", finalSkill);
+    // TODO: POST to /api/skills
+    router.push("/skills");
+  };
+
+  const toggleMCP = (serverId: string) => {
+    setSkill((prev) => ({
+      ...prev,
+      mcp_dependencies: prev.mcp_dependencies.includes(serverId)
+        ? prev.mcp_dependencies.filter((id) => id !== serverId)
+        : [...prev.mcp_dependencies, serverId],
+    }));
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-slate-50">
+      <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
+        <button
+          onClick={() => router.push("/skills")}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Library
+        </button>
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+        >
+          <Save className="w-4 h-4" /> Save Skill
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-5xl mx-auto space-y-8">
+          {/* Metadata */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <Wrench className="w-4 h-4 text-indigo-500" /> Skill Details
+            </h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600">
+                  Skill Name
+                </label>
+                <input
+                  type="text"
+                  value={skill.name}
+                  onChange={(e) => setSkill({ ...skill, name: e.target.value })}
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500"
+                  placeholder="e.g. Database Query"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600">
+                  Internal ID
+                </label>
+                <input
+                  type="text"
+                  value={skill.id || "Generated on save"}
+                  disabled
+                  className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
+                />
+              </div>
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-xs font-semibold text-gray-600">
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={skill.description}
+                  onChange={(e) =>
+                    setSkill({ ...skill, description: e.target.value })
+                  }
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500"
+                  placeholder="What does this skill do?"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Prompt Template */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+              Prompt Template
+            </h2>
+            <p className="text-xs text-slate-500">
+              Use double braces{" "}
+              <code className="bg-slate-100 px-1 rounded text-indigo-600">
+                {"{{variable_name}}"}
+              </code>{" "}
+              to inject inputs.
+            </p>
+            <textarea
+              rows={6}
+              value={skill.prompt_template}
+              onChange={(e) =>
+                setSkill({ ...skill, prompt_template: e.target.value })
+              }
+              className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-indigo-500 resize-none text-sm font-mono text-slate-800 leading-relaxed"
+              placeholder="e.g. Summarize the following text: {{document_text}}"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            {/* Input Schema */}
+            <div className="bg-white min-w-0 p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                Expected Inputs
+              </h2>
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                <SchemaEditor
+                  nodes={inputNodes}
+                  setNodes={setInputNodes}
+                  addButtonText="Add Input Field"
+                />
+              </div>
+            </div>
+
+            {/* Output Schema */}
+            <div className="bg-white min-w-0 p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                Expected Outputs
+              </h2>
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                <SchemaEditor
+                  nodes={outputNodes}
+                  setNodes={setOutputNodes}
+                  addButtonText="Add Output Field"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* MCP Servers */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <Database className="w-4 h-4 text-teal-500" /> Tool Dependencies
+              (MCP Servers)
+            </h2>
+            <p className="text-xs text-slate-500">
+              Select which servers this skill requires to function.
+            </p>
+            <div className="grid grid-cols-3 gap-4 mt-2">
+              {MOCK_MCP_SERVERS.map((server) => (
+                <div
+                  key={server.id}
+                  onClick={() => toggleMCP(server.id)}
+                  className={`p-4 border rounded-xl cursor-pointer transition-all ${skill.mcp_dependencies.includes(server.id) ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500" : "border-slate-200 hover:border-slate-300"}`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-sm text-slate-800">
+                      {server.name}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={skill.mcp_dependencies.includes(server.id)}
+                      readOnly
+                      className="mt-1"
+                    />
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-500 truncate block">
+                    {server.url}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

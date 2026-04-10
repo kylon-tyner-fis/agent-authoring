@@ -27,51 +27,41 @@ import { MOCK_SKILLS } from "@/lib/constants";
 import {
   Braces,
   Settings2,
-  Bot,
   Hand,
   Trash2,
   GitMerge,
   Bug,
   Play,
   Flag,
+  Code2,
+  ArrowRightLeft,
 } from "lucide-react";
 
-const nodeTypes = { task: WorkflowNode, interrupt: WorkflowNode };
+// Update node types
+const nodeTypes = { skill: WorkflowNode, interrupt: WorkflowNode };
 const edgeTypes = { shiftEdge: ShiftEdge };
 
 const COLUMN_WIDTH = 350;
 const ROW_HEIGHT = 200;
 
-const initialNodes: Node[] = [
-  {
-    id: "triage",
-    type: "task",
-    position: { x: 0, y: 150 },
-    data: { label: "triage", prompt: "Classify issue...", isStart: true },
-  },
-];
-
-const getId = (type: string) => `${type}_${crypto.randomUUID()}`;
-
-// 1. Define Props and Refs
 export interface OrchestrationCanvasRef {
   getCanvasData: () => any;
 }
 
 export interface OrchestrationCanvasProps {
-  onSkillsChange?: (skills: string[]) => void;
   initialData?: any;
+  // NEW: Receives the Agent's global state schema to populate dropdowns
+  globalStateSchema?: Record<string, string>;
 }
 
-// 2. The Internal Editor Component
+const getId = (type: string) => `${type}_${crypto.randomUUID()}`;
+
 const CanvasEditor = forwardRef<
   OrchestrationCanvasRef,
   OrchestrationCanvasProps
 >((props, ref) => {
-  const startingNodes = props.initialData?.nodes || initialNodes;
+  const startingNodes = props.initialData?.nodes || [];
   const startingEdges = props.initialData?.edges || [];
-
-  console.log("Starting Data", startingNodes, startingEdges);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(startingNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(startingEdges);
@@ -86,46 +76,18 @@ const CanvasEditor = forwardRef<
     type: string;
   } | null>(null);
 
-  // State for the inline #hashtag skill picker
-  const [skillMenu, setSkillMenu] = useState<{
-    visible: boolean;
-    filter: string;
-  } | null>(null);
-
   const { x, y, zoom } = useViewport();
 
-  // Expose data to ConfigPanel
   useImperativeHandle(ref, () => ({
     getCanvasData: () => toObject(),
   }));
 
-  // Restore viewport if it exists
   useEffect(() => {
     if (props.initialData?.viewport) {
       setViewport(props.initialData.viewport);
     }
   }, [props.initialData, setViewport]);
 
-  // --- THE REAL-TIME SKILL SCRAPER ---
-  useEffect(() => {
-    if (!props.onSkillsChange) return;
-
-    const skillRegex = /#(\w+)/g;
-    const foundSkills = new Set<string>();
-
-    nodes.forEach((node) => {
-      const prompt = (node.data?.prompt as string) || "";
-      let match;
-      while ((match = skillRegex.exec(prompt)) !== null) {
-        foundSkills.add(match[1]);
-      }
-    });
-
-    // Fire the callback with the unique list of skills
-    props.onSkillsChange(Array.from(foundSkills));
-  }, [nodes, props.onSkillsChange]);
-
-  // --- CANVAS HANDLERS ---
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) =>
@@ -153,9 +115,8 @@ const CanvasEditor = forwardRef<
             draggedNodeIds.has(edge.source) ||
             draggedNodeIds.has(edge.target)
           ) {
-            if (edge.data?.shift !== 0) {
+            if (edge.data?.shift !== 0)
               return { ...edge, data: { ...edge.data, shift: 0 } };
-            }
           }
           return edge;
         }),
@@ -179,8 +140,13 @@ const CanvasEditor = forwardRef<
     }
   };
 
-  const onDragStart = (event: React.DragEvent, nodeType: string) => {
+  const onDragStart = (
+    event: React.DragEvent,
+    nodeType: string,
+    skillId?: string,
+  ) => {
     event.dataTransfer.setData("application/reactflow", nodeType);
+    if (skillId) event.dataTransfer.setData("application/skillId", skillId);
     event.dataTransfer.effectAllowed = "move";
   };
 
@@ -188,7 +154,7 @@ const CanvasEditor = forwardRef<
     (event: React.DragEvent) => {
       event.preventDefault();
       const type = event.dataTransfer.types.includes("application/reactflow")
-        ? "task"
+        ? "skill"
         : null;
       if (!type) return;
 
@@ -208,6 +174,8 @@ const CanvasEditor = forwardRef<
       event.preventDefault();
       setDragPreview(null);
       const type = event.dataTransfer.getData("application/reactflow");
+      const skillId = event.dataTransfer.getData("application/skillId");
+
       if (!type) return;
 
       const position = screenToFlowPosition(
@@ -217,19 +185,37 @@ const CanvasEditor = forwardRef<
       const snappedX = Math.floor(position.x / COLUMN_WIDTH) * COLUMN_WIDTH;
       const snappedY = Math.floor(position.y / ROW_HEIGHT) * ROW_HEIGHT;
 
+      let newNodeData: any = {
+        label: `new_${type}`,
+        isStart: nodes.length === 0,
+      };
+
+      if (type === "skill" && skillId) {
+        const skill = MOCK_SKILLS.find((s) => s.id === skillId);
+        if (skill) {
+          newNodeData = {
+            ...newNodeData,
+            label: skill.name,
+            skillId: skill.id,
+            description: skill.description,
+            input_mapping: {},
+            output_mapping: {},
+          };
+        }
+      }
+
       const newNode: Node = {
         id: getId(type),
         type,
         position: { x: snappedX, y: snappedY },
-        data: { label: `new_${type}`, prompt: "", tools: [], isStart: false },
+        data: newNodeData,
       };
 
       setNodes((nds) => nds.concat(newNode));
     },
-    [screenToFlowPosition, setNodes],
+    [screenToFlowPosition, setNodes, nodes.length],
   );
 
-  // --- INSPECTOR HANDLERS ---
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
 
@@ -242,6 +228,17 @@ const CanvasEditor = forwardRef<
           : n,
       ),
     );
+  };
+
+  const handleMappingChange = (
+    type: "input_mapping" | "output_mapping",
+    key: string,
+    value: string,
+  ) => {
+    if (!selectedNodeId || !selectedNode) return;
+    const currentMapping =
+      (selectedNode.data[type] as Record<string, string>) || {};
+    handleNodeChange(type, { ...currentMapping, [key]: value });
   };
 
   const setAsStartNode = () => {
@@ -265,58 +262,25 @@ const CanvasEditor = forwardRef<
     );
   };
 
-  // --- HASHTAG SKILL PICKER LOGIC ---
-  const handleTextareaKeyDown = (
-    e: React.KeyboardEvent<HTMLTextAreaElement>,
-  ) => {
-    if (skillMenu?.visible) {
-      if (e.key === "Escape") setSkillMenu(null);
-    }
-  };
+  // Extract State Keys for the Dropdowns
+  const stateKeys = props.globalStateSchema
+    ? Object.keys(props.globalStateSchema)
+    : [];
 
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    const cursor = e.target.selectionStart;
-    const textBefore = value.substring(0, cursor);
-    const match = textBefore.match(/#(\w*)$/);
-
-    if (match) {
-      setSkillMenu({
-        visible: true,
-        filter: match[1].toLowerCase(),
-      });
-    } else {
-      setSkillMenu(null);
-    }
-
-    handleNodeChange("prompt", value);
-  };
-
-  const selectSkill = (skillId: string) => {
-    if (!selectedNodeId) return;
-    const currentPrompt = (selectedNode?.data.prompt as string) || "";
-    const el = document.activeElement as HTMLTextAreaElement;
-    const cursor =
-      el && el.selectionStart ? el.selectionStart : currentPrompt.length;
-
-    // Replace the partial #hashtag with the full chosen #skillId
-    const textBefore = currentPrompt
-      .substring(0, cursor)
-      .replace(/#(\w*)$/, `#${skillId} `);
-    const textAfter = currentPrompt.substring(cursor);
-
-    handleNodeChange("prompt", textBefore + textAfter);
-    setSkillMenu(null);
-  };
+  // Extract Skill schema details if selected node is a skill
+  const activeSkill =
+    selectedNode?.type === "skill"
+      ? MOCK_SKILLS.find((s) => s.id === selectedNode.data.skillId)
+      : null;
 
   return (
     <div className="flex h-full w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-inner relative">
       <div className="flex-1 h-full relative border-r border-slate-200 overflow-hidden bg-slate-50">
-        {/* DRAG TOOLBAR */}
-        <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 w-[180px]">
+        {/* DRAG TOOLBAR (Skill Library Palette) */}
+        <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-1 px-1">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Add to Workflow
+              Skill Palette
             </p>
             <button
               onClick={() => setShowDebug(!showDebug)}
@@ -326,21 +290,37 @@ const CanvasEditor = forwardRef<
               <Bug className="w-3 h-3" />
             </button>
           </div>
-          <div
-            className="p-2 border border-blue-200 bg-blue-50 text-blue-700 rounded cursor-grab flex items-center gap-2 hover:bg-blue-100 transition-colors"
-            onDragStart={(e) => onDragStart(e, "task")}
-            draggable
-          >
-            <Bot className="w-4 h-4" />{" "}
-            <span className="text-xs font-semibold">Task</span>
-          </div>
-          <div
-            className="p-2 border border-orange-200 bg-orange-50 text-orange-700 rounded cursor-grab flex items-center gap-2 hover:bg-orange-100 transition-colors"
-            onDragStart={(e) => onDragStart(e, "interrupt")}
-            draggable
-          >
-            <Hand className="w-4 h-4" />{" "}
-            <span className="text-xs font-semibold">Interrupt</span>
+
+          <div className="space-y-1.5">
+            {MOCK_SKILLS.map((skill) => (
+              <div
+                key={skill.id}
+                className="p-2 border border-blue-200 bg-white text-blue-700 rounded cursor-grab flex flex-col gap-1 hover:bg-blue-50 transition-colors shadow-sm"
+                onDragStart={(e) => onDragStart(e, "skill", skill.id)}
+                draggable
+              >
+                <div className="flex items-center gap-2">
+                  <Code2 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-xs font-semibold truncate">
+                    {skill.name}
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            <div className="mt-4 pt-2 border-t border-slate-200">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
+                Flow Control
+              </p>
+              <div
+                className="p-2 border border-orange-200 bg-white text-orange-700 rounded cursor-grab flex items-center gap-2 hover:bg-orange-50 transition-colors shadow-sm"
+                onDragStart={(e) => onDragStart(e, "interrupt")}
+                draggable
+              >
+                <Hand className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-xs font-semibold">Interrupt (Wait)</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -359,7 +339,6 @@ const CanvasEditor = forwardRef<
           onNodeClick={(_, node) => {
             setSelectedNodeId(node.id);
             setSelectedEdgeId(null);
-            setSkillMenu(null);
           }}
           onEdgeClick={(_, edge) => {
             setSelectedEdgeId(edge.id);
@@ -368,7 +347,6 @@ const CanvasEditor = forwardRef<
           onPaneClick={() => {
             setSelectedNodeId(null);
             setSelectedEdgeId(null);
-            setSkillMenu(null);
           }}
           snapToGrid={true}
           snapGrid={[COLUMN_WIDTH, ROW_HEIGHT]}
@@ -378,25 +356,6 @@ const CanvasEditor = forwardRef<
           }}
           fitView
         >
-          {showDebug && (
-            <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-              {Array.from({ length: 20 }).map((_, i) => {
-                const colIndex = i - 5;
-                const lineX = x + colIndex * COLUMN_WIDTH * zoom;
-                return (
-                  <div
-                    key={colIndex}
-                    className="absolute top-0 bottom-0 border-l-2 border-dashed border-red-400/50 flex flex-col"
-                    style={{ left: `${lineX}px` }}
-                  >
-                    <div className="bg-red-100/90 text-red-600 text-[10px] font-mono font-bold px-1.5 py-0.5 mt-4 ml-1 rounded whitespace-nowrap shadow-sm backdrop-blur-sm">
-                      Col {colIndex} (x={colIndex * COLUMN_WIDTH})
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
           {dragPreview && (
             <div
               className="absolute pointer-events-none border-2 border-dashed border-slate-400 rounded-xl bg-slate-200/50 z-50 flex items-center justify-center animate-pulse"
@@ -410,7 +369,7 @@ const CanvasEditor = forwardRef<
               }}
             >
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Drop Slot
+                Drop Skill
               </span>
             </div>
           )}
@@ -419,7 +378,7 @@ const CanvasEditor = forwardRef<
       </div>
 
       {/* INSPECTOR PANE */}
-      <div className="w-[320px] h-full bg-white flex flex-col shrink-0 border-l border-slate-200">
+      <div className="w-[340px] h-full bg-white flex flex-col shrink-0 border-l border-slate-200">
         <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Settings2 className="w-4 h-4 text-slate-500" />
@@ -441,13 +400,13 @@ const CanvasEditor = forwardRef<
           )}
         </div>
 
-        <div className="p-5 flex-1 overflow-y-auto">
+        <div className="p-5 flex-1 overflow-y-auto custom-scrollbar">
           {selectedNode ? (
             <div className="space-y-6 animate-in fade-in">
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Node ID
+                    Node Label
                   </label>
                   <input
                     type="text"
@@ -456,53 +415,132 @@ const CanvasEditor = forwardRef<
                     className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 font-mono text-slate-900"
                   />
                 </div>
-                {selectedNode.type === "task" && (
-                  <div className="space-y-1.5 relative">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      System Prompt
-                    </label>
 
-                    <textarea
-                      rows={6}
-                      value={(selectedNode.data.prompt as string) || ""}
-                      onKeyDown={handleTextareaKeyDown}
-                      onChange={handleTextareaChange}
-                      className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 resize-none transition-all text-slate-900 leading-relaxed"
-                      placeholder="Type # to search & add skills..."
-                    />
-
-                    {/* SKILL PICKER DROPDOWN */}
-                    {skillMenu?.visible && (
-                      <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto mt-1 top-full">
-                        <div className="p-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          Select Skill
-                        </div>
-                        {MOCK_SKILLS.filter((s) =>
-                          s.id.toLowerCase().includes(skillMenu.filter),
-                        ).map((skill) => (
-                          <button
-                            key={skill.id}
-                            onClick={() => selectSkill(skill.id)}
-                            className="w-full text-left p-2.5 hover:bg-blue-50 flex flex-col gap-0.5 transition-colors border-b border-slate-50 last:border-0"
-                          >
-                            <span className="text-xs font-bold text-blue-700">
-                              #{skill.id}
-                            </span>
-                            <span className="text-[10px] text-slate-500 truncate">
-                              {skill.description}
-                            </span>
-                          </button>
-                        ))}
-                        {MOCK_SKILLS.filter((s) =>
-                          s.id.toLowerCase().includes(skillMenu.filter),
-                        ).length === 0 && (
-                          <div className="p-3 text-xs text-slate-400 text-center italic">
-                            No matching skills found.
-                          </div>
-                        )}
+                {selectedNode.type === "skill" && activeSkill && (
+                  <>
+                    {/* INPUT MAPPING UI */}
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Input Mapping
+                        </h3>
                       </div>
-                    )}
-                  </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        Map the Agent's global state to the inputs expected by{" "}
+                        <strong className="font-mono">
+                          {activeSkill.name}
+                        </strong>
+                        .
+                      </p>
+
+                      {Object.keys(activeSkill.input_schema).map((inputKey) => {
+                        const currentVal =
+                          (
+                            selectedNode.data.input_mapping as Record<
+                              string,
+                              string
+                            >
+                          )?.[inputKey] || "";
+                        return (
+                          <div
+                            key={inputKey}
+                            className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                          >
+                            <span className="text-xs font-mono font-semibold text-slate-700">
+                              {inputKey}
+                            </span>
+                            <select
+                              value={currentVal}
+                              onChange={(e) =>
+                                handleMappingChange(
+                                  "input_mapping",
+                                  inputKey,
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                            >
+                              <option value="">
+                                -- Select State Variable --
+                              </option>
+                              {stateKeys.map((k) => (
+                                <option key={k} value={k}>
+                                  {k}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                      {Object.keys(activeSkill.input_schema).length === 0 && (
+                        <div className="text-xs text-slate-400 italic">
+                          This skill expects no inputs.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* OUTPUT MAPPING UI */}
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Output Mapping
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        Map the data returned by this skill back into the
+                        Agent's state.
+                      </p>
+
+                      {Object.keys(activeSkill.output_schema).map(
+                        (outputKey) => {
+                          const currentVal =
+                            (
+                              selectedNode.data.output_mapping as Record<
+                                string,
+                                string
+                              >
+                            )?.[outputKey] || "";
+                          return (
+                            <div
+                              key={outputKey}
+                              className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                            >
+                              <span className="text-xs font-mono font-semibold text-slate-700">
+                                {outputKey}
+                              </span>
+                              <select
+                                value={currentVal}
+                                onChange={(e) =>
+                                  handleMappingChange(
+                                    "output_mapping",
+                                    outputKey,
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                              >
+                                <option value="">
+                                  -- Select Target State --
+                                </option>
+                                {stateKeys.map((k) => (
+                                  <option key={k} value={k}>
+                                    {k}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        },
+                      )}
+                      {Object.keys(activeSkill.output_schema).length === 0 && (
+                        <div className="text-xs text-slate-400 italic">
+                          This skill returns no outputs.
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -529,11 +567,6 @@ const CanvasEditor = forwardRef<
                     </>
                   )}
                 </button>
-                {!selectedNode.data.isStart && (
-                  <p className="text-[10px] text-slate-400 text-center mt-1">
-                    This will remove the start role from any other node.
-                  </p>
-                )}
               </div>
             </div>
           ) : selectedEdge ? (
@@ -566,25 +599,6 @@ const CanvasEditor = forwardRef<
                   Select a node or edge to configure parameters.
                 </p>
               </div>
-              <div className="space-y-3">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Canvas Options
-                </h3>
-                <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
-                    <Bug className="w-4 h-4 text-slate-400" />
-                    <span>Debug Grid Lines</span>
-                  </div>
-                  <button
-                    onClick={() => setShowDebug(!showDebug)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${showDebug ? "bg-blue-500" : "bg-slate-300"}`}
-                  >
-                    <span
-                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${showDebug ? "translate-x-4" : "translate-x-1"}`}
-                    />
-                  </button>
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -595,7 +609,6 @@ const CanvasEditor = forwardRef<
 
 CanvasEditor.displayName = "CanvasEditor";
 
-// 3. Exported Wrapper passing down props and refs
 export const OrchestrationCanvas = forwardRef<
   OrchestrationCanvasRef,
   OrchestrationCanvasProps
