@@ -29,6 +29,7 @@ import {
   OrchestrationCanvasRef,
 } from "./OrchestrationCanvas";
 import { SchemaEditor, SchemaNode } from "./SchemaEditor";
+import { useToast } from "./Toast"; // <-- Import useToast
 
 interface ConfigPanelProps {
   config: AgentConfig;
@@ -48,6 +49,7 @@ export const ConfigPanel = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const canvasRef = useRef<OrchestrationCanvasRef>(null);
+  const { addToast } = useToast(); // <-- Initialize hook
 
   const parseConfigToNodes = (schema: any): SchemaNode[] => {
     if (!schema) return [];
@@ -111,7 +113,7 @@ export const ConfigPanel = ({
 
   const handleSaveAgent = async () => {
     if (!config.agent_id.trim()) {
-      alert("Please provide an Agent ID before saving.");
+      addToast("Please provide an Agent ID before saving.", "error");
       return;
     }
 
@@ -122,6 +124,28 @@ export const ConfigPanel = ({
       let latestCanvasData = null;
       if (canvasRef.current) {
         latestCanvasData = canvasRef.current.getCanvasData();
+
+        // Run Pre-Flight Validations
+        const canvasNodes = latestCanvasData.nodes || [];
+        const hasTrigger = canvasNodes.some((n: any) => n.type === "trigger");
+        const hasResponse = canvasNodes.some((n: any) => n.type === "response");
+
+        if (!hasTrigger) {
+          addToast(
+            "Your graph is missing a Trigger (API Input) node. The agent needs an entry point.",
+            "error",
+          );
+          setIsSaving(false);
+          return;
+        }
+        if (!hasResponse) {
+          addToast(
+            "Your graph is missing a Response (API Output) node. The agent needs to return data.",
+            "error",
+          );
+          setIsSaving(false);
+          return;
+        }
       }
 
       const finalConfig = {
@@ -145,9 +169,10 @@ export const ConfigPanel = ({
 
       setConfig(finalConfig);
       setSaveSuccess(true);
+      addToast("Agent configuration saved successfully!", "success");
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
-      alert("Failed to save");
+      addToast("Failed to save agent configuration.", "error");
       console.error(error);
     } finally {
       setIsSaving(false);

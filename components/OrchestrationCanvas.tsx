@@ -21,9 +21,14 @@ import {
   useViewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+
 import { WorkflowNode } from "./nodes/WorkflowNode";
+import { TriggerNode } from "./nodes/TriggerNode";
+import { ResponseNode } from "./nodes/ResponseNode";
 import { ShiftEdge } from "./edges/ShiftEdge";
 import { MOCK_SKILLS } from "@/lib/constants";
+import { SchemaEditor, SchemaNode } from "./SchemaEditor";
+import { useToast } from "./Toast";
 import {
   Braces,
   Settings2,
@@ -31,14 +36,18 @@ import {
   Trash2,
   GitMerge,
   Bug,
-  Play,
-  Flag,
   Code2,
   ArrowRightLeft,
+  Zap,
+  Flag,
 } from "lucide-react";
 
-// Update node types
-const nodeTypes = { skill: WorkflowNode, interrupt: WorkflowNode };
+const nodeTypes = {
+  skill: WorkflowNode,
+  interrupt: WorkflowNode,
+  trigger: TriggerNode,
+  response: ResponseNode,
+};
 const edgeTypes = { shiftEdge: ShiftEdge };
 
 const COLUMN_WIDTH = 350;
@@ -50,11 +59,61 @@ export interface OrchestrationCanvasRef {
 
 export interface OrchestrationCanvasProps {
   initialData?: any;
-  // NEW: Receives the Agent's global state schema to populate dropdowns
   globalStateSchema?: Record<string, string>;
 }
 
 const getId = (type: string) => `${type}_${crypto.randomUUID()}`;
+
+const parseSchema = (schema: any): SchemaNode[] => {
+  if (!schema) return [];
+  return Object.entries(schema).map(([key, val]) => {
+    if (Array.isArray(val) && typeof val[0] === "object") {
+      return {
+        id: Math.random().toString(),
+        key,
+        typeHint: "array<object>",
+        isNullable: false,
+        children: parseSchema(val[0]),
+      };
+    }
+    if (typeof val === "object" && val !== null) {
+      return {
+        id: Math.random().toString(),
+        key,
+        typeHint: "object",
+        isNullable: false,
+        children: parseSchema(val),
+      };
+    }
+    const strVal = String(val);
+    const isNullable = strVal.endsWith("?");
+    return {
+      id: Math.random().toString(),
+      key,
+      typeHint: isNullable ? strVal.slice(0, -1) : strVal,
+      isNullable,
+    };
+  });
+};
+
+const compileSchema = (nodes: SchemaNode[]): any => {
+  const result: any = {};
+  nodes.forEach((n) => {
+    if (!n.key.trim()) return;
+    const typeLower = n.typeHint.toLowerCase().trim();
+    if ((typeLower === "object" || typeLower === "dict") && n.children) {
+      result[n.key.trim()] = compileSchema(n.children);
+    } else if (
+      (typeLower === "array<object>" || typeLower === "object[]") &&
+      n.children
+    ) {
+      result[n.key.trim()] = [compileSchema(n.children)];
+    } else {
+      result[n.key.trim()] = n.typeHint + (n.isNullable ? "?" : "");
+    }
+  });
+  return result;
+};
 
 const CanvasEditor = forwardRef<
   OrchestrationCanvasRef,
@@ -76,7 +135,11 @@ const CanvasEditor = forwardRef<
     type: string;
   } | null>(null);
 
+  const [inspectorSchema, setInspectorSchema] = useState<SchemaNode[]>([]);
+  const [lastLoadedNodeId, setLastLoadedNodeId] = useState<string | null>(null);
+
   const { x, y, zoom } = useViewport();
+  const { addToast } = useToast();
 
   useImperativeHandle(ref, () => ({
     getCanvasData: () => toObject(),
@@ -88,8 +151,41 @@ const CanvasEditor = forwardRef<
     }
   }, [props.initialData, setViewport]);
 
+  useEffect(() => {
+    if (selectedNodeId !== lastLoadedNodeId) {
+      const node = nodes.find((n) => n.id === selectedNodeId);
+      if (node?.type === "trigger") {
+        setInspectorSchema(parseSchema(node.data.expected_payload || {}));
+      } else if (node?.type === "response") {
+        setInspectorSchema(parseSchema(node.data.response_payload || {}));
+      } else {
+        setInspectorSchema([]);
+      }
+      setLastLoadedNodeId(selectedNodeId);
+    }
+  }, [selectedNodeId, lastLoadedNodeId, nodes]);
+
   const onConnect = useCallback(
     (params: Connection) => {
+      const { source, target } = params;
+      const sourceNode = nodes.find((n) => n.id === source);
+      const targetNode = nodes.find((n) => n.id === target);
+
+      if (sourceNode?.type === "response") {
+        addToast(
+          "Response nodes are terminal and cannot have outgoing connections.",
+          "error",
+        );
+        return;
+      }
+      if (targetNode?.type === "trigger") {
+        addToast(
+          "Trigger nodes are entry points and cannot receive incoming connections.",
+          "error",
+        );
+        return;
+      }
+
       setEdges((eds) =>
         addEdge(
           {
@@ -103,7 +199,7 @@ const CanvasEditor = forwardRef<
         ),
       );
     },
-    [setEdges],
+    [nodes, setEdges, addToast],
   );
 
   const onNodeDragStart = useCallback(
@@ -153,10 +249,11 @@ const CanvasEditor = forwardRef<
   const onDragOver = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
-      const type = event.dataTransfer.types.includes("application/reactflow")
-        ? "skill"
-        : null;
-      if (!type) return;
+
+      const hasReactFlowData = event.dataTransfer.types.includes(
+        "application/reactflow",
+      );
+      if (!hasReactFlowData) return;
 
       const position = screenToFlowPosition(
         { x: event.clientX, y: event.clientY },
@@ -164,7 +261,8 @@ const CanvasEditor = forwardRef<
       );
       const snappedX = Math.floor(position.x / COLUMN_WIDTH) * COLUMN_WIDTH;
       const snappedY = Math.floor(position.y / ROW_HEIGHT) * ROW_HEIGHT;
-      setDragPreview({ x: snappedX, y: snappedY, type });
+
+      setDragPreview({ x: snappedX, y: snappedY, type: "generic" });
     },
     [screenToFlowPosition],
   );
@@ -178,6 +276,12 @@ const CanvasEditor = forwardRef<
 
       if (!type) return;
 
+      // FIX: Moved the validation outside of the setNodes state updater to prevent double-firing toasts in Strict Mode
+      if (type === "trigger" && nodes.some((n) => n.type === "trigger")) {
+        addToast("You can only have one Trigger node per Agent.", "error");
+        return;
+      }
+
       const position = screenToFlowPosition(
         { x: event.clientX, y: event.clientY },
         { snapToGrid: false },
@@ -185,16 +289,12 @@ const CanvasEditor = forwardRef<
       const snappedX = Math.floor(position.x / COLUMN_WIDTH) * COLUMN_WIDTH;
       const snappedY = Math.floor(position.y / ROW_HEIGHT) * ROW_HEIGHT;
 
-      let newNodeData: any = {
-        label: `new_${type}`,
-        isStart: nodes.length === 0,
-      };
+      let newNodeData: any = { label: `new_${type}` };
 
       if (type === "skill" && skillId) {
         const skill = MOCK_SKILLS.find((s) => s.id === skillId);
         if (skill) {
           newNodeData = {
-            ...newNodeData,
             label: skill.name,
             skillId: skill.id,
             description: skill.description,
@@ -202,6 +302,18 @@ const CanvasEditor = forwardRef<
             output_mapping: {},
           };
         }
+      } else if (type === "trigger") {
+        newNodeData = {
+          label: "Trigger",
+          expected_payload: {},
+          initialization_mapping: {},
+        };
+      } else if (type === "response") {
+        newNodeData = {
+          label: "Response",
+          response_payload: {},
+          extraction_mapping: {},
+        };
       }
 
       const newNode: Node = {
@@ -213,8 +325,8 @@ const CanvasEditor = forwardRef<
 
       setNodes((nds) => nds.concat(newNode));
     },
-    [screenToFlowPosition, setNodes, nodes.length],
-  );
+    [screenToFlowPosition, setNodes, addToast, nodes],
+  ); // <-- Added 'nodes' to dependencies
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
@@ -231,7 +343,11 @@ const CanvasEditor = forwardRef<
   };
 
   const handleMappingChange = (
-    type: "input_mapping" | "output_mapping",
+    type:
+      | "input_mapping"
+      | "output_mapping"
+      | "initialization_mapping"
+      | "extraction_mapping",
     key: string,
     value: string,
   ) => {
@@ -241,14 +357,14 @@ const CanvasEditor = forwardRef<
     handleNodeChange(type, { ...currentMapping, [key]: value });
   };
 
-  const setAsStartNode = () => {
-    if (!selectedNodeId) return;
-    setNodes((nds) =>
-      nds.map((n) => ({
-        ...n,
-        data: { ...n.data, isStart: n.id === selectedNodeId },
-      })),
-    );
+  const handleSchemaChange = (newNodes: SchemaNode[]) => {
+    setInspectorSchema(newNodes);
+    const compiled = compileSchema(newNodes);
+    if (selectedNode?.type === "trigger") {
+      handleNodeChange("expected_payload", compiled);
+    } else if (selectedNode?.type === "response") {
+      handleNodeChange("response_payload", compiled);
+    }
   };
 
   const handleEdgeChange = (field: string, value: any) => {
@@ -262,12 +378,9 @@ const CanvasEditor = forwardRef<
     );
   };
 
-  // Extract State Keys for the Dropdowns
   const stateKeys = props.globalStateSchema
     ? Object.keys(props.globalStateSchema)
     : [];
-
-  // Extract Skill schema details if selected node is a skill
   const activeSkill =
     selectedNode?.type === "skill"
       ? MOCK_SKILLS.find((s) => s.id === selectedNode.data.skillId)
@@ -276,7 +389,7 @@ const CanvasEditor = forwardRef<
   return (
     <div className="flex h-full w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-inner relative">
       <div className="flex-1 h-full relative border-r border-slate-200 overflow-hidden bg-slate-50">
-        {/* DRAG TOOLBAR (Skill Library Palette) */}
+        {/* DRAG TOOLBAR */}
         <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-1 px-1">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -310,6 +423,26 @@ const CanvasEditor = forwardRef<
 
             <div className="mt-4 pt-2 border-t border-slate-200">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
+                API Contract
+              </p>
+              <div
+                className="p-2 border border-emerald-200 bg-white text-emerald-700 rounded cursor-grab flex items-center gap-2 hover:bg-emerald-50 transition-colors shadow-sm mb-1.5"
+                onDragStart={(e) => onDragStart(e, "trigger")}
+                draggable
+              >
+                <Zap className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-xs font-semibold">Trigger (Input)</span>
+              </div>
+              <div
+                className="p-2 border border-purple-200 bg-white text-purple-700 rounded cursor-grab flex items-center gap-2 hover:bg-purple-50 transition-colors shadow-sm mb-4"
+                onDragStart={(e) => onDragStart(e, "response")}
+                draggable
+              >
+                <Flag className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-xs font-semibold">Response (Output)</span>
+              </div>
+
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
                 Flow Control
               </p>
               <div
@@ -369,7 +502,7 @@ const CanvasEditor = forwardRef<
               }}
             >
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Drop Skill
+                Drop Node
               </span>
             </div>
           )}
@@ -416,9 +549,9 @@ const CanvasEditor = forwardRef<
                   />
                 </div>
 
+                {/* SKILL INSPECTOR */}
                 {selectedNode.type === "skill" && activeSkill && (
                   <>
-                    {/* INPUT MAPPING UI */}
                     <div className="pt-4 border-t border-slate-100 space-y-3">
                       <div className="flex items-center gap-2 text-indigo-600 mb-2">
                         <ArrowRightLeft className="w-4 h-4" />
@@ -480,7 +613,6 @@ const CanvasEditor = forwardRef<
                       )}
                     </div>
 
-                    {/* OUTPUT MAPPING UI */}
                     <div className="pt-4 border-t border-slate-100 space-y-3">
                       <div className="flex items-center gap-2 text-emerald-600 mb-2">
                         <ArrowRightLeft className="w-4 h-4" />
@@ -542,31 +674,178 @@ const CanvasEditor = forwardRef<
                     </div>
                   </>
                 )}
-              </div>
 
-              <div className="space-y-1.5 pt-4 border-t border-slate-100">
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Execution Role
-                </label>
-                <button
-                  onClick={setAsStartNode}
-                  disabled={selectedNode.data.isStart as boolean}
-                  className={`w-full p-2 text-sm font-medium rounded flex items-center justify-center gap-2 transition-colors ${
-                    selectedNode.data.isStart
-                      ? "bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default"
-                      : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  {selectedNode.data.isStart ? (
-                    <>
-                      <Play className="w-4 h-4" /> Starting Node
-                    </>
-                  ) : (
-                    <>
-                      <Flag className="w-4 h-4" /> Set as Start Node
-                    </>
-                  )}
-                </button>
+                {/* TRIGGER INSPECTOR */}
+                {selectedNode.type === "trigger" && (
+                  <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                        <Zap className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Expected Payload
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        Define the JSON schema the external caller must provide
+                        to start this agent.
+                      </p>
+                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                        <SchemaEditor
+                          nodes={inspectorSchema}
+                          setNodes={handleSchemaChange}
+                          addButtonText="Add Input Field"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Initialization Mapping
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        Map the incoming payload fields to the Agent's global
+                        state.
+                      </p>
+
+                      {Object.keys(
+                        selectedNode.data.expected_payload || {},
+                      ).map((payloadKey) => {
+                        const currentVal =
+                          (
+                            selectedNode.data.initialization_mapping as Record<
+                              string,
+                              string
+                            >
+                          )?.[payloadKey] || "";
+                        return (
+                          <div
+                            key={payloadKey}
+                            className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                          >
+                            <span className="text-xs font-mono font-semibold text-slate-700">
+                              {payloadKey}
+                            </span>
+                            <select
+                              value={currentVal}
+                              onChange={(e) =>
+                                handleMappingChange(
+                                  "initialization_mapping",
+                                  payloadKey,
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                            >
+                              <option value="">
+                                -- Select State Variable --
+                              </option>
+                              {stateKeys.map((k) => (
+                                <option key={k} value={k}>
+                                  {k}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                      {Object.keys(selectedNode.data.expected_payload || {})
+                        .length === 0 && (
+                        <div className="text-xs text-slate-400 italic">
+                          No payload fields defined yet.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* RESPONSE INSPECTOR */}
+                {selectedNode.type === "response" && (
+                  <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-purple-600 mb-2">
+                        <Flag className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Response Payload
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        Define the JSON schema this agent will return to the
+                        caller.
+                      </p>
+                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                        <SchemaEditor
+                          nodes={inspectorSchema}
+                          setNodes={handleSchemaChange}
+                          addButtonText="Add Output Field"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Extraction Mapping
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        Select which variables from the global state should be
+                        returned.
+                      </p>
+
+                      {Object.keys(
+                        selectedNode.data.response_payload || {},
+                      ).map((payloadKey) => {
+                        const currentVal =
+                          (
+                            selectedNode.data.extraction_mapping as Record<
+                              string,
+                              string
+                            >
+                          )?.[payloadKey] || "";
+                        return (
+                          <div
+                            key={payloadKey}
+                            className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                          >
+                            <span className="text-xs font-mono font-semibold text-slate-700">
+                              {payloadKey}
+                            </span>
+                            <select
+                              value={currentVal}
+                              onChange={(e) =>
+                                handleMappingChange(
+                                  "extraction_mapping",
+                                  payloadKey,
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                            >
+                              <option value="">
+                                -- Select State Variable --
+                              </option>
+                              {stateKeys.map((k) => (
+                                <option key={k} value={k}>
+                                  {k}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                      {Object.keys(selectedNode.data.response_payload || {})
+                        .length === 0 && (
+                        <div className="text-xs text-slate-400 italic">
+                          No response fields defined yet.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ) : selectedEdge ? (

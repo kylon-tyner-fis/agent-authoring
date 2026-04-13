@@ -1,11 +1,10 @@
 import { Handle, Position, NodeProps, type Node } from "@xyflow/react";
-import { Bot, Hand, ChevronRight, Play, Wrench } from "lucide-react";
+import { Bot, Hand, ChevronRight, Wrench } from "lucide-react";
 
 export type WorkflowNodeData = {
   label: string;
   skillId?: string;
   description?: string;
-  isStart?: boolean;
 };
 
 export type WorkflowNodeType = Node<WorkflowNodeData, "skill" | "interrupt">;
@@ -51,26 +50,19 @@ export function WorkflowNode({
     <div
       className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${selected ? theme.ring : "border-slate-200"}`}
     >
-      {data.isStart === true && (
-        <div className="absolute -top-3 -right-3 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm border-2 border-white z-10">
-          <Play className="w-3 h-3 fill-white" /> Start
-        </div>
-      )}
-
-      {data.isStart === false && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          style={handleStyle}
-          className="group !p-0"
+      {/* Target Handle (Left) - Always visible for Skills/Interrupts now */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={handleStyle}
+        className="group !p-0"
+      >
+        <div
+          className={`w-7 h-7 rounded-full border-2 border-white shadow-md flex items-center justify-center transition-transform group-hover:scale-110 bg-white ${theme.text}`}
         >
-          <div
-            className={`w-7 h-7 rounded-full border-2 border-white shadow-md flex items-center justify-center transition-transform group-hover:scale-110 bg-white ${theme.text}`}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </div>
-        </Handle>
-      )}
+          <ChevronRight className="w-4 h-4" />
+        </div>
+      </Handle>
 
       <div
         className={`${theme.bg} border-b ${theme.border} p-3 flex items-center gap-3 rounded-t-xl`}
@@ -109,6 +101,7 @@ export function WorkflowNode({
         )}
       </div>
 
+      {/* Source Handle (Right) */}
       <Handle
         type="source"
         position={Position.Right}
