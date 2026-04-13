@@ -1,17 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Wrench, Plus, Edit2, Trash2, Code2 } from "lucide-react";
 import { MOCK_SKILLS } from "@/lib/constants";
 
 export default function SkillsDashboard() {
   const router = useRouter();
-  // Using MOCK_SKILLS for Phase 2 UI building. Replace with fetch() later.
-  const [skills, setSkills] = useState(MOCK_SKILLS);
 
-  const handleDelete = (id: string) => {
+  const [skills, setSkills] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSkills = async () => {
+      const res = await fetch("/api/skills");
+      const data = await res.json();
+      if (data.skills) setSkills(data.skills);
+      setIsLoading(false);
+    };
+    fetchSkills();
+  }, []);
+
+  // Update handleDelete to use actual API
+  const handleDelete = async (id: string) => {
     if (!confirm(`Delete skill ${id}?`)) return;
+    await fetch(`/api/skills/${id}`, { method: "DELETE" });
     setSkills(skills.filter((s) => s.id !== id));
   };
 

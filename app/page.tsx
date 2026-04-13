@@ -1,185 +1,168 @@
-// "use client";
-
-// import { useState } from "react";
-// import { ConfigPanel } from "@/components/ConfigPanel";
-// import { Playground } from "@/components/Playground";
-// import { AgentConfig, Message, DEFAULT_AGENT_CONFIG } from "@/lib/constants";
-
-// export default function AgentStudio() {
-//   const [config, setConfig] = useState<AgentConfig>(DEFAULT_AGENT_CONFIG);
-//   const [messages, setMessages] = useState<Message[]>([
-//     {
-//       role: "assistant",
-//       content:
-//         "Hello! Test your LangGraph configuration here. Click 'Save Config' when you are ready to publish it to your downstream apps.",
-//     },
-//   ]);
-
-//   // NEW: State to control the sliding drawer
-//   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
-
-//   return (
-//     <div className="relative flex h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
-//       {/* MAIN CONTENT (Now takes full screen width) */}
-//       <div className="flex-1 w-full h-full">
-//         <ConfigPanel
-//           config={config}
-//           setConfig={setConfig}
-//           onOpenPlayground={() => setIsPlaygroundOpen(true)} // Pass trigger prop
-//         />
-//       </div>
-
-//       {/* BACKDROP OVERLAY (Darkens the background when drawer is open) */}
-//       {isPlaygroundOpen && (
-//         <div
-//           className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm z-40 transition-opacity"
-//           onClick={() => setIsPlaygroundOpen(false)}
-//         />
-//       )}
-
-//       {/* SLIDING PLAYGROUND DRAWER */}
-//       <div
-//         className={`absolute top-0 right-0 h-full w-[600px] max-w-[100vw] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
-//           isPlaygroundOpen ? "translate-x-0" : "translate-x-full"
-//         }`}
-//       >
-//         <Playground
-//           config={config}
-//           messages={messages}
-//           setMessages={setMessages}
-//           onClose={() => setIsPlaygroundOpen(false)} // Pass close prop
-//         />
-//       </div>
-//     </div>
-//   );
-// }
-
 "use client";
 
-import { useEffect, useState } from "react";
+import React from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Plus, Trash2, Edit2, Cpu, Clock, Loader2 } from "lucide-react";
+import {
+  Bot,
+  Wrench,
+  Server,
+  ChevronRight,
+  LayoutDashboard,
+  PlusCircle,
+  Activity,
+  Shield,
+} from "lucide-react";
 
-export default function AgentsDashboard() {
+export default function GlobalDashboard() {
   const router = useRouter();
-  const [agents, setAgents] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchAgents = async () => {
-    setIsLoading(true);
-    const res = await fetch("/api/agents");
-    const data = await res.json();
-    if (data.agents) setAgents(data.agents);
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    fetchAgents();
-  }, []);
-
-  const handleDelete = async (id: string) => {
-    if (!confirm(`Are you sure you want to delete ${id}?`)) return;
-
-    await fetch(`/api/agents/${id}`, { method: "DELETE" });
-    setAgents(agents.filter((a) => a.agent_id !== id));
-  };
+  const sections = [
+    {
+      title: "Agents",
+      description: "Manage orchestration workflows and LLM configurations.",
+      icon: <Bot className="w-6 h-6 text-blue-600" />,
+      path: "/agents", // Note: You might want to move your current dashboard to /agents
+      count: "3 Active",
+      color: "blue",
+      action: () => router.push("/agents"), // Current dashboard is at root
+    },
+    {
+      title: "Skill Library",
+      description: "Reusable functions, prompt templates, and tool logic.",
+      icon: <Wrench className="w-6 h-6 text-indigo-600" />,
+      path: "/skills",
+      count: "12 Skills",
+      color: "indigo",
+      action: () => {
+        console.log("Navigating to skills");
+        router.push("/skills");
+      },
+    },
+    {
+      title: "MCP Servers",
+      description: "External connectors for databases, search, and APIs.",
+      icon: <Server className="w-6 h-6 text-teal-600" />,
+      path: "/mcp-servers",
+      count: "2 Online",
+      color: "teal",
+      action: () => router.push("/mcp-servers"),
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* HEADER */}
-        <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              LangGraph Agents
-            </h1>
-            <p className="text-slate-500 text-sm mt-1">
-              Manage your orchestration configurations.
-            </p>
-          </div>
-          <button
-            onClick={() => router.push("/agents/new")}
-            className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Plus className="w-5 h-5" />
-            Create Agent
-          </button>
-        </div>
-
-        {/* LIST */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          {isLoading ? (
-            <div className="flex justify-center items-center p-12 text-slate-400">
-              <Loader2 className="w-8 h-8 animate-spin" />
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* SIDEBAR */}
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Shield className="w-5 h-5 text-white" />
             </div>
-          ) : agents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-16 text-center space-y-4">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
-                <Bot className="w-8 h-8 text-slate-400" />
+            <span className="font-bold text-slate-900 tracking-tight">
+              LangGraph Studio
+            </span>
+          </div>
+        </div>
+        <nav className="flex-1 p-4 space-y-1">
+          <button className="w-full flex items-center gap-3 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-semibold text-sm">
+            <LayoutDashboard className="w-4 h-4" /> Overview
+          </button>
+          <button
+            onClick={() => router.push("/agents")}
+            className="w-full flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-lg text-sm transition-colors"
+          >
+            <Bot className="w-4 h-4" /> Agents
+          </button>
+          <button
+            onClick={() => router.push("/skills")}
+            className="w-full flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-lg text-sm transition-colors"
+          >
+            <Wrench className="w-4 h-4" /> Skills
+          </button>
+          <button
+            onClick={() => router.push("/mcp-servers")}
+            className="w-full flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-lg text-sm transition-colors"
+          >
+            <Server className="w-4 h-4" /> MCP Servers
+          </button>
+        </nav>
+      </aside>
+
+      {/* MAIN CONTENT */}
+      <main className="flex-1 p-10">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <header>
+            <h1 className="text-3xl font-bold text-slate-900">
+              Command Center
+            </h1>
+            <p className="text-slate-500 mt-2">
+              Visual authoring and management for AI agents.
+            </p>
+          </header>
+
+          {/* QUICK STATS */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                <Activity className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-slate-900 font-bold">No agents found</p>
-                <p className="text-slate-500 text-sm">
-                  Create your first agent to get started.
+                <p className="text-xs font-bold text-slate-400 uppercase">
+                  System Status
+                </p>
+                <p className="text-sm font-bold text-slate-900">
+                  All Systems Operational
                 </p>
               </div>
             </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {agents.map((agent) => (
-                <div
-                  key={agent.agent_id}
-                  className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors group"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center border border-blue-100 shrink-0">
-                      <Bot className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                        {agent.agent_id}
-                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono border border-slate-200">
-                          v{agent.version}
-                        </span>
-                      </h3>
-                      <p className="text-sm text-slate-500 mt-1 line-clamp-1">
-                        {agent.description}
-                      </p>
+          </div>
 
-                      <div className="flex items-center gap-4 mt-3 text-xs text-slate-400 font-medium">
-                        <span className="flex items-center gap-1.5">
-                          <Cpu className="w-3.5 h-3.5" /> {agent.model_name}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5" />{" "}
-                          {new Date(agent.updated_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
+          {/* NAVIGATION CARDS */}
+          <div className="grid grid-cols-1 gap-4">
+            {sections.map((s) => (
+              <button
+                key={s.title}
+                onClick={s.action}
+                className="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md transition-all flex items-center justify-between text-left"
+              >
+                <div className="flex items-center gap-6">
+                  <div
+                    className={`w-14 h-14 rounded-2xl bg-${s.color}-50 flex items-center justify-center transition-transform group-hover:scale-110`}
+                  >
+                    {s.icon}
                   </div>
-
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => router.push(`/agents/${agent.agent_id}`)}
-                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Edit Agent"
-                    >
-                      <Edit2 className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(agent.agent_id)}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete Agent"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-slate-900">
+                        {s.title}
+                      </h3>
+                      <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                        {s.count}
+                      </span>
+                    </div>
+                    <p className="text-slate-500 text-sm mt-1">
+                      {s.description}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                  <ChevronRight className="w-5 h-5" />
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* QUICK ACTION */}
+          <div className="pt-4">
+            <button
+              onClick={() => router.push("/agents/new")}
+              className="flex items-center gap-2 text-blue-600 font-bold hover:underline transition-all"
+            >
+              <PlusCircle className="w-5 h-5" /> Create new agent workflow
+            </button>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -26,7 +26,7 @@ import { WorkflowNode } from "./nodes/WorkflowNode";
 import { TriggerNode } from "./nodes/TriggerNode";
 import { ResponseNode } from "./nodes/ResponseNode";
 import { ShiftEdge } from "./edges/ShiftEdge";
-import { MOCK_SKILLS } from "@/lib/constants";
+import { MOCK_SKILLS, SkillConfig } from "@/lib/constants";
 import { SchemaEditor, SchemaNode } from "./SchemaEditor";
 import { useToast } from "./Toast";
 import {
@@ -60,6 +60,7 @@ export interface OrchestrationCanvasRef {
 export interface OrchestrationCanvasProps {
   initialData?: any;
   globalStateSchema?: Record<string, string>;
+  availableSkills?: SkillConfig[];
 }
 
 const getId = (type: string) => `${type}_${crypto.randomUUID()}`;
@@ -121,6 +122,7 @@ const CanvasEditor = forwardRef<
 >((props, ref) => {
   const startingNodes = props.initialData?.nodes || [];
   const startingEdges = props.initialData?.edges || [];
+  const skillsList = props.availableSkills || [];
 
   const [nodes, setNodes, onNodesChange] = useNodesState(startingNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(startingEdges);
@@ -292,7 +294,7 @@ const CanvasEditor = forwardRef<
       let newNodeData: any = { label: `new_${type}` };
 
       if (type === "skill" && skillId) {
-        const skill = MOCK_SKILLS.find((s) => s.id === skillId);
+        const skill = skillsList.find((s) => s.id === skillId);
         if (skill) {
           newNodeData = {
             label: skill.name,
@@ -325,7 +327,7 @@ const CanvasEditor = forwardRef<
 
       setNodes((nds) => nds.concat(newNode));
     },
-    [screenToFlowPosition, setNodes, addToast, nodes],
+    [screenToFlowPosition, setNodes, addToast, nodes, skillsList],
   ); // <-- Added 'nodes' to dependencies
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
@@ -383,7 +385,7 @@ const CanvasEditor = forwardRef<
     : [];
   const activeSkill =
     selectedNode?.type === "skill"
-      ? MOCK_SKILLS.find((s) => s.id === selectedNode.data.skillId)
+      ? skillsList.find((s) => s.id === selectedNode.data.skillId)
       : null;
 
   return (
@@ -405,7 +407,7 @@ const CanvasEditor = forwardRef<
           </div>
 
           <div className="space-y-1.5">
-            {MOCK_SKILLS.map((skill) => (
+            {skillsList.map((skill) => (
               <div
                 key={skill.id}
                 className="p-2 border border-blue-200 bg-white text-blue-700 rounded cursor-grab flex flex-col gap-1 hover:bg-blue-50 transition-colors shadow-sm"

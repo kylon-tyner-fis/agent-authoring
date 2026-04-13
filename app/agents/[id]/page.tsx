@@ -1,37 +1,48 @@
 "use client";
 
-import { useEffect, useState, use } from "react"; // 1. Import 'use'
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { ConfigPanel } from "@/components/ConfigPanel";
-import { AgentConfig, DEFAULT_AGENT_CONFIG } from "@/lib/constants";
+import {
+  AgentConfig,
+  SkillConfig,
+  DEFAULT_AGENT_CONFIG,
+} from "@/lib/constants";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-// 2. Change the type definition to expect a Promise
 export default function AgentEditorPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-
-  // 3. Unwrap the params promise using React.use()
   const resolvedParams = use(params);
   const id = resolvedParams.id;
   const isNew = id === "new";
 
   const [config, setConfig] = useState<AgentConfig | null>(null);
+  const [availableSkills, setAvailableSkills] = useState<SkillConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      if (isNew) {
-        setConfig({ ...DEFAULT_AGENT_CONFIG, agent_id: "" });
-        setIsLoading(false);
-        return;
-      }
-
+    const fetchData = async () => {
       try {
-        const res = await fetch(`/api/agents/${id}`); // Use the unwrapped id
+        // 1. Fetch available skills from the database
+        const skillsRes = await fetch("/api/skills");
+        const skillsData = await skillsRes.json();
+        if (skillsData.skills) {
+          setAvailableSkills(skillsData.skills);
+        }
+
+        // 2. Handle New Agent vs Existing Agent
+        if (isNew) {
+          setConfig({ ...DEFAULT_AGENT_CONFIG, agent_id: "" });
+          setIsLoading(false);
+          return;
+        }
+
+        // 3. Fetch existing agent config
+        const res = await fetch(`/api/agents/${id}`);
         const data = await res.json();
 
         if (data.agent) {
@@ -47,14 +58,14 @@ export default function AgentEditorPage({
           });
         }
       } catch (err) {
-        console.error("Failed to load agent");
+        console.error("Failed to load agent or skills data");
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchConfig();
-  }, [id, isNew]); // Use 'id' in the dependency array
+    fetchData();
+  }, [id, isNew]);
 
   if (isLoading || !config) {
     return (
@@ -79,6 +90,7 @@ export default function AgentEditorPage({
         <ConfigPanel
           config={config}
           setConfig={setConfig}
+          availableSkills={availableSkills}
           onOpenPlayground={() => alert("Playground opening...")}
         />
       </div>

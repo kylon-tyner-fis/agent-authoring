@@ -1,13 +1,15 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Wrench, Database } from "lucide-react";
-import { SkillConfig, MOCK_SKILLS, MOCK_MCP_SERVERS } from "@/lib/constants";
+import { ArrowLeft, Save, Wrench, Database, Loader2 } from "lucide-react";
+import { SkillConfig, MOCK_MCP_SERVERS } from "@/lib/constants";
 import { SchemaEditor, SchemaNode } from "@/components/SchemaEditor";
+import { v4 as uuidv4 } from "uuid";
 
-// Utility to parse/stringify schemas
+// Utility to parse schemas
 const parseSchema = (schema: Record<string, any>): SchemaNode[] => {
+  if (!schema) return [];
   return Object.entries(schema).map(([key, val]) => {
     if (Array.isArray(val) && typeof val[0] === "object") {
       return {
@@ -38,6 +40,7 @@ const parseSchema = (schema: Record<string, any>): SchemaNode[] => {
   });
 };
 
+// Utility to compile schemas
 const compileSchema = (nodes: SchemaNode[]): any => {
   const result: any = {};
   nodes.forEach((n) => {
@@ -64,40 +67,51 @@ export default function SkillEditorPage({
 }) {
   const router = useRouter();
   const { id } = use(params);
+  const isNew = id === "new";
 
-  // FIX: Initialize state directly using a lazy initializer function.
-  // This prevents the synchronous setState inside useEffect and avoids a double render.
-  const [skill, setSkill] = useState<SkillConfig>(() => {
-    if (id !== "new") {
-      const existing = MOCK_SKILLS.find((s) => s.id === id);
-      if (existing) return existing;
-    }
-    return {
-      id: id === "new" ? "" : id, // Leave empty initially if new
-      name: "",
-      description: "",
-      prompt_template: "",
-      input_schema: {},
-      output_schema: {},
-      mcp_dependencies: [],
+  const [skill, setSkill] = useState<SkillConfig>({
+    id: "",
+    name: "",
+    description: "",
+    prompt_template: "",
+    input_schema: {},
+    output_schema: {},
+    mcp_dependencies: [],
+  });
+
+  const [inputNodes, setInputNodes] = useState<SchemaNode[]>([]);
+  const [outputNodes, setOutputNodes] = useState<SchemaNode[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch the skill data on mount
+  useEffect(() => {
+    const fetchSkill = async () => {
+      if (isNew) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/skills/${id}`);
+        const data = await res.json();
+
+        if (data.skill) {
+          setSkill(data.skill);
+          setInputNodes(parseSchema(data.skill.input_schema || {}));
+          setOutputNodes(parseSchema(data.skill.output_schema || {}));
+        }
+      } catch (error) {
+        console.error("Failed to load skill:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
-  });
 
-  const [inputNodes, setInputNodes] = useState<SchemaNode[]>(() => {
-    const existing = id !== "new" ? MOCK_SKILLS.find((s) => s.id === id) : null;
-    return existing ? parseSchema(existing.input_schema) : [];
-  });
-
-  const [outputNodes, setOutputNodes] = useState<SchemaNode[]>(() => {
-    const existing = id !== "new" ? MOCK_SKILLS.find((s) => s.id === id) : null;
-    return existing ? parseSchema(existing.output_schema) : [];
-  });
-
-  // NO useEffect needed anymore!
+    fetchSkill();
+  }, [id, isNew]);
 
   const handleSave = async () => {
-    // Generate the ID on save if it doesn't have one
-    const finalId = skill.id || `skill_${Date.now()}`;
+    const finalId = skill.id || uuidv4(); // Generate valid UUID if new
 
     const finalSkill = {
       ...skill,
@@ -106,19 +120,37 @@ export default function SkillEditorPage({
       output_schema: compileSchema(outputNodes),
     };
 
-    console.log("Saving Skill:", finalSkill);
-    // TODO: POST to /api/skills
-    router.push("/skills");
+    try {
+      const res = await fetch("/api/skills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finalSkill),
+      });
+
+      if (res.ok) {
+        router.push("/skills");
+      }
+    } catch (error) {
+      console.error("Error saving skill:", error);
+    }
   };
 
   const toggleMCP = (serverId: string) => {
     setSkill((prev) => ({
       ...prev,
-      mcp_dependencies: prev.mcp_dependencies.includes(serverId)
+      mcp_dependencies: (prev.mcp_dependencies || []).includes(serverId)
         ? prev.mcp_dependencies.filter((id) => id !== serverId)
-        : [...prev.mcp_dependencies, serverId],
+        : [...(prev.mcp_dependencies || []), serverId],
     }));
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -252,7 +284,7 @@ export default function SkillEditorPage({
                 <div
                   key={server.id}
                   onClick={() => toggleMCP(server.id)}
-                  className={`p-4 border rounded-xl cursor-pointer transition-all ${skill.mcp_dependencies.includes(server.id) ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500" : "border-slate-200 hover:border-slate-300"}`}
+                  className={`p-4 border rounded-xl cursor-pointer transition-all ${(skill.mcp_dependencies || []).includes(server.id) ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500" : "border-slate-200 hover:border-slate-300"}`}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <span className="font-bold text-sm text-slate-800">
@@ -260,7 +292,9 @@ export default function SkillEditorPage({
                     </span>
                     <input
                       type="checkbox"
-                      checked={skill.mcp_dependencies.includes(server.id)}
+                      checked={(skill.mcp_dependencies || []).includes(
+                        server.id,
+                      )}
                       readOnly
                       className="mt-1"
                     />

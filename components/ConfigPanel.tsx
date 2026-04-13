@@ -30,10 +30,12 @@ import {
 } from "./OrchestrationCanvas";
 import { SchemaEditor, SchemaNode } from "./SchemaEditor";
 import { useToast } from "./Toast"; // <-- Import useToast
+import { SkillConfig } from "@/lib/constants";
 
 interface ConfigPanelProps {
   config: AgentConfig;
   setConfig: React.Dispatch<React.SetStateAction<AgentConfig>>;
+  availableSkills: SkillConfig[];
   onOpenPlayground: () => void;
 }
 
@@ -42,6 +44,7 @@ type Tab = "identity" | "engine" | "schema" | "integrations" | "orchestration";
 export const ConfigPanel = ({
   config,
   setConfig,
+  availableSkills,
   onOpenPlayground,
 }: ConfigPanelProps) => {
   const [activeTab, setActiveTab] = useState<Tab>("identity");
@@ -569,6 +572,7 @@ export const ConfigPanel = ({
               ref={canvasRef}
               initialData={config.orchestration}
               globalStateSchema={config.state_schema}
+              availableSkills={availableSkills} // <-- Pass the skills down here
             />
           </div>
         )}
