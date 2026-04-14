@@ -63,6 +63,20 @@ export interface OrchestrationCanvasProps {
   availableSkills?: SkillConfig[];
 }
 
+const flattenSchemaKeys = (schema: any, prefix = ""): string[] => {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return [];
+  let keys: string[] = [];
+  for (const [key, value] of Object.entries(schema)) {
+    const currentPath = prefix ? `${prefix}.${key}` : key;
+    keys.push(currentPath);
+    // Recurse if the value is a nested object (and not an array)
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      keys = keys.concat(flattenSchemaKeys(value, currentPath));
+    }
+  }
+  return keys;
+};
+
 const getId = (type: string) => `${type}_${crypto.randomUUID()}`;
 
 const parseSchema = (schema: any): SchemaNode[] => {
@@ -380,9 +394,7 @@ const CanvasEditor = forwardRef<
     );
   };
 
-  const stateKeys = props.globalStateSchema
-    ? Object.keys(props.globalStateSchema)
-    : [];
+  const stateKeys = flattenSchemaKeys(props.globalStateSchema);
   const activeSkill =
     selectedNode?.type === "skill"
       ? skillsList.find((s) => s.id === selectedNode.data.skillId)

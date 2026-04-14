@@ -1,8 +1,11 @@
 import { Handle, Position, NodeProps, type Node } from "@xyflow/react";
 import { Flag, ChevronRight } from "lucide-react";
+import { NodeMapping } from "./NodeMapping";
 
 export type ResponseNodeData = {
   label: string;
+  response_payload?: any;
+  extraction_mapping?: Record<string, string>;
 };
 
 export type ResponseNodeType = Node<ResponseNodeData, "response">;
@@ -28,11 +31,14 @@ export function ResponseNode({ data, selected }: NodeProps<ResponseNodeType>) {
     justifyContent: "center",
   };
 
+  const hasMapping =
+    data.extraction_mapping &&
+    Object.values(data.extraction_mapping).some(Boolean);
+
   return (
     <div
       className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${selected ? theme.ring : "border-slate-200"}`}
     >
-      {/* Target Handle ONLY (Left) */}
       <Handle
         type="target"
         position={Position.Left}
@@ -65,10 +71,28 @@ export function ResponseNode({ data, selected }: NodeProps<ResponseNodeType>) {
           </p>
         </div>
       </div>
-      <div className="p-3 bg-white rounded-b-xl min-h-[60px]">
+      <div className="p-3 bg-white rounded-b-xl min-h-[60px] flex flex-col justify-center">
         <p className="text-xs text-slate-500 italic">
           Defines the final data returned to the caller.
         </p>
+
+        {/* Extraction Mapping Visualizer */}
+        {hasMapping && (
+          <div className="space-y-1.5 border-t border-slate-100 pt-2 mt-2">
+            {Object.entries(data.extraction_mapping || {}).map(
+              ([k, v]) =>
+                v && (
+                  <NodeMapping
+                    key={`ext-${k}`}
+                    globalKey={v}
+                    localKey={k}
+                    flowDirection="global-to-local"
+                    localType="output"
+                  />
+                ),
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,11 @@
 import { Handle, Position, NodeProps, type Node } from "@xyflow/react";
 import { Zap, ChevronRight } from "lucide-react";
+import { NodeMapping } from "./NodeMapping";
 
 export type TriggerNodeData = {
   label: string;
+  expected_payload?: any;
+  initialization_mapping?: Record<string, string>;
 };
 
 export type TriggerNodeType = Node<TriggerNodeData, "trigger">;
@@ -28,6 +31,10 @@ export function TriggerNode({ data, selected }: NodeProps<TriggerNodeType>) {
     justifyContent: "center",
   };
 
+  const hasMapping =
+    data.initialization_mapping &&
+    Object.values(data.initialization_mapping).some(Boolean);
+
   return (
     <div
       className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${selected ? theme.ring : "border-slate-200"}`}
@@ -51,12 +58,29 @@ export function TriggerNode({ data, selected }: NodeProps<TriggerNodeType>) {
           </p>
         </div>
       </div>
-      <div className="p-3 bg-white rounded-b-xl min-h-[60px]">
+      <div className="p-3 bg-white rounded-b-xl min-h-[60px] flex flex-col justify-center">
         <p className="text-xs text-slate-500 italic">
           Defines the input payload required to start this agent.
         </p>
+
+        {/* Initialization Mapping Visualizer */}
+        {hasMapping && (
+          <div className="space-y-1.5 border-t border-slate-100 pt-2 mt-2">
+            {Object.entries(data.initialization_mapping || {}).map(
+              ([k, v]) =>
+                v && (
+                  <NodeMapping
+                    key={`init-${k}`}
+                    globalKey={v}
+                    localKey={k}
+                    flowDirection="local-to-global"
+                    localType="input"
+                  />
+                ),
+            )}
+          </div>
+        )}
       </div>
-      {/* Source Handle ONLY (Right) */}
       <Handle
         type="source"
         position={Position.Right}

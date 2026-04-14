@@ -1,10 +1,13 @@
 import { Handle, Position, NodeProps, type Node } from "@xyflow/react";
 import { Bot, Hand, ChevronRight, Wrench } from "lucide-react";
+import { NodeMapping } from "./NodeMapping";
 
 export type WorkflowNodeData = {
   label: string;
   skillId?: string;
   description?: string;
+  input_mapping?: Record<string, string>;
+  output_mapping?: Record<string, string>;
 };
 
 export type WorkflowNodeType = Node<WorkflowNodeData, "skill" | "interrupt">;
@@ -46,11 +49,15 @@ export function WorkflowNode({
     justifyContent: "center",
   };
 
+  const hasInputs =
+    data.input_mapping && Object.values(data.input_mapping).some(Boolean);
+  const hasOutputs =
+    data.output_mapping && Object.values(data.output_mapping).some(Boolean);
+
   return (
     <div
       className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${selected ? theme.ring : "border-slate-200"}`}
     >
-      {/* Target Handle (Left) - Always visible for Skills/Interrupts now */}
       <Handle
         type="target"
         position={Position.Left}
@@ -84,16 +91,43 @@ export function WorkflowNode({
         </div>
       </div>
 
-      <div className="p-3 bg-white rounded-b-xl min-h-[60px]">
+      <div className="p-3 bg-white rounded-b-xl min-h-[60px] flex flex-col gap-3">
         {type === "skill" ? (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500 line-clamp-2">
-              {data.description || "No description provided."}
-            </p>
-            <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-1 rounded border border-slate-100">
+          <>
+            <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-1 rounded border border-slate-100 self-start">
               <Wrench className="w-3 h-3" /> {data.skillId}
             </div>
-          </div>
+
+            {/* Mapping Visualizer */}
+            {(hasInputs || hasOutputs) && (
+              <div className="space-y-1.5 border-t border-slate-100 pt-2 mt-1">
+                {Object.entries(data.input_mapping || {}).map(
+                  ([k, v]) =>
+                    v && (
+                      <NodeMapping
+                        key={`in-${k}`}
+                        globalKey={v}
+                        localKey={k}
+                        flowDirection="global-to-local"
+                        localType="input"
+                      />
+                    ),
+                )}
+                {Object.entries(data.output_mapping || {}).map(
+                  ([k, v]) =>
+                    v && (
+                      <NodeMapping
+                        key={`out-${k}`}
+                        globalKey={v}
+                        localKey={k}
+                        flowDirection="local-to-global"
+                        localType="output"
+                      />
+                    ),
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <p className="text-xs text-slate-500 italic">
             Human approval required.
@@ -101,7 +135,6 @@ export function WorkflowNode({
         )}
       </div>
 
-      {/* Source Handle (Right) */}
       <Handle
         type="source"
         position={Position.Right}
