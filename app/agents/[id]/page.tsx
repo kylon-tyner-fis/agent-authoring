@@ -3,11 +3,13 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { ConfigPanel } from "@/components/ConfigPanel";
+import { Playground } from "@/components/Playground"; // <-- Import Playground
 import {
   AgentConfig,
   SkillConfig,
   MCPServerConfig,
   DEFAULT_AGENT_CONFIG,
+  Message, // <-- Import Message type
 } from "@/lib/constants";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -28,10 +30,13 @@ export default function AgentEditorPage({
   );
   const [isLoading, setIsLoading] = useState(true);
 
+  // NEW: Playground State
+  const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch both skills and MCP servers in parallel
         const [skillsRes, serversRes] = await Promise.all([
           fetch("/api/skills"),
           fetch("/api/mcp-servers"),
@@ -86,21 +91,41 @@ export default function AgentEditorPage({
     <div className="h-screen flex flex-col bg-slate-50">
       <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center shrink-0">
         <button
-          onClick={() => router.push("/")}
+          onClick={() => router.push("/agents")} // Fixed route back to /agents
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        <ConfigPanel
-          config={config}
-          setConfig={setConfig}
-          availableSkills={availableSkills}
-          availableServers={availableServers}
-          onOpenPlayground={() => alert("Playground opening...")}
-        />
+      {/* Main Layout Area */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Config Panel Container - Shrinks when playground opens */}
+        <div
+          className={`h-full transition-all duration-300 ease-in-out ${
+            isPlaygroundOpen ? "w-[60%]" : "w-full"
+          }`}
+        >
+          <ConfigPanel
+            config={config}
+            setConfig={setConfig}
+            availableSkills={availableSkills}
+            availableServers={availableServers}
+            onOpenPlayground={() => setIsPlaygroundOpen(true)}
+          />
+        </div>
+
+        {/* Playground Drawer - Slides in from right */}
+        {isPlaygroundOpen && (
+          <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300">
+            <Playground
+              config={config}
+              messages={messages}
+              setMessages={setMessages}
+              onClose={() => setIsPlaygroundOpen(false)}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
