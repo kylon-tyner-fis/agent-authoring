@@ -8,6 +8,8 @@ export type WorkflowNodeData = {
   description?: string;
   input_mapping?: Record<string, string>;
   output_mapping?: Record<string, string>;
+  custom_instructions?: string;
+  active?: boolean;
 };
 
 export type WorkflowNodeType = Node<WorkflowNodeData, "skill" | "interrupt">;
@@ -54,9 +56,13 @@ export function WorkflowNode({
   const hasOutputs =
     data.output_mapping && Object.values(data.output_mapping).some(Boolean);
 
+  const activeRing = data.active
+    ? "ring-4 ring-indigo-400 border-indigo-500 scale-105 z-10 relative"
+    : "border-slate-200";
+
   return (
     <div
-      className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${selected ? theme.ring : "border-slate-200"}`}
+      className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${selected ? theme.ring : activeRing}`}
     >
       <Handle
         type="target"

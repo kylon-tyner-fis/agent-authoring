@@ -6,6 +6,7 @@ export type TriggerNodeData = {
   label: string;
   expected_payload?: any;
   initialization_mapping?: Record<string, string>;
+  active?: boolean; // NEW: For real-time execution highlighting
 };
 
 export type TriggerNodeType = Node<TriggerNodeData, "trigger">;
@@ -35,9 +36,14 @@ export function TriggerNode({ data, selected }: NodeProps<TriggerNodeType>) {
     data.initialization_mapping &&
     Object.values(data.initialization_mapping).some(Boolean);
 
+  // NEW: Dynamic active styling
+  const activeRing = data.active
+    ? "ring-4 ring-indigo-400 border-indigo-500 scale-105 z-10 relative"
+    : "border-slate-200";
+
   return (
     <div
-      className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${selected ? theme.ring : "border-slate-200"}`}
+      className={`bg-white rounded-xl shadow-sm border-2 transition-all duration-300 w-[240px] ${selected ? theme.ring : activeRing}`}
     >
       <div
         className={`${theme.bg} border-b ${theme.border} p-3 flex items-center gap-3 rounded-t-xl`}

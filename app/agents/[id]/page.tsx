@@ -30,9 +30,9 @@ export default function AgentEditorPage({
   );
   const [isLoading, setIsLoading] = useState(true);
 
-  // NEW: Playground State
   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null); // NEW STATE
 
   useEffect(() => {
     const fetchData = async () => {
@@ -111,6 +111,7 @@ export default function AgentEditorPage({
             setConfig={setConfig}
             availableSkills={availableSkills}
             availableServers={availableServers}
+            activeNodeId={activeNodeId} // PASS TO PANEL
             onOpenPlayground={() => setIsPlaygroundOpen(true)}
           />
         </div>
@@ -123,6 +124,7 @@ export default function AgentEditorPage({
               messages={messages}
               setMessages={setMessages}
               onClose={() => setIsPlaygroundOpen(false)}
+              onActiveNodeChange={setActiveNodeId}
             />
           </div>
         )}

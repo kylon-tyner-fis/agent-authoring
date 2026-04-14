@@ -38,6 +38,7 @@ interface ConfigPanelProps {
   setConfig: React.Dispatch<React.SetStateAction<AgentConfig>>;
   availableSkills: SkillConfig[];
   availableServers: MCPServerConfig[];
+  activeNodeId?: string | null; // NEW PROP
   onOpenPlayground: () => void;
 }
 
@@ -46,6 +47,7 @@ type Tab = "identity" | "engine" | "schema" | "integrations" | "orchestration";
 export const ConfigPanel = ({
   config,
   setConfig,
+  activeNodeId,
   availableSkills,
   availableServers,
   onOpenPlayground,
@@ -581,7 +583,8 @@ export const ConfigPanel = ({
               ref={canvasRef}
               initialData={config.orchestration}
               globalStateSchema={config.state_schema}
-              availableSkills={availableSkills} // <-- Pass the skills down here
+              availableSkills={availableSkills}
+              activeNodeId={activeNodeId} // PASS TO CANVAS
             />
           </div>
         )}

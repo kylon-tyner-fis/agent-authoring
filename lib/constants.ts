@@ -45,6 +45,7 @@ export interface GraphNode {
   skill_id?: string;
   input_mapping?: Record<string, string>; // e.g., { "query": "ticket_description" }
   output_mapping?: Record<string, string>; // e.g., { "summary": "research_notes" }
+  custom_instructions?: string;
   interrupt_before?: string[];
   subgraph_id?: string;
   max_iterations?: number;

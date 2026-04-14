@@ -61,6 +61,7 @@ export interface OrchestrationCanvasProps {
   initialData?: any;
   globalStateSchema?: Record<string, string>;
   availableSkills?: SkillConfig[];
+  activeNodeId?: string | null;
 }
 
 const flattenSchemaKeys = (schema: any, prefix = ""): string[] => {
@@ -160,6 +161,17 @@ const CanvasEditor = forwardRef<
   useImperativeHandle(ref, () => ({
     getCanvasData: () => toObject(),
   }));
+
+  useEffect(() => {
+    if (props.activeNodeId !== undefined) {
+      setNodes((nds) =>
+        nds.map((n) => ({
+          ...n,
+          data: { ...n.data, active: n.id === props.activeNodeId },
+        })),
+      );
+    }
+  }, [props.activeNodeId, setNodes]);
 
   useEffect(() => {
     if (props.initialData?.viewport) {
@@ -567,6 +579,31 @@ const CanvasEditor = forwardRef<
                 {selectedNode.type === "skill" && activeSkill && (
                   <>
                     <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Node-Specific Instructions
+                      </label>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-1">
+                        Add extra context or rules that only apply to this
+                        specific step in the workflow.
+                      </p>
+                      <textarea
+                        rows={3}
+                        placeholder="e.g. Only return bullet points for this step..."
+                        value={
+                          (selectedNode.data.custom_instructions as string) ||
+                          ""
+                        }
+                        onChange={(e) =>
+                          handleNodeChange(
+                            "custom_instructions",
+                            e.target.value,
+                          )
+                        }
+                        className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 text-slate-900 resize-none bg-slate-50"
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
                       <div className="flex items-center gap-2 text-indigo-600 mb-2">
                         <ArrowRightLeft className="w-4 h-4" />
                         <h3 className="text-xs font-bold uppercase tracking-wider">
@@ -693,6 +730,30 @@ const CanvasEditor = forwardRef<
                 {selectedNode.type === "trigger" && (
                   <>
                     <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Node-Specific Instructions
+                      </label>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-1">
+                        Add extra context or rules for extracting the user's
+                        input.
+                      </p>
+                      <textarea
+                        rows={3}
+                        placeholder="e.g. If the user doesn't specify a language, default to Spanish..."
+                        value={
+                          (selectedNode.data.custom_instructions as string) ||
+                          ""
+                        }
+                        onChange={(e) =>
+                          handleNodeChange(
+                            "custom_instructions",
+                            e.target.value,
+                          )
+                        }
+                        className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-emerald-500 text-slate-900 resize-none bg-slate-50"
+                      />
+                    </div>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
                       <div className="flex items-center gap-2 text-emerald-600 mb-2">
                         <Zap className="w-4 h-4" />
                         <h3 className="text-xs font-bold uppercase tracking-wider">
@@ -778,6 +839,31 @@ const CanvasEditor = forwardRef<
                 {/* RESPONSE INSPECTOR */}
                 {selectedNode.type === "response" && (
                   <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Node-Specific Instructions
+                      </label>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-1">
+                        Add extra context or rules for formatting the final
+                        output.
+                      </p>
+                      <textarea
+                        rows={3}
+                        placeholder="e.g. Summarize the output in 3 concise bullet points..."
+                        value={
+                          (selectedNode.data.custom_instructions as string) ||
+                          ""
+                        }
+                        onChange={(e) =>
+                          handleNodeChange(
+                            "custom_instructions",
+                            e.target.value,
+                          )
+                        }
+                        className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-purple-500 text-slate-900 resize-none bg-slate-50"
+                      />
+                    </div>
+
                     <div className="pt-4 border-t border-slate-100 space-y-3">
                       <div className="flex items-center gap-2 text-purple-600 mb-2">
                         <Flag className="w-4 h-4" />
