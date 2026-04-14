@@ -23,6 +23,7 @@ import {
   MOCK_PROVIDERS,
   MOCK_MODELS,
   MOCK_MCP_SERVERS,
+  MCPServerConfig,
 } from "@/lib/constants";
 import {
   OrchestrationCanvas,
@@ -36,6 +37,7 @@ interface ConfigPanelProps {
   config: AgentConfig;
   setConfig: React.Dispatch<React.SetStateAction<AgentConfig>>;
   availableSkills: SkillConfig[];
+  availableServers: MCPServerConfig[];
   onOpenPlayground: () => void;
 }
 
@@ -45,6 +47,7 @@ export const ConfigPanel = ({
   config,
   setConfig,
   availableSkills,
+  availableServers,
   onOpenPlayground,
 }: ConfigPanelProps) => {
   const [activeTab, setActiveTab] = useState<Tab>("identity");
@@ -511,46 +514,52 @@ export const ConfigPanel = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {MOCK_MCP_SERVERS.map((server) => {
-                const isSelected =
-                  config.mcp_servers?.includes(server.id) || false;
-                return (
-                  <div
-                    key={server.id}
-                    onClick={() => {
-                      const newServers = isSelected
-                        ? config.mcp_servers.filter((id) => id !== server.id)
-                        : [...(config.mcp_servers || []), server.id];
-                      setConfig({ ...config, mcp_servers: newServers });
-                    }}
-                    className={`p-5 border rounded-xl cursor-pointer transition-all flex flex-col gap-3 ${
-                      isSelected
-                        ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-slate-300 shadow-sm"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <span className="font-bold text-slate-900">
-                        {server.name}
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        readOnly
-                        className="mt-1 accent-teal-600 w-4 h-4 cursor-pointer"
-                      />
+              {availableServers.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">
+                  No MCP servers available. Add some in the dashboard.
+                </p>
+              ) : (
+                availableServers.map((server) => {
+                  const isSelected =
+                    config.mcp_servers?.includes(server.id) || false;
+                  return (
+                    <div
+                      key={server.id}
+                      onClick={() => {
+                        const newServers = isSelected
+                          ? config.mcp_servers.filter((id) => id !== server.id)
+                          : [...(config.mcp_servers || []), server.id];
+                        setConfig({ ...config, mcp_servers: newServers });
+                      }}
+                      className={`p-5 border rounded-xl cursor-pointer transition-all flex flex-col gap-3 ${
+                        isSelected
+                          ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500 shadow-sm"
+                          : "border-slate-200 bg-white hover:border-slate-300 shadow-sm"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <span className="font-bold text-slate-900">
+                          {server.name}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          className="mt-1 accent-teal-600 w-4 h-4 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5 mt-auto pt-2 border-t border-slate-100/50">
+                        <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
+                          <Link2 className="w-3 h-3" /> {server.url}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
+                          <Key className="w-3 h-3" /> Auth: {server.auth_type}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-1.5 mt-auto pt-2 border-t border-slate-100/50">
-                      <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
-                        <Link2 className="w-3 h-3" /> {server.url}
-                      </span>
-                      <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
-                        <Key className="w-3 h-3" /> Auth: {server.auth_type}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         )}

@@ -6,6 +6,7 @@ import { ConfigPanel } from "@/components/ConfigPanel";
 import {
   AgentConfig,
   SkillConfig,
+  MCPServerConfig,
   DEFAULT_AGENT_CONFIG,
 } from "@/lib/constants";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -22,26 +23,32 @@ export default function AgentEditorPage({
 
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [availableSkills, setAvailableSkills] = useState<SkillConfig[]>([]);
+  const [availableServers, setAvailableServers] = useState<MCPServerConfig[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Fetch available skills from the database
-        const skillsRes = await fetch("/api/skills");
-        const skillsData = await skillsRes.json();
-        if (skillsData.skills) {
-          setAvailableSkills(skillsData.skills);
-        }
+        // Fetch both skills and MCP servers in parallel
+        const [skillsRes, serversRes] = await Promise.all([
+          fetch("/api/skills"),
+          fetch("/api/mcp-servers"),
+        ]);
 
-        // 2. Handle New Agent vs Existing Agent
+        const skillsData = await skillsRes.json();
+        const serversData = await serversRes.json();
+
+        if (skillsData.skills) setAvailableSkills(skillsData.skills);
+        if (serversData.servers) setAvailableServers(serversData.servers);
+
         if (isNew) {
           setConfig({ ...DEFAULT_AGENT_CONFIG, agent_id: "" });
           setIsLoading(false);
           return;
         }
 
-        // 3. Fetch existing agent config
         const res = await fetch(`/api/agents/${id}`);
         const data = await res.json();
 
@@ -58,7 +65,7 @@ export default function AgentEditorPage({
           });
         }
       } catch (err) {
-        console.error("Failed to load agent or skills data");
+        console.error("Failed to load agent, skills, or server data");
       } finally {
         setIsLoading(false);
       }
@@ -91,6 +98,7 @@ export default function AgentEditorPage({
           config={config}
           setConfig={setConfig}
           availableSkills={availableSkills}
+          availableServers={availableServers}
           onOpenPlayground={() => alert("Playground opening...")}
         />
       </div>

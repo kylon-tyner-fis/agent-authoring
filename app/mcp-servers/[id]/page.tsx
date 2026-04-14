@@ -1,9 +1,18 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Server, Link2, Key, Activity } from "lucide-react";
-import { MCPServerConfig, MOCK_MCP_SERVERS } from "@/lib/constants";
+import {
+  ArrowLeft,
+  Save,
+  Server,
+  Link2,
+  Key,
+  Activity,
+  Loader2,
+} from "lucide-react";
+import { MCPServerConfig } from "@/lib/constants";
+import { v4 as uuidv4 } from "uuid";
 
 export default function MCPServerEditorPage({
   params,
@@ -12,39 +21,69 @@ export default function MCPServerEditorPage({
 }) {
   const router = useRouter();
   const { id } = use(params);
+  const isNew = id === "new";
 
-  // Initialize state using a lazy initializer to prevent hydration errors (just like skills)
-  const [server, setServer] = useState<MCPServerConfig>(() => {
-    if (id !== "new") {
-      const existing = MOCK_MCP_SERVERS.find((s) => s.id === id);
-      if (existing) return existing;
-    }
-    return {
-      id: id === "new" ? "" : id,
-      name: "",
-      url: "",
-      auth_type: "none",
-      status: "active",
-    };
+  const [server, setServer] = useState<MCPServerConfig>({
+    id: "",
+    name: "",
+    url: "",
+    auth_type: "none",
+    status: "active",
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchServer = async () => {
+      if (isNew) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/mcp-servers/${id}`);
+        const data = await res.json();
+        if (data.server) setServer(data.server);
+      } catch (error) {
+        console.error("Failed to load server:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchServer();
+  }, [id, isNew]);
 
   const handleSave = async () => {
-    // Generate an ID if it's a new server
-    const finalId = server.id || `mcp_${Date.now()}`;
+    setIsSaving(true);
+    const finalId = server.id || uuidv4();
+    const finalServer = { ...server, id: finalId };
 
-    const finalServer = {
-      ...server,
-      id: finalId,
-    };
+    try {
+      const res = await fetch("/api/mcp-servers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finalServer),
+      });
 
-    console.log("Saving MCP Server:", finalServer);
-    // TODO: POST to /api/mcp-servers
-    router.push("/mcp-servers");
+      if (res.ok) {
+        router.push("/mcp-servers");
+      }
+    } catch (error) {
+      console.error("Error saving server:", error);
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
-      {/* HEADER */}
       <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
         <button
           onClick={() => router.push("/mcp-servers")}
@@ -54,13 +93,19 @@ export default function MCPServerEditorPage({
         </button>
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors shadow-sm"
+          disabled={isSaving}
+          className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
         >
-          <Save className="w-4 h-4" /> Save Server Config
+          {isSaving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          Save Server Config
         </button>
       </div>
 
-      {/* EDITOR BODY */}
+      {/* Editor Body remains unchanged from your previous version, just bound to state */}
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-3xl mx-auto space-y-6">
           {/* General Info */}
@@ -68,7 +113,6 @@ export default function MCPServerEditorPage({
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
               <Server className="w-4 h-4 text-teal-500" /> General Information
             </h2>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5 col-span-2">
                 <label className="text-xs font-semibold text-gray-600">
@@ -84,7 +128,6 @@ export default function MCPServerEditorPage({
                   placeholder="e.g. Internal Knowledge Graph"
                 />
               </div>
-
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600">
                   Internal ID
@@ -96,7 +139,6 @@ export default function MCPServerEditorPage({
                   className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
                 />
               </div>
-
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
                   <Activity className="w-3.5 h-3.5" /> Status
@@ -124,7 +166,6 @@ export default function MCPServerEditorPage({
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
               <Link2 className="w-4 h-4 text-teal-500" /> Connection Details
             </h2>
-
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600">
@@ -140,7 +181,6 @@ export default function MCPServerEditorPage({
                   placeholder="https://mcp.yourdomain.com/v1"
                 />
               </div>
-
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
                   <Key className="w-3.5 h-3.5" /> Authentication Type
@@ -162,12 +202,6 @@ export default function MCPServerEditorPage({
                     </div>
                   ))}
                 </div>
-                {server.auth_type !== "none" && (
-                  <p className="text-[10px] text-slate-400 mt-2 italic">
-                    Note: Actual credentials/keys should be managed securely in
-                    your environment variables, not hardcoded here.
-                  </p>
-                )}
               </div>
             </div>
           </div>
