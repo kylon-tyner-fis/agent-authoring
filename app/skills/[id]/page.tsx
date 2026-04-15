@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Wrench, Database, Loader2 } from "lucide-react";
-import { SkillConfig, MOCK_MCP_SERVERS } from "@/lib/constants";
+import { SkillConfig, MCPServerConfig } from "@/lib/constants";
 import { SchemaEditor, SchemaNode } from "@/components/SchemaEditor";
 import { v4 as uuidv4 } from "uuid";
 
@@ -79,35 +79,46 @@ export default function SkillEditorPage({
     mcp_dependencies: [],
   });
 
+  const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
   const [inputNodes, setInputNodes] = useState<SchemaNode[]>([]);
   const [outputNodes, setOutputNodes] = useState<SchemaNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch the skill data on mount
+  // Fetch the skill data and available MCP servers on mount
   useEffect(() => {
-    const fetchSkill = async () => {
-      if (isNew) {
-        setIsLoading(false);
-        return;
-      }
-
+    const fetchData = async () => {
       try {
-        const res = await fetch(`/api/skills/${id}`);
-        const data = await res.json();
+        // Fetch MCP servers unconditionally
+        const fetchServers = fetch("/api/mcp-servers").then((res) =>
+          res.json(),
+        );
+        // Fetch skill only if we are editing an existing one
+        const fetchSkill = isNew
+          ? Promise.resolve(null)
+          : fetch(`/api/skills/${id}`).then((res) => res.json());
 
-        if (data.skill) {
-          setSkill(data.skill);
-          setInputNodes(parseSchema(data.skill.input_schema || {}));
-          setOutputNodes(parseSchema(data.skill.output_schema || {}));
+        const [serversData, skillData] = await Promise.all([
+          fetchServers,
+          fetchSkill,
+        ]);
+
+        if (serversData?.servers) {
+          setMcpServers(serversData.servers);
+        }
+
+        if (skillData?.skill) {
+          setSkill(skillData.skill);
+          setInputNodes(parseSchema(skillData.skill.input_schema || {}));
+          setOutputNodes(parseSchema(skillData.skill.output_schema || {}));
         }
       } catch (error) {
-        console.error("Failed to load skill:", error);
+        console.error("Failed to load data:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchSkill();
+    fetchData();
   }, [id, isNew]);
 
   const handleSave = async () => {
@@ -280,30 +291,37 @@ export default function SkillEditorPage({
               Select which servers this skill requires to function.
             </p>
             <div className="grid grid-cols-3 gap-4 mt-2">
-              {MOCK_MCP_SERVERS.map((server) => (
-                <div
-                  key={server.id}
-                  onClick={() => toggleMCP(server.id)}
-                  className={`p-4 border rounded-xl cursor-pointer transition-all ${(skill.mcp_dependencies || []).includes(server.id) ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500" : "border-slate-200 hover:border-slate-300"}`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-bold text-sm text-slate-800">
-                      {server.name}
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={(skill.mcp_dependencies || []).includes(
-                        server.id,
-                      )}
-                      readOnly
-                      className="mt-1"
-                    />
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-500 truncate block">
-                    {server.url}
-                  </span>
+              {mcpServers.length === 0 ? (
+                <div className="col-span-3 p-4 text-sm text-slate-400 italic text-center border border-dashed border-slate-300 rounded-xl">
+                  No MCP servers available. Add one in the MCP Servers
+                  dashboard.
                 </div>
-              ))}
+              ) : (
+                mcpServers.map((server) => (
+                  <div
+                    key={server.id}
+                    onClick={() => toggleMCP(server.id)}
+                    className={`p-4 border rounded-xl cursor-pointer transition-all ${(skill.mcp_dependencies || []).includes(server.id) ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500" : "border-slate-200 hover:border-slate-300"}`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-bold text-sm text-slate-800">
+                        {server.name}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={(skill.mcp_dependencies || []).includes(
+                          server.id,
+                        )}
+                        readOnly
+                        className="mt-1"
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 truncate block">
+                      {server.url}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

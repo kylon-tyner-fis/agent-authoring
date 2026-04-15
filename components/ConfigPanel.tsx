@@ -17,6 +17,7 @@ import {
   Database,
   Link2,
   Key,
+  Info,
 } from "lucide-react";
 import {
   AgentConfig,
@@ -30,7 +31,7 @@ import {
   OrchestrationCanvasRef,
 } from "./OrchestrationCanvas";
 import { SchemaEditor, SchemaNode } from "./SchemaEditor";
-import { useToast } from "./Toast"; // <-- Import useToast
+import { useToast } from "./Toast";
 import { SkillConfig } from "@/lib/constants";
 
 interface ConfigPanelProps {
@@ -38,7 +39,7 @@ interface ConfigPanelProps {
   setConfig: React.Dispatch<React.SetStateAction<AgentConfig>>;
   availableSkills: SkillConfig[];
   availableServers: MCPServerConfig[];
-  activeNodeId?: string | null; // NEW PROP
+  activeNodeId?: string | null;
   onOpenPlayground: () => void;
 }
 
@@ -57,7 +58,7 @@ export const ConfigPanel = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const canvasRef = useRef<OrchestrationCanvasRef>(null);
-  const { addToast } = useToast(); // <-- Initialize hook
+  const { addToast } = useToast();
 
   const parseConfigToNodes = (schema: any): SchemaNode[] => {
     if (!schema) return [];
@@ -156,8 +157,15 @@ export const ConfigPanel = ({
         }
       }
 
+      // Ensure postgresSaver is always sent as the checkpointer backend
       const finalConfig = {
         ...config,
+        persistence: {
+          ...config.persistence,
+          checkpointer: "postgresSaver",
+          ttl_seconds: config.persistence?.ttl_seconds || 3600,
+          store_ttl: config.persistence?.store_ttl || 3600,
+        },
         ...(latestCanvasData && {
           orchestration: {
             nodes: latestCanvasData.nodes,
@@ -185,6 +193,21 @@ export const ConfigPanel = ({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Helper for merging persistence state safely
+  const updatePersistence = (
+    updates: Partial<NonNullable<AgentConfig["persistence"]>>,
+  ) => {
+    setConfig((prev) => ({
+      ...prev,
+      persistence: {
+        checkpointer: "postgresSaver", // Enforce default
+        ttl_seconds: prev.persistence?.ttl_seconds || 3600,
+        store_ttl: prev.persistence?.store_ttl || 3600,
+        ...updates,
+      },
+    }));
   };
 
   return (
@@ -353,7 +376,7 @@ export const ConfigPanel = ({
 
         {/* TAB 2: ENGINE */}
         {activeTab === "engine" && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-purple-500" /> Model
@@ -472,6 +495,103 @@ export const ConfigPanel = ({
                       })
                     }
                     className="w-full accent-purple-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <hr className="border-gray-100" />
+
+            {/* SECTION: MEMORY & PERSISTENCE */}
+            <div className="space-y-4">
+              <div className="flex flex-col gap-1 mb-2">
+                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Database className="w-4 h-4 text-emerald-500" /> Memory &
+                  Persistence
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Configure how the agent remembers state between interactions
+                  (Checkpointers).
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {/* Checkpointer Tooltip & Input */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">
+                      Checkpointer Provider
+                    </label>
+                    <div className="relative group flex items-center">
+                      <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
+                        Defines the storage backend for agent memory. Currently
+                        locked to postgresSaver default.
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value="postgresSaver"
+                    readOnly
+                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none bg-slate-50 text-slate-500 font-mono cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Thread TTL Tooltip & Input */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">
+                      Thread TTL (Seconds)
+                    </label>
+                    <div className="relative group flex items-center">
+                      <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
+                        Time-to-live for a specific conversation thread.
+                        Determines how long the agent remembers a continuous
+                        chat.
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    value={config.persistence?.ttl_seconds || ""}
+                    onChange={(e) =>
+                      updatePersistence({
+                        ttl_seconds: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="3600"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 bg-gray-50 font-mono"
+                  />
+                </div>
+
+                {/* Store TTL Tooltip & Input */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">
+                      Store TTL (Seconds)
+                    </label>
+                    <div className="relative group flex items-center">
+                      <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
+                        Time-to-live for cross-thread memory. Determines how
+                        long global state is retained across different sessions.
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    value={config.persistence?.store_ttl || ""}
+                    onChange={(e) =>
+                      updatePersistence({
+                        store_ttl: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="3600"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 bg-gray-50 font-mono"
                   />
                 </div>
               </div>

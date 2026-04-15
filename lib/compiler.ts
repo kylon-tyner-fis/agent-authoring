@@ -183,6 +183,7 @@ export async function compileAndRunAgent(
 
   const workflow = new StateGraph<any>({ channels });
   const skillNodes = nodes.filter((n: any) => n.type === "skill");
+  const interruptNodes = nodes.filter((n: any) => n.type === "interrupt");
 
   // 5. ADD SKILL NODES
   for (const node of skillNodes) {
@@ -283,7 +284,36 @@ export async function compileAndRunAgent(
     });
   }
 
-  // 6. ADD RESPONSE NODES
+  // 6. ADD INTERRUPT NODES (Pass-through for Playground simulation)
+  for (const intNode of interruptNodes) {
+    workflow.addNode(intNode.id, async (state: any) => {
+      if (state.__error__) return {};
+      if (reporter?.onNodeStart) reporter.onNodeStart(intNode.id);
+
+      // Simulate a brief pause so the UI can register the node as "active"
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      if (reporter?.onNodeEnd) {
+        reporter.onNodeEnd(
+          intNode.id,
+          {},
+          "Interrupt node reached. (Pass-through mode: auto-approving for playground simulation)",
+        );
+      }
+
+      // Trigger edge traversal reporting for default single outgoing edge
+      const outgoingEdges = edges.filter((e: any) => e.source === intNode.id);
+      if (outgoingEdges.length === 1 && !outgoingEdges[0].data?.label?.trim()) {
+        if (reporter?.onEdgeTraversal) {
+          reporter.onEdgeTraversal(intNode.id, outgoingEdges[0].target);
+        }
+      }
+
+      return {};
+    });
+  }
+
+  // 7. ADD RESPONSE NODES
   for (const resNode of responseNodes) {
     workflow.addNode(resNode.id, async (state: any) => {
       if (reporter?.onNodeStart) reporter.onNodeStart(resNode.id);
@@ -309,7 +339,7 @@ export async function compileAndRunAgent(
       let finalResponsePayload = responsePayload;
       let reasoningStr = `Graph execution finished. Extracted the final payload from the state to return to the user.`;
 
-      // NEW: If there are Response-Specific Instructions, use an LLM to format the final output!
+      // Formatter logic
       const responseInstructions = resNode.data.custom_instructions?.trim();
       if (responseInstructions && process.env.OPENAI_API_KEY) {
         try {
@@ -373,7 +403,7 @@ export async function compileAndRunAgent(
     workflow.addEdge(resNode.id, END);
   }
 
-  // 7. ADVANCED EDGE ROUTING
+  // 8. ADVANCED EDGE ROUTING
   const edgesBySource: Record<string, any[]> = {};
   for (const edge of edges) {
     const sourceNode = nodes.find((n: any) => n.id === edge.source);
@@ -512,11 +542,11 @@ export async function compileAndRunAgent(
     );
   }
 
-  // 8. COMPILE & RUN
+  // 9. COMPILE & RUN
   const app = workflow.compile();
   const finalState = await app.invoke(initialState);
 
-  // 9. HANDLE GENERIC ERROR OVERRIDE
+  // 10. HANDLE GENERIC ERROR OVERRIDE
   if (finalState.__error__) {
     const errorPayload = { error: finalState.__error__ };
 
