@@ -83,20 +83,20 @@ export default function MCPServersDashboard() {
                 key={server.id}
                 className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group"
               >
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-6 min-w-0 flex-1">
                   <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center border ${server.status === "active" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}
+                    className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center border ${server.status === "active" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}
                   >
                     <Activity
                       className={`w-5 h-5 ${server.status === "active" ? "text-emerald-500" : "text-red-500"}`}
                     />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-lg">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-900 text-lg truncate">
                       {server.name}
                     </h3>
-                    <div className="flex items-center gap-4 mt-1.5">
-                      <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100 min-w-0 max-w-full">
                         <Link2 className="w-3 h-3" /> {server.url}
                       </span>
                       <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100">
@@ -106,12 +106,12 @@ export default function MCPServersDashboard() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => router.push(`/mcp-servers/${server.id}`)}
-                    className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
                   >
-                    Edit Config
+                    Edit Server
                   </button>
                   <button
                     onClick={() => handleDelete(server.id)}

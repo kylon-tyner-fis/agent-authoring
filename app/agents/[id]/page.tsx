@@ -94,7 +94,7 @@ export default function AgentEditorPage({
           onClick={() => router.push("/agents")} // Fixed route back to /agents
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+          <ArrowLeft className="w-4 h-4" /> Back to Agents
         </button>
       </div>
 
