@@ -4,7 +4,8 @@ import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Wrench, Database, Loader2 } from "lucide-react";
 import { SkillConfig, MCPServerConfig } from "@/lib/constants";
-import { SchemaEditor, SchemaNode } from "@/components/SchemaEditor";
+import { SchemaNode } from "@/components/SchemaEditor";
+import { SchemaViewer } from "@/components/SchemaViewer";
 import { v4 as uuidv4 } from "uuid";
 
 // Utility to parse schemas
@@ -257,13 +258,12 @@ export default function SkillEditorPage({
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                 Expected Inputs
               </h2>
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                <SchemaEditor
-                  nodes={inputNodes}
-                  setNodes={setInputNodes}
-                  addButtonText="Add Input Field"
-                />
-              </div>
+              <SchemaViewer
+                title="Expected Inputs"
+                nodes={inputNodes}
+                setNodes={setInputNodes}
+                addButtonText="Add Input Field"
+              />
             </div>
 
             {/* Output Schema */}
@@ -271,13 +271,12 @@ export default function SkillEditorPage({
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                 Expected Outputs
               </h2>
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                <SchemaEditor
-                  nodes={outputNodes}
-                  setNodes={setOutputNodes}
-                  addButtonText="Add Output Field"
-                />
-              </div>
+              <SchemaViewer
+                title="Expected Outputs"
+                nodes={outputNodes}
+                setNodes={setOutputNodes}
+                addButtonText="Add Output Field"
+              />
             </div>
           </div>
 

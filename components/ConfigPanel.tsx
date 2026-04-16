@@ -30,7 +30,8 @@ import {
   OrchestrationCanvas,
   OrchestrationCanvasRef,
 } from "./OrchestrationCanvas";
-import { SchemaEditor, SchemaNode } from "./SchemaEditor";
+import { SchemaNode } from "./SchemaEditor";
+import { SchemaViewer } from "./SchemaViewer";
 import { useToast } from "./Toast";
 import { SkillConfig } from "@/lib/constants";
 
@@ -610,13 +611,12 @@ export const ConfigPanel = ({
                 Define the memory structure for your StateGraph.
               </p>
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-inner">
-              <SchemaEditor
-                nodes={schemaNodes}
-                setNodes={setSchemaNodes}
-                addButtonText="Add State Variable"
-              />
-            </div>
+            <SchemaViewer
+              title="Graph State Schema"
+              nodes={schemaNodes}
+              setNodes={setSchemaNodes}
+              addButtonText="Add State Variable"
+            />
           </div>
         )}
 

@@ -27,7 +27,8 @@ import { TriggerNode } from "./nodes/TriggerNode";
 import { ResponseNode } from "./nodes/ResponseNode";
 import { ShiftEdge } from "./edges/ShiftEdge";
 import { MOCK_SKILLS, SkillConfig } from "@/lib/constants";
-import { SchemaEditor, SchemaNode } from "./SchemaEditor";
+import { SchemaNode } from "./SchemaEditor";
+import { SchemaViewer } from "./SchemaViewer";
 import { useToast } from "./Toast";
 import {
   Braces,
@@ -816,13 +817,12 @@ const CanvasEditor = forwardRef<
                         Define the JSON schema the external caller must provide
                         to start this agent.
                       </p>
-                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                        <SchemaEditor
-                          nodes={inspectorSchema}
-                          setNodes={handleSchemaChange}
-                          addButtonText="Add Input Field"
-                        />
-                      </div>
+                      <SchemaViewer
+                        title="Expected Payload"
+                        nodes={inspectorSchema}
+                        setNodes={handleSchemaChange}
+                        addButtonText="Add Input Field"
+                      />
                     </div>
 
                     <div className="pt-4 border-t border-slate-100 space-y-3">
@@ -927,13 +927,12 @@ const CanvasEditor = forwardRef<
                         Define the JSON schema this agent will return to the
                         caller.
                       </p>
-                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                        <SchemaEditor
-                          nodes={inspectorSchema}
-                          setNodes={handleSchemaChange}
-                          addButtonText="Add Output Field"
-                        />
-                      </div>
+                      <SchemaViewer
+                        title="Response Payload"
+                        nodes={inspectorSchema}
+                        setNodes={handleSchemaChange}
+                        addButtonText="Add Output Field"
+                      />
                     </div>
 
                     <div className="pt-4 border-t border-slate-100 space-y-3">
