@@ -388,10 +388,62 @@ const CanvasEditor = forwardRef<
   const handleSchemaChange = (newNodes: SchemaNode[]) => {
     setInspectorSchema(newNodes);
     const compiled = compileSchema(newNodes);
-    if (selectedNode?.type === "trigger") {
-      handleNodeChange("expected_payload", compiled);
-    } else if (selectedNode?.type === "response") {
-      handleNodeChange("response_payload", compiled);
+
+    if (!selectedNodeId || !selectedNode) return;
+
+    if (selectedNode.type === "trigger") {
+      // Clean up orphaned initialization mappings
+      const currentMapping =
+        (selectedNode.data.initialization_mapping as Record<string, string>) ||
+        {};
+      const cleanMapping = { ...currentMapping };
+
+      Object.keys(cleanMapping).forEach((key) => {
+        if (!(key in compiled)) {
+          delete cleanMapping[key];
+        }
+      });
+
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === selectedNodeId
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  expected_payload: compiled,
+                  initialization_mapping: cleanMapping,
+                },
+              }
+            : n,
+        ),
+      );
+    } else if (selectedNode.type === "response") {
+      // Clean up orphaned extraction mappings
+      const currentMapping =
+        (selectedNode.data.extraction_mapping as Record<string, string>) || {};
+      const cleanMapping = { ...currentMapping };
+
+      Object.keys(cleanMapping).forEach((key) => {
+        if (!(key in compiled)) {
+          delete cleanMapping[key];
+        }
+      });
+
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === selectedNodeId
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  response_payload: compiled,
+                  extraction_mapping: cleanMapping,
+                },
+              }
+            : n,
+        ),
+      );
     }
   };
 
@@ -943,6 +995,55 @@ const CanvasEditor = forwardRef<
                           No response fields defined yet.
                         </div>
                       )}
+                    </div>
+                  </>
+                )}
+
+                {/* INTERRUPT INSPECTOR */}
+                {selectedNode.type === "interrupt" && (
+                  <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-orange-600 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Output Mapping
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        Map the human's input to a global state variable to use
+                        it later in the workflow.
+                      </p>
+
+                      <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                        <span className="text-xs font-mono font-semibold text-slate-700">
+                          human_input
+                        </span>
+                        <select
+                          value={
+                            (
+                              selectedNode.data.output_mapping as Record<
+                                string,
+                                string
+                              >
+                            )?.[`human_input`] || ""
+                          }
+                          onChange={(e) =>
+                            handleMappingChange(
+                              "output_mapping",
+                              "human_input",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-orange-500 bg-white"
+                        >
+                          <option value="">-- Select Target State --</option>
+                          {stateKeys.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </>
                 )}

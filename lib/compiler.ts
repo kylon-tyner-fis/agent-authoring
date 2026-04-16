@@ -1,7 +1,9 @@
 import { StateGraph, START, END } from "@langchain/langgraph";
+import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { AgentConfig, SkillConfig } from "./constants";
+import { Pool } from "pg";
 
 export interface ExecutionReporter {
   onNodeStart?: (nodeId: string) => void;
@@ -14,13 +16,33 @@ export interface ExecutionReporter {
   ) => void;
 }
 
+// 1. Initialize Postgres Pool and Checkpointer
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10, // Max number of connections in the pool
+});
+const checkpointer = new PostgresSaver(pool);
+
+// Helper to ensure tables are created (only runs the first time)
+let isDbSetup = false;
+async function ensureDbSetup() {
+  if (!isDbSetup) {
+    await checkpointer.setup();
+    isDbSetup = true;
+  }
+}
+
 export async function compileAndRunAgent(
   config: AgentConfig,
   skills: SkillConfig[],
   userInput: string,
   reporter?: ExecutionReporter,
+  threadId: string = "default-thread", // Added Thread ID for persistence
+  resumeValue?: any, // Added for handling human-in-the-loop approvals
 ) {
-  console.log("\n--- [DEBUG] STARTING AGENT EXECUTION ---");
+  console.log(`\n--- [DEBUG] AGENT EXECUTION (Thread: ${threadId}) ---`);
+  await ensureDbSetup(); // Make sure Supabase tables exist
+
   const nodes = config.orchestration?.nodes || [];
   const edges = config.orchestration?.edges || [];
 
@@ -39,14 +61,16 @@ export async function compileAndRunAgent(
     ? `\n--- GLOBAL AGENT INSTRUCTIONS ---\n${config.system_prompt}\n`
     : "";
 
-  if (reporter?.onNodeStart) reporter.onNodeStart(triggerNode.id);
+  if (reporter?.onNodeStart && !resumeValue)
+    reporter.onNodeStart(triggerNode.id);
 
   // 1. SMART INPUT EXTRACTION
   let parsedInput: any = {};
   try {
     parsedInput = JSON.parse(userInput);
   } catch (e) {
-    if (process.env.OPENAI_API_KEY) {
+    // Skip extraction if we are just resuming the graph with an approval
+    if (process.env.OPENAI_API_KEY && !resumeValue && userInput) {
       try {
         const extractionLlm = new ChatOpenAI({
           modelName: config.model.model_name || "gpt-4o-mini",
@@ -58,7 +82,6 @@ export async function compileAndRunAgent(
           triggerNode.data.expected_payload || {},
         );
 
-        // NEW: Grab Trigger-Specific Instructions
         const triggerInstructions = triggerNode.data.custom_instructions?.trim()
           ? `\n--- TRIGGER-SPECIFIC INSTRUCTIONS ---\n${triggerNode.data.custom_instructions}\n`
           : "";
@@ -74,7 +97,7 @@ export async function compileAndRunAgent(
 
         const formatted = await extractionPrompt.format({
           __persona__: globalPersona,
-          __trigger_instructions__: triggerInstructions, // <-- Injected here
+          __trigger_instructions__: triggerInstructions,
           __schema__: schemaString,
           __input__: userInput,
         });
@@ -107,31 +130,33 @@ export async function compileAndRunAgent(
   const expectedPayload = triggerNode.data.expected_payload || {};
   const missingKeys: string[] = [];
 
-  for (const [key, typeHint] of Object.entries(expectedPayload)) {
-    const isOptional = String(typeHint).endsWith("?");
-    const val = parsedInput[key];
-    if (!isOptional && (val === undefined || val === null || val === "")) {
-      missingKeys.push(key);
+  if (!resumeValue) {
+    for (const [key, typeHint] of Object.entries(expectedPayload)) {
+      const isOptional = String(typeHint).endsWith("?");
+      const val = parsedInput[key];
+      if (!isOptional && (val === undefined || val === null || val === "")) {
+        missingKeys.push(key);
+      }
     }
-  }
 
-  if (missingKeys.length > 0) {
-    const errMsg = `Missing required input fields: ${missingKeys.join(", ")}`;
-    console.log(`[DEBUG] Validation Failed: ${errMsg}`);
+    if (missingKeys.length > 0) {
+      const errMsg = `Missing required input fields: ${missingKeys.join(", ")}`;
+      console.log(`[DEBUG] Validation Failed: ${errMsg}`);
 
-    const errorPayload = { error: errMsg };
-    if (reporter?.onNodeEnd)
-      reporter.onNodeEnd(
-        triggerNode.id,
-        errorPayload,
-        `Validation failed. The user input was missing required fields defined in the Trigger schema.`,
-      );
+      const errorPayload = { error: errMsg };
+      if (reporter?.onNodeEnd)
+        reporter.onNodeEnd(
+          triggerNode.id,
+          errorPayload,
+          `Validation failed. The user input was missing required fields defined in the Trigger schema.`,
+        );
 
-    return {
-      extracted_data: errorPayload,
-      __error__: errMsg,
-      ...parsedInput,
-    };
+      return {
+        extracted_data: errorPayload,
+        __error__: errMsg,
+        ...parsedInput,
+      };
+    }
   }
 
   // 3. INITIALIZE STATE
@@ -145,7 +170,7 @@ export async function compileAndRunAgent(
     }
   }
 
-  if (reporter?.onNodeEnd) {
+  if (reporter?.onNodeEnd && !resumeValue) {
     reporter.onNodeEnd(
       triggerNode.id,
       initialState,
@@ -160,6 +185,11 @@ export async function compileAndRunAgent(
       default: () => null,
     },
     __error__: {
+      value: (prev: any, next: any) => (next !== undefined ? next : prev),
+      default: () => null,
+    },
+    // FIX: Add explicit channel for human feedback to power logic router
+    __human_feedback__: {
       value: (prev: any, next: any) => (next !== undefined ? next : prev),
       default: () => null,
     },
@@ -284,24 +314,30 @@ export async function compileAndRunAgent(
     });
   }
 
-  // 6. ADD INTERRUPT NODES (Pass-through for Playground simulation)
+  // 6. ADD INTERRUPT NODES
   for (const intNode of interruptNodes) {
     workflow.addNode(intNode.id, async (state: any) => {
       if (state.__error__) return {};
       if (reporter?.onNodeStart) reporter.onNodeStart(intNode.id);
 
-      // Simulate a brief pause so the UI can register the node as "active"
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Read the feedback that was injected into state just before resume
+      const feedback = state.__human_feedback__ || "Approved";
+      const stateUpdates: Record<string, any> = {};
+
+      // NEW: Map the human's input to a specific global state variable if configured
+      const outMap = intNode.data.output_mapping || {};
+      if (outMap["human_input"]) {
+        stateUpdates[outMap["human_input"]] = feedback;
+      }
 
       if (reporter?.onNodeEnd) {
         reporter.onNodeEnd(
           intNode.id,
-          {},
-          "Interrupt node reached. (Pass-through mode: auto-approving for playground simulation)",
+          { __human_feedback__: feedback, ...stateUpdates },
+          `Human responded with: ${feedback}`,
         );
       }
 
-      // Trigger edge traversal reporting for default single outgoing edge
       const outgoingEdges = edges.filter((e: any) => e.source === intNode.id);
       if (outgoingEdges.length === 1 && !outgoingEdges[0].data?.label?.trim()) {
         if (reporter?.onEdgeTraversal) {
@@ -309,7 +345,7 @@ export async function compileAndRunAgent(
         }
       }
 
-      return {};
+      return stateUpdates;
     });
   }
 
@@ -324,7 +360,6 @@ export async function compileAndRunAgent(
         resNode.data.response_payload || {},
       );
 
-      // Extract the raw mapped payload first
       for (const payloadKey of expectedOutputKeys) {
         const stateKey = extMap[payloadKey] || payloadKey;
         responsePayload[payloadKey] =
@@ -339,7 +374,6 @@ export async function compileAndRunAgent(
       let finalResponsePayload = responsePayload;
       let reasoningStr = `Graph execution finished. Extracted the final payload from the state to return to the user.`;
 
-      // Formatter logic
       const responseInstructions = resNode.data.custom_instructions?.trim();
       if (responseInstructions && process.env.OPENAI_API_KEY) {
         try {
@@ -408,6 +442,8 @@ export async function compileAndRunAgent(
   for (const edge of edges) {
     const sourceNode = nodes.find((n: any) => n.id === edge.source);
     if (!sourceNode) continue;
+
+    // Map the conceptual "Trigger" node to the actual LangGraph START node
     const actualSource = sourceNode.type === "trigger" ? START : edge.source;
 
     if (!edgesBySource[actualSource]) edgesBySource[actualSource] = [];
@@ -416,49 +452,54 @@ export async function compileAndRunAgent(
 
   const triggerOutEdges = edgesBySource[START] || [];
   if (triggerOutEdges.length === 1 && !triggerOutEdges[0].data?.label?.trim()) {
-    if (reporter?.onEdgeTraversal)
+    if (reporter?.onEdgeTraversal && !resumeValue)
       reporter.onEdgeTraversal(triggerNode.id, triggerOutEdges[0].target);
   }
 
   for (const [sourceId, outgoingEdges] of Object.entries(edgesBySource)) {
     const hasConditions = outgoingEdges.some((e: any) => e.data?.label?.trim());
 
+    const possibleTargets = outgoingEdges.map((e: any) => e.target);
+    possibleTargets.push(END);
+
     if (hasConditions) {
-      workflow.addConditionalEdges(sourceId, async (state: any) => {
-        if (state.__error__) return END;
+      workflow.addConditionalEdges(
+        sourceId,
+        async (state: any) => {
+          if (state.__error__) return END;
 
-        const expectedInputStateKeys = Object.keys(
-          triggerNode.data.expected_payload || {},
-        ).map(
-          (payloadKey) =>
-            triggerNode.data.initialization_mapping?.[payloadKey] || payloadKey,
-        );
+          const expectedInputStateKeys = Object.keys(
+            triggerNode.data.expected_payload || {},
+          ).map(
+            (payloadKey) =>
+              triggerNode.data.initialization_mapping?.[payloadKey] ||
+              payloadKey,
+          );
 
-        for (const edge of outgoingEdges) {
-          const condition = edge.data?.label?.trim();
-          const targetNode = nodes.find((n: any) => n.id === edge.target);
-          const actualTarget =
-            targetNode?.type === "response" ? edge.target : edge.target;
+          for (const edge of outgoingEdges) {
+            const condition = edge.data?.label?.trim();
+            const actualTarget = edge.target;
 
-          if (!condition) {
-            if (reporter?.onEdgeTraversal)
-              reporter.onEdgeTraversal(
-                edge.source,
-                edge.target,
-                "Default Fallback",
-              );
-            return actualTarget;
-          }
+            if (!condition) {
+              if (reporter?.onEdgeTraversal)
+                reporter.onEdgeTraversal(
+                  edge.source,
+                  edge.target,
+                  "Default Fallback",
+                );
+              return actualTarget;
+            }
 
-          if (process.env.OPENAI_API_KEY) {
-            try {
-              const llm = new ChatOpenAI({
-                modelName: config.model.model_name || "gpt-4o-mini",
-                temperature: 0,
-                modelKwargs: { response_format: { type: "json_object" } },
-              });
+            if (process.env.OPENAI_API_KEY) {
+              try {
+                const llm = new ChatOpenAI({
+                  modelName: config.model.model_name || "gpt-4o-mini",
+                  temperature: 0,
+                  modelKwargs: { response_format: { type: "json_object" } },
+                });
 
-              const prompt = PromptTemplate.fromTemplate(`
+                // FIX: Explicitly instruct the router to use the human feedback
+                const prompt = PromptTemplate.fromTemplate(`
                 {__persona__}
                 You are a logic router for an AI agent. 
                 Evaluate if the following condition is TRUE based on the current state.
@@ -472,58 +513,65 @@ export async function compileAndRunAgent(
                 IMPORTANT CONTEXT FOR EVALUATION:
                 - Expected Initial Inputs: {__expected_inputs__}
                 If evaluating whether the user provided enough information, look STRICTLY at these Expected Initial Inputs. If any of these are null or empty, information is missing.
-                - Downstream Outputs: Any other variables in the state are outputs to be computed later. Do NOT treat downstream 'null' variables as missing user input.
+                - Downstream Outputs: Any other variables in the state are outputs to be computed later.
+                - Human Feedback: The '__human_feedback__' field contains the user's recent input during an interrupt. This could be an explicit decision ('Approved', 'Rejected'), detailed feedback, instructions for rework, or answers to a prompt (like a quiz). Rely on this heavily to determine if the condition is met.
                 
                 Return a JSON object with exactly two keys:
                 1. "reasoning" (string): Explanation of your logic.
                 2. "is_true" (boolean): true if the condition is met, false otherwise.
               `);
 
-              const formatted = await prompt.format({
-                __persona__: globalPersona,
-                __state__: JSON.stringify(state),
-                __condition__: condition,
-                __expected_inputs__: JSON.stringify(expectedInputStateKeys),
-              });
+                const formatted = await prompt.format({
+                  __persona__: globalPersona,
+                  __state__: JSON.stringify(state),
+                  __condition__: condition,
+                  __expected_inputs__: JSON.stringify(expectedInputStateKeys),
+                });
 
-              const response = await llm.invoke(formatted);
-              let cleanStr = response.content.toString().trim();
-              if (cleanStr.startsWith("```json"))
-                cleanStr = cleanStr
-                  .replace(/^```json/, "")
-                  .replace(/```$/, "")
-                  .trim();
+                const response = await llm.invoke(formatted);
+                let cleanStr = response.content.toString().trim();
+                if (cleanStr.startsWith("```json"))
+                  cleanStr = cleanStr
+                    .replace(/^```json/, "")
+                    .replace(/```$/, "")
+                    .trim();
 
-              const result = JSON.parse(cleanStr);
+                const result = JSON.parse(cleanStr);
 
-              if (result.is_true) {
-                if (reporter?.onEdgeTraversal)
-                  reporter.onEdgeTraversal(
-                    edge.source,
-                    edge.target,
-                    condition,
-                    result.reasoning,
-                  );
-                return actualTarget;
+                if (result.is_true) {
+                  if (reporter?.onEdgeTraversal)
+                    reporter.onEdgeTraversal(
+                      edge.source,
+                      edge.target,
+                      condition,
+                      result.reasoning,
+                    );
+                  return actualTarget;
+                }
+              } catch (err) {
+                console.error(`[DEBUG] Router failed:`, err);
               }
-            } catch (err) {
-              console.error(`[DEBUG] Router failed:`, err);
+            } else {
+              if (reporter?.onEdgeTraversal)
+                reporter.onEdgeTraversal(edge.source, edge.target, condition);
+              return actualTarget;
             }
-          } else {
-            if (reporter?.onEdgeTraversal)
-              reporter.onEdgeTraversal(edge.source, edge.target, condition);
-            return actualTarget;
           }
-        }
-        return END;
-      });
+          return END;
+        },
+        possibleTargets,
+      );
     } else {
-      workflow.addConditionalEdges(sourceId, (state: any) => {
-        if (state.__error__) return END;
+      workflow.addConditionalEdges(
+        sourceId,
+        (state: any) => {
+          if (state.__error__) return END;
 
-        const targets = outgoingEdges.map((edge: any) => edge.target);
-        return targets.length === 1 ? targets[0] : targets;
-      });
+          const targets = outgoingEdges.map((edge: any) => edge.target);
+          return targets.length === 1 ? targets[0] : targets;
+        },
+        possibleTargets,
+      );
     }
   }
 
@@ -533,20 +581,62 @@ export async function compileAndRunAgent(
   });
 
   if (!hasStartEdge && skillNodes.length > 0) {
-    workflow.addConditionalEdges(START, (state: any) =>
-      state.__error__ ? END : skillNodes[0].id,
-    );
     workflow.addConditionalEdges(
-      skillNodes[skillNodes.length - 1].id,
-      (state: any) => (state.__error__ ? END : responseNodes[0].id),
+      START,
+      (state: any) => (state.__error__ ? END : skillNodes[0].id),
+      [skillNodes[0].id, END],
     );
+    if (responseNodes.length > 0) {
+      workflow.addConditionalEdges(
+        skillNodes[skillNodes.length - 1].id,
+        (state: any) => (state.__error__ ? END : responseNodes[0].id),
+        [responseNodes[0].id, END],
+      );
+    }
   }
 
-  // 9. COMPILE & RUN
-  const app = workflow.compile();
-  const finalState = await app.invoke(initialState);
+  // 9. COMPILE WITH CHECKPOINTER & INTERRUPTS
+  const app = workflow.compile({
+    checkpointer,
+    interruptBefore: interruptNodes.map((n: any) => n.id),
+  });
 
-  // 10. HANDLE GENERIC ERROR OVERRIDE
+  const executionConfig = { configurable: { thread_id: threadId } };
+
+  // 10. RUN OR RESUME
+  let finalState;
+
+  if (resumeValue) {
+    console.log(`[DEBUG] Resuming thread ${threadId} with value:`, resumeValue);
+
+    // FIX: Inject the human feedback directly into the state so the LLM router can evaluate it
+    await app.updateState(executionConfig, { __human_feedback__: resumeValue });
+
+    finalState = await app.invoke(null, {
+      ...executionConfig,
+      resume: resumeValue,
+    });
+  } else {
+    // Standard entry point
+    finalState = await app.invoke(initialState, executionConfig);
+  }
+
+  // 11. CHECK FOR INTERRUPT STATE
+  const threadState = await app.getState(executionConfig);
+  const isInterrupted = threadState.next && threadState.next.length > 0;
+
+  if (isInterrupted) {
+    console.log(
+      `[DEBUG] Execution Interrupted at node: ${threadState.next[0]}`,
+    );
+    return {
+      __interrupted__: true,
+      __active_node__: threadState.next[0],
+      ...threadState.values,
+    };
+  }
+
+  // 12. HANDLE GENERIC ERROR OVERRIDE
   if (finalState.__error__) {
     const errorPayload = { error: finalState.__error__ };
 

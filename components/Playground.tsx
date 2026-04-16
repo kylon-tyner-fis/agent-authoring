@@ -14,10 +14,12 @@ import {
   ArrowRight,
   GitBranch,
   Brain,
+  Hand,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { RecursiveJsonViewer } from "./RecursiveJsonViewer";
 import { AgentConfig, Message } from "@/lib/constants";
+import { v4 as uuidv4 } from "uuid";
 
 const MarkdownComponents = {
   code(props: any) {
@@ -62,18 +64,8 @@ const MarkdownComponents = {
   },
 };
 
-interface PlaygroundProps {
-  config: AgentConfig;
-  messages: Message[];
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  onClose: () => void;
-  onActiveNodeChange?: (nodeId: string | null) => void;
-}
-
-// NEW: Support multiple event types in history
 type HistoryEvent =
   | { type: "node_end"; node: string; updates: any }
-  // NEW: Add reasoning
   | {
       type: "edge_traversal";
       source: string;
@@ -81,6 +73,14 @@ type HistoryEvent =
       condition?: string;
       reasoning?: string;
     };
+
+interface PlaygroundProps {
+  config: AgentConfig;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  onClose: () => void;
+  onActiveNodeChange?: (nodeId: string | null) => void;
+}
 
 export const Playground = ({
   config,
@@ -94,35 +94,61 @@ export const Playground = ({
   const [error, setError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<"chat" | "state">("chat");
-  const [stateHistory, setStateHistory] = useState<HistoryEvent[]>([]); // UPDATED TYPE
+  const [stateHistory, setStateHistory] = useState<HistoryEvent[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Session and Interrupt State
+  const [threadId] = useState(() => uuidv4());
+  const [interruptedNode, setInterruptedNode] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, stateHistory]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  const handleSendMessage = async (e?: React.FormEvent, actionValue?: any) => {
+    if (e) e.preventDefault();
+
+    // Determine the resume value: either a quick-action button click, or the typed text
+    let resumeValue = actionValue;
+    if (!resumeValue && interruptedNode && input.trim()) {
+      resumeValue = input.trim();
+    }
+
+    if (!input.trim() && !resumeValue) return;
 
     setError(null);
-    setMessages((prev) => [...prev, { role: "user", content: input }]);
+
+    // Add user message to chat for visual history
+    const displayContent = actionValue
+      ? `*[System: User selected '${actionValue}']*`
+      : input;
+    setMessages((prev) => [...prev, { role: "user", content: displayContent }]);
+
     setStateHistory([]);
     setInput("");
+
     setIsSimulating(true);
     setActiveTab("state");
+    setInterruptedNode(null);
 
     try {
+      const body = {
+        config,
+        // If it's a fresh start, send input. If it's a resume, send empty input (or the original input if you want it tracked elsewhere)
+        input: resumeValue ? "" : input,
+        thread_id: threadId,
+        resume_value: resumeValue,
+      };
+
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config, input }),
+        body: JSON.stringify(body),
       });
 
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("text/event-stream")) {
-        const text = await response.text();
         throw new Error("Server returned an invalid response.");
       }
 
@@ -151,8 +177,9 @@ export const Playground = ({
               onActiveNodeChange?.(event.node);
             } else if (event.type === "node_end") {
               const nodeName =
-                config.orchestration?.nodes?.find((n) => n.id === event.node)
-                  ?.data?.label || event.node;
+                config.orchestration?.nodes?.find(
+                  (n: any) => n.id === event.node,
+                )?.data?.label || event.node;
               setStateHistory((prev) => [
                 ...prev,
                 {
@@ -162,13 +189,14 @@ export const Playground = ({
                 },
               ]);
             } else if (event.type === "edge_traversal") {
-              // NEW: Handle edge traversal UI event
               const sourceName =
-                config.orchestration?.nodes?.find((n) => n.id === event.source)
-                  ?.data?.label || event.source;
+                config.orchestration?.nodes?.find(
+                  (n: any) => n.id === event.source,
+                )?.data?.label || event.source;
               const targetName =
-                config.orchestration?.nodes?.find((n) => n.id === event.target)
-                  ?.data?.label || event.target;
+                config.orchestration?.nodes?.find(
+                  (n: any) => n.id === event.target,
+                )?.data?.label || event.target;
               setStateHistory((prev) => [
                 ...prev,
                 {
@@ -179,6 +207,18 @@ export const Playground = ({
                   reasoning: event.reasoning,
                 },
               ]);
+            } else if (event.type === "interrupt") {
+              // Handle Interrupt logic
+              setInterruptedNode(event.node);
+              onActiveNodeChange?.(event.node);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: `⏸️ **Waiting for Approval at node:** \`${event.node}\`. Please check the State Inspector and confirm.`,
+                },
+              ]);
+              setActiveTab("chat");
             } else if (event.type === "final") {
               onActiveNodeChange?.(null);
               const formattedJson = JSON.stringify(event.result, null, 2);
@@ -205,7 +245,7 @@ export const Playground = ({
       onActiveNodeChange?.(null);
     } finally {
       setIsSimulating(false);
-      onActiveNodeChange?.(null);
+      if (!interruptedNode) onActiveNodeChange?.(null);
     }
   };
 
@@ -319,7 +359,6 @@ export const Playground = ({
                   </div>
                 </div>
               ) : (
-                // NEW: Render edge traversal cleanly between the heavy node blocks
                 <div
                   key={i}
                   className="flex flex-col gap-1.5 ml-6 my-2 animate-in fade-in"
@@ -336,7 +375,6 @@ export const Playground = ({
                     </span>
                   </div>
 
-                  {/* NEW: Render the condition badge if one exists */}
                   {history.condition && (
                     <div className="flex items-center gap-1.5 text-[10px] text-orange-600 font-mono px-4 ml-6">
                       <GitBranch className="w-3 h-3" />
@@ -392,14 +430,46 @@ export const Playground = ({
         )}
       </div>
 
+      {/* INTERRUPT ACTIONS BAR */}
+      {interruptedNode && (
+        <div className="p-4 bg-orange-50 border-t border-orange-200 flex items-center justify-between shrink-0 shadow-inner z-10">
+          <div className="flex items-center gap-2 text-orange-800 text-sm font-medium">
+            <Hand className="w-4 h-4" /> Awaiting Human Input
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-orange-600/70 italic mr-2">
+              Type below, or:
+            </span>
+            <button
+              onClick={() => handleSendMessage(undefined, "Rejected")}
+              className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors shadow-sm"
+            >
+              Reject
+            </button>
+            <button
+              onClick={() => handleSendMessage(undefined, "Approved")}
+              className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm border border-emerald-700"
+            >
+              Approve Execution
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="p-5 bg-white border-t border-gray-200 shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message to test..."
+            // Dynamically change placeholder based on state
+            placeholder={
+              interruptedNode
+                ? "Type your answers, feedback, or instructions..."
+                : "Type a message to test..."
+            }
             className="flex-1 p-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-100 shadow-sm transition-all"
+            // Unlock the input!
             disabled={isSimulating}
           />
           <button

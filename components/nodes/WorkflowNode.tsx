@@ -135,9 +135,27 @@ export function WorkflowNode({
             )}
           </>
         ) : (
-          <p className="text-xs text-slate-500 italic">
-            Human approval required.
-          </p>
+          <>
+            <p className="text-xs text-slate-500 italic">
+              Human approval or input required.
+            </p>
+            {hasOutputs && (
+              <div className="space-y-1.5 border-t border-slate-100 pt-2 mt-1">
+                {Object.entries(data.output_mapping || {}).map(
+                  ([k, v]) =>
+                    v && (
+                      <NodeMapping
+                        key={`out-${k}`}
+                        globalKey={v}
+                        localKey={k}
+                        flowDirection="local-to-global"
+                        localType="output"
+                      />
+                    ),
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 

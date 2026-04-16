@@ -4,7 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: Request) {
   try {
-    const { config, input } = await req.json();
+    // Extract thread_id and resume_value
+    const { config, input, thread_id, resume_value } = await req.json();
 
     if (!config) {
       return NextResponse.json(
@@ -68,17 +69,34 @@ export async function POST(req: Request) {
         };
 
         try {
+          // Pass the thread_id and resume_value down to the compiler
           const result = await compileAndRunAgent(
             config,
             skills || [],
             input,
             reporter,
+            thread_id, // Pass thread_id
+            resume_value, // Pass resume_value
           );
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({ type: "final", result })}\n\n`,
-            ),
-          );
+
+          // Handle Interrupted State
+          if (result.__interrupted__) {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({
+                  type: "interrupt",
+                  node: result.__active_node__,
+                  state: result,
+                })}\n\n`,
+              ),
+            );
+          } else {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "final", result })}\n\n`,
+              ),
+            );
+          }
           controller.close();
         } catch (e: any) {
           controller.enqueue(
