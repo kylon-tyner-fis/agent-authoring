@@ -65,7 +65,7 @@ const MarkdownComponents = {
 };
 
 type HistoryEvent =
-  | { type: "node_end"; node: string; updates: any }
+  | { type: "node_end"; node: string; updates: any; fullState?: any }
   | {
       type: "edge_traversal";
       source: string;
@@ -186,6 +186,7 @@ export const Playground = ({
                   type: "node_end",
                   node: nodeName,
                   updates: event.stateUpdates,
+                  fullState: event.fullState,
                 },
               ]);
             } else if (event.type === "edge_traversal") {
@@ -253,7 +254,7 @@ export const Playground = ({
     <div className="w-full flex flex-col h-full bg-gray-50 relative border-l border-gray-200">
       <div className="border-b border-gray-200 bg-white shrink-0 shadow-sm z-10">
         <div className="p-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-900">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
             <Bot className="w-5 h-5 text-indigo-600" /> Playground
           </h2>
           <button
@@ -354,8 +355,21 @@ export const Playground = ({
                       </span>
                     </h3>
                   </div>
-                  <div className="p-4 overflow-x-auto">
-                    <RecursiveJsonViewer data={history.updates} />
+                  <div className="p-4 overflow-x-auto space-y-4">
+                    <div>
+                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        State Updates
+                      </h4>
+                      <RecursiveJsonViewer data={history.updates} />
+                    </div>
+                    {history.fullState && (
+                      <div className="pt-3 border-t border-slate-100">
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          Global State
+                        </h4>
+                        <RecursiveJsonViewer data={history.fullState} />
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -468,7 +482,7 @@ export const Playground = ({
                 ? "Type your answers, feedback, or instructions..."
                 : "Type a message to test..."
             }
-            className="flex-1 p-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-100 shadow-sm transition-all text-slate-900"
+            className="flex-1 p-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-100 shadow-sm transition-all"
             // Unlock the input!
             disabled={isSimulating}
           />

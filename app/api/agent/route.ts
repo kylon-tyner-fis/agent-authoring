@@ -41,10 +41,15 @@ export async function POST(req: Request) {
               ),
             );
           },
-          onNodeEnd: (nodeId: string, stateUpdates: any) => {
+          onNodeEnd: (
+            nodeId: string,
+            stateUpdates: any,
+            reasoning?: string,
+            fullState?: any,
+          ) => {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "node_end", node: nodeId, stateUpdates })}\n\n`,
+                `data: ${JSON.stringify({ type: "node_end", node: nodeId, stateUpdates, reasoning, fullState })}\n\n`,
               ),
             );
           },

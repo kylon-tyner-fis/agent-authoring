@@ -7,7 +7,12 @@ import { Pool } from "pg";
 
 export interface ExecutionReporter {
   onNodeStart?: (nodeId: string) => void;
-  onNodeEnd?: (nodeId: string, stateUpdates: any, reasoning?: string) => void;
+  onNodeEnd?: (
+    nodeId: string,
+    stateUpdates: any,
+    reasoning?: string,
+    fullState?: any,
+  ) => void;
   onEdgeTraversal?: (
     sourceId: string,
     targetId: string,
@@ -149,6 +154,7 @@ export async function compileAndRunAgent(
           triggerNode.id,
           errorPayload,
           `Validation failed. The user input was missing required fields defined in the Trigger schema.`,
+          { ...parsedInput, ...errorPayload },
         );
 
       return {
@@ -175,6 +181,7 @@ export async function compileAndRunAgent(
       triggerNode.id,
       initialState,
       `Successfully extracted user input and mapped it to the initial graph state.`,
+      initialState,
     );
   }
 
@@ -297,7 +304,11 @@ export async function compileAndRunAgent(
         stateUpdates[globalKey] = outputData[localKey];
       }
 
-      if (reporter?.onNodeEnd) reporter.onNodeEnd(node.id, stateUpdates);
+      if (reporter?.onNodeEnd)
+        reporter.onNodeEnd(node.id, stateUpdates, undefined, {
+          ...state,
+          ...stateUpdates,
+        });
 
       if (!stateUpdates.__error__) {
         const outgoingEdges = edges.filter((e: any) => e.source === node.id);
@@ -335,6 +346,7 @@ export async function compileAndRunAgent(
           intNode.id,
           { __human_feedback__: feedback, ...stateUpdates },
           `Human responded with: ${feedback}`,
+          { ...state, __human_feedback__: feedback, ...stateUpdates },
         );
       }
 
@@ -428,7 +440,10 @@ export async function compileAndRunAgent(
       }
 
       if (reporter?.onNodeEnd) {
-        reporter.onNodeEnd(resNode.id, finalResponsePayload, reasoningStr);
+        reporter.onNodeEnd(resNode.id, finalResponsePayload, reasoningStr, {
+          ...state,
+          __final_payload__: finalResponsePayload,
+        });
       }
 
       return { __final_payload__: finalResponsePayload };
@@ -646,6 +661,7 @@ export async function compileAndRunAgent(
         "System Error Handler",
         errorPayload,
         `Graph execution was aborted early due to a system or skill error.`,
+        { ...finalState, ...errorPayload },
       );
 
     console.log("--- [DEBUG] AGENT EXECUTION COMPLETE (WITH ERRORS) ---\n");
