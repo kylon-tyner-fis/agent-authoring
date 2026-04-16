@@ -402,7 +402,7 @@ export const ConfigPanel = ({
                         },
                       })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50 text-slate-900"
                   >
                     {MOCK_PROVIDERS.map((p) => (
                       <option key={p} value={p}>
@@ -423,7 +423,7 @@ export const ConfigPanel = ({
                         model: { ...config.model, model_name: e.target.value },
                       })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50 text-slate-900"
                   >
                     {MOCK_MODELS[
                       config.model.provider as keyof typeof MOCK_MODELS
@@ -534,7 +534,7 @@ export const ConfigPanel = ({
                     type="text"
                     value="postgresSaver"
                     readOnly
-                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none bg-slate-50 text-slate-500 font-mono cursor-not-allowed"
+                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none bg-slate-50 text-slate-900 font-mono cursor-not-allowed"
                   />
                 </div>
 
@@ -563,7 +563,7 @@ export const ConfigPanel = ({
                       })
                     }
                     placeholder="3600"
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 bg-gray-50 font-mono"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 bg-gray-50 font-mono text-slate-900"
                   />
                 </div>
 
@@ -591,7 +591,7 @@ export const ConfigPanel = ({
                       })
                     }
                     placeholder="3600"
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 bg-gray-50 font-mono"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 bg-gray-50 font-mono text-slate-900"
                   />
                 </div>
               </div>

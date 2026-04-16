@@ -975,7 +975,7 @@ const CanvasEditor = forwardRef<
                                   e.target.value,
                                 )
                               }
-                              className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                              className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white text-slate-900"
                             >
                               <option value="">
                                 -- Select State Variable --

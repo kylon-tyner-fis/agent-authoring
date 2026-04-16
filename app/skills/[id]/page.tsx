@@ -196,7 +196,7 @@ export default function SkillEditorPage({
                   type="text"
                   value={skill.name}
                   onChange={(e) => setSkill({ ...skill, name: e.target.value })}
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500 text-slate-900"
                   placeholder="e.g. Database Query"
                 />
               </div>
@@ -221,7 +221,7 @@ export default function SkillEditorPage({
                   onChange={(e) =>
                     setSkill({ ...skill, description: e.target.value })
                   }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500 text-slate-900"
                   placeholder="What does this skill do?"
                 />
               </div>
@@ -246,7 +246,7 @@ export default function SkillEditorPage({
               onChange={(e) =>
                 setSkill({ ...skill, prompt_template: e.target.value })
               }
-              className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-indigo-500 resize-none text-sm font-mono text-slate-800 leading-relaxed"
+              className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-indigo-500 resize-none text-sm font-mono text-slate-900 leading-relaxed"
               placeholder="e.g. Summarize the following text: {{document_text}}"
             />
           </div>

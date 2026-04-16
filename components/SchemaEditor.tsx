@@ -63,7 +63,7 @@ export const SchemaEditor = ({
                 value={node.key}
                 placeholder="Key (e.g. query)"
                 onChange={(e) => updateNode(node.id, { key: e.target.value })}
-                className="flex-1 p-2.5 min-w-0 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-emerald-500 bg-white shadow-sm transition-all"
+                className="flex-1 p-2.5 min-w-0 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-emerald-500 bg-white shadow-sm transition-all text-slate-900"
               />
               <span className="text-gray-400 font-mono">:</span>
 
@@ -87,8 +87,8 @@ export const SchemaEditor = ({
                 }}
                 className={`flex-[1.5] min-w-0 p-2.5 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-emerald-500 shadow-sm transition-all ${
                   hasChildren
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200 font-bold"
-                    : "bg-white text-blue-700"
+                    ? "bg-emerald-50 text-slate-900 border-emerald-200 font-bold"
+                    : "bg-white text-slate-900"
                 }`}
               />
 

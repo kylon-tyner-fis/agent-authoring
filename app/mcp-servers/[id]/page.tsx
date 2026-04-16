@@ -124,7 +124,7 @@ export default function MCPServerEditorPage({
                   onChange={(e) =>
                     setServer({ ...server, name: e.target.value })
                   }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 transition-colors"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 transition-colors text-slate-900"
                   placeholder="e.g. Internal Knowledge Graph"
                 />
               </div>
@@ -136,7 +136,7 @@ export default function MCPServerEditorPage({
                   type="text"
                   value={server.id || "Generated on save"}
                   disabled
-                  className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
+                  className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-900 font-mono"
                 />
               </div>
               <div className="space-y-1.5">
@@ -151,7 +151,7 @@ export default function MCPServerEditorPage({
                       status: e.target.value as MCPServerConfig["status"],
                     })
                   }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 bg-white cursor-pointer"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 bg-white cursor-pointer text-slate-900"
                 >
                   <option value="active">🟢 Active</option>
                   <option value="inactive">⚪ Inactive</option>
@@ -177,7 +177,7 @@ export default function MCPServerEditorPage({
                   onChange={(e) =>
                     setServer({ ...server, url: e.target.value })
                   }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 font-mono text-slate-800"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 font-mono text-slate-900"
                   placeholder="https://mcp.yourdomain.com/v1"
                 />
               </div>
