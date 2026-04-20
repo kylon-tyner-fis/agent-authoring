@@ -106,12 +106,11 @@ export const Playground = ({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, stateHistory]);
 
-  const handleSendMessage = async (e?: React.FormEvent, actionValue?: any) => {
+  const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    // Determine the resume value: either a quick-action button click, or the typed text
-    let resumeValue = actionValue;
-    if (!resumeValue && interruptedNode && input.trim()) {
+    let resumeValue;
+    if (interruptedNode && input.trim()) {
       resumeValue = input.trim();
     }
 
@@ -120,9 +119,7 @@ export const Playground = ({
     setError(null);
 
     // Add user message to chat for visual history
-    const displayContent = actionValue
-      ? `*[System: User selected '${actionValue}']*`
-      : input;
+    const displayContent = input.trim();
     setMessages((prev) => [...prev, { role: "user", content: displayContent }]);
 
     setStateHistory([]);
@@ -135,8 +132,8 @@ export const Playground = ({
     try {
       const body = {
         config,
-        // If it's a fresh start, send input. If it's a resume, send empty input (or the original input if you want it tracked elsewhere)
-        input: resumeValue ? "" : input,
+        // If it's a fresh start, send input. If it's a resume, send empty input
+        input: resumeValue ? "" : displayContent,
         thread_id: threadId,
         resume_value: resumeValue,
       };
@@ -216,7 +213,7 @@ export const Playground = ({
                 ...prev,
                 {
                   role: "assistant",
-                  content: `⏸️ **Waiting for Approval at node:** \`${event.node}\`. Please check the State Inspector and confirm.`,
+                  content: `⏸️ **Waiting for Human Input at node:** \`${event.node}\`. Please provide your response.`,
                 },
               ]);
               setActiveTab("chat");
@@ -443,32 +440,6 @@ export const Playground = ({
           </div>
         )}
       </div>
-
-      {/* INTERRUPT ACTIONS BAR */}
-      {interruptedNode && (
-        <div className="p-4 bg-orange-50 border-t border-orange-200 flex items-center justify-between shrink-0 shadow-inner z-10">
-          <div className="flex items-center gap-2 text-orange-800 text-sm font-medium">
-            <Hand className="w-4 h-4" /> Awaiting Human Input
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-orange-600/70 italic mr-2">
-              Type below, or:
-            </span>
-            <button
-              onClick={() => handleSendMessage(undefined, "Rejected")}
-              className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors shadow-sm"
-            >
-              Reject
-            </button>
-            <button
-              onClick={() => handleSendMessage(undefined, "Approved")}
-              className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm border border-emerald-700"
-            >
-              Approve Execution
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="p-5 bg-white border-t border-gray-200 shrink-0">
         <form onSubmit={handleSendMessage} className="flex gap-2">

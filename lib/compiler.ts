@@ -333,7 +333,7 @@ export async function compileAndRunAgent(
       if (reporter?.onNodeStart) reporter.onNodeStart(intNode.id);
 
       // Read the feedback that was injected into state just before resume
-      const feedback = state.__human_feedback__ || "Approved";
+      const feedback = state.__human_feedback__ || "";
       const stateUpdates: Record<string, any> = {};
 
       // NEW: Map the human's input to a specific global state variable if configured
@@ -530,7 +530,7 @@ export async function compileAndRunAgent(
                 - Expected Initial Inputs: {__expected_inputs__}
                 If evaluating whether the user provided enough information, look STRICTLY at these Expected Initial Inputs. If any of these are null or empty, information is missing.
                 - Downstream Outputs: Any other variables in the state are outputs to be computed later.
-                - Human Feedback: The '__human_feedback__' field contains the user's recent input during an interrupt. This could be an explicit decision ('Approved', 'Rejected'), detailed feedback, instructions for rework, or answers to a prompt (like a quiz). Rely on this heavily to determine if the condition is met.
+                - Human Feedback: The '__human_feedback__' field contains the user's recent input during an interrupt. This could be detailed feedback, instructions for rework, or answers to a prompt (like a quiz). Rely on this heavily to determine if the condition is met.
                 
                 Return a JSON object with exactly two keys:
                 1. "reasoning" (string): Explanation of your logic.
@@ -761,7 +761,7 @@ export function generateManifest(
         "\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. Return your response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.",
 
       edge_router:
-        "{__persona__}\nYou are a logic router for an AI agent. \nEvaluate if the following condition is TRUE based on the current state.\n\nCurrent State:\n{__state__}\n\nCondition to evaluate:\n{__condition__}\n\nIMPORTANT CONTEXT FOR EVALUATION:\n- Expected Initial Inputs: {__expected_inputs__}\nIf evaluating whether the user provided enough information, look STRICTLY at these Expected Initial Inputs. If any of these are null or empty, information is missing.\n- Downstream Outputs: Any other variables in the state are outputs to be computed later.\n- Human Feedback: The '__human_feedback__' field contains the user's recent input during an interrupt. This could be an explicit decision ('Approved', 'Rejected'), detailed feedback, instructions for rework, or answers to a prompt (like a quiz). Rely on this heavily to determine if the condition is met.\n\nReturn a JSON object with exactly two keys:\n1. \"reasoning\" (string): Explanation of your logic.\n2. \"is_true\" (boolean): true if the condition is met, false otherwise.",
+        '{__persona__}\nYou are a logic router for an AI agent. \nEvaluate if the following condition is TRUE based on the current state.\n\nCurrent State:\n{__state__}\n\nCondition to evaluate:\n{__condition__}\n\nIMPORTANT CONTEXT FOR EVALUATION:\n- Expected Initial Inputs: {__expected_inputs__}\nIf evaluating whether the user provided enough information, look STRICTLY at these Expected Initial Inputs. If any of these are null or empty, information is missing.\n- Downstream Outputs: Any other variables in the state are outputs to be computed later.\n- Human Feedback: The \'__human_feedback__\' field contains the user\'s recent input during an interrupt. This could be detailed feedback, instructions for rework, or answers to a prompt (like a quiz). Rely on this heavily to determine if the condition is met.\n\nReturn a JSON object with exactly two keys:\n1. "reasoning" (string): Explanation of your logic.\n2. "is_true" (boolean): true if the condition is met, false otherwise.',
 
       response_formatter:
         "{__persona__}\n--- NODE-SPECIFIC INSTRUCTIONS ---\n{__response_instructions__}\n\n--- SYSTEM INSTRUCTIONS ---\nYou are the final response formatter for an AI workflow.\nTake the raw extracted data below and format, summarize, or modify it exactly according to the node-specific instructions above.\n\nRaw Extracted Data:\n{__raw_data__}\n\nReturn ONLY a valid JSON object matching this exact schema: {__schema__}",
