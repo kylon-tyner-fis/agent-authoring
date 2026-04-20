@@ -1,6 +1,8 @@
+// app/api/agents/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { AgentConfig } from "@/lib/constants";
+import { AgentConfig, SkillConfig, MCPServerConfig } from "@/lib/constants";
+import { generateManifest } from "@/lib/compiler";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,6 +13,22 @@ export async function POST(req: Request) {
   try {
     const config: AgentConfig = await req.json();
 
+    // 1. Fetch full dependencies for the compiled manifest
+    const [skillsResponse, serversResponse] = await Promise.all([
+      supabase.from("skills").select("*"),
+      supabase.from("mcp_servers").select("*"),
+    ]);
+
+    if (skillsResponse.error) throw skillsResponse.error;
+    if (serversResponse.error) throw serversResponse.error;
+
+    const allSkills: SkillConfig[] = skillsResponse.data || [];
+    const allServers: MCPServerConfig[] = serversResponse.data || [];
+
+    // 2. Generate the standalone compiled manifest
+    const compiledManifest = generateManifest(config, allSkills, allServers);
+
+    // 3. Save the agent config along with the new manifest
     const { data, error } = await supabase
       .from("agents")
       .upsert(
@@ -31,6 +49,7 @@ export async function POST(req: Request) {
             persistence: config.persistence,
             interrupts: config.interrupts,
             orchestration: config.orchestration,
+            compiled_manifest: compiledManifest, // NEW field mapped here
           },
         ],
         { onConflict: "agent_id" },

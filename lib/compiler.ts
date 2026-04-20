@@ -1,8 +1,9 @@
+// lib/compiler.ts
 import { StateGraph, START, END } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { AgentConfig, SkillConfig } from "./constants";
+import { AgentConfig, SkillConfig, MCPServerConfig } from "./constants";
 import { Pool } from "pg";
 
 export interface ExecutionReporter {
@@ -677,4 +678,101 @@ export async function compileAndRunAgent(
     extracted_data: finalState.__final_payload__ || {},
     ...finalState,
   };
+}
+
+/**
+ * NEW: Generates a self-contained compiled manifest that external runners can use.
+ * This filters the provided external dependencies down to only the ones used by this agent
+ * and aggregates everything into a single deployable JSON object, including the core
+ * engine prompts needed to execute the graph logic.
+ */
+export function generateManifest(
+  config: AgentConfig,
+  allSkills: SkillConfig[],
+  allServers: MCPServerConfig[],
+) {
+  // 1. Identify which skills are actually used in the graph nodes
+  const nodes = config.orchestration?.nodes || [];
+  const usedSkillIds = new Set<string>();
+
+  nodes.forEach((n: any) => {
+    if (n.type === "skill" && n.data?.skillId) {
+      usedSkillIds.add(n.data.skillId);
+    }
+  });
+
+  // 2. Filter skills to only the ones required by the agent
+  const resolvedSkills = allSkills
+    .filter((skill) => usedSkillIds.has(skill.id))
+    .reduce(
+      (acc, skill) => {
+        acc[skill.id] = {
+          name: skill.name,
+          prompt_template: skill.prompt_template,
+          input_schema: skill.input_schema,
+          output_schema: skill.output_schema,
+          mcp_dependencies: skill.mcp_dependencies,
+        };
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
+
+  // 3. Filter MCP servers (both explicitly attached to the agent and implicitly needed by skills)
+  const requiredServerIds = new Set<string>(config.mcp_servers || []);
+  allSkills.forEach((skill) => {
+    if (usedSkillIds.has(skill.id) && skill.mcp_dependencies) {
+      skill.mcp_dependencies.forEach((dep) => requiredServerIds.add(dep));
+    }
+  });
+
+  const resolvedServers = allServers
+    .filter((server) => requiredServerIds.has(server.id))
+    .reduce(
+      (acc, server) => {
+        acc[server.id] = {
+          name: server.name,
+          url: server.url,
+          auth_type: server.auth_type,
+        };
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
+
+  // 4. Construct the full manifest
+  const manifest = {
+    metadata: {
+      agent_id: config.agent_id,
+      version: config.version,
+      description: config.description,
+    },
+    engine: {
+      model: config.model,
+      system_prompt: config.system_prompt,
+      state_schema: config.state_schema,
+    },
+    // NEW: Core engine prompts so external apps know how to instruct the LLM
+    engine_prompts: {
+      trigger_extractor:
+        "{__persona__}{__trigger_instructions__}\nYou are an API payload extractor. Extract the user's intent into the following JSON schema: {__schema__}\n\nUser Input: {__input__}\n\nReturn ONLY valid JSON. If a field is not explicitly mentioned but can be logically inferred, do so. Otherwise, leave it null.",
+
+      skill_system_wrapper:
+        "\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. Return your response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.",
+
+      edge_router:
+        "{__persona__}\nYou are a logic router for an AI agent. \nEvaluate if the following condition is TRUE based on the current state.\n\nCurrent State:\n{__state__}\n\nCondition to evaluate:\n{__condition__}\n\nIMPORTANT CONTEXT FOR EVALUATION:\n- Expected Initial Inputs: {__expected_inputs__}\nIf evaluating whether the user provided enough information, look STRICTLY at these Expected Initial Inputs. If any of these are null or empty, information is missing.\n- Downstream Outputs: Any other variables in the state are outputs to be computed later.\n- Human Feedback: The '__human_feedback__' field contains the user's recent input during an interrupt. This could be an explicit decision ('Approved', 'Rejected'), detailed feedback, instructions for rework, or answers to a prompt (like a quiz). Rely on this heavily to determine if the condition is met.\n\nReturn a JSON object with exactly two keys:\n1. \"reasoning\" (string): Explanation of your logic.\n2. \"is_true\" (boolean): true if the condition is met, false otherwise.",
+
+      response_formatter:
+        "{__persona__}\n--- NODE-SPECIFIC INSTRUCTIONS ---\n{__response_instructions__}\n\n--- SYSTEM INSTRUCTIONS ---\nYou are the final response formatter for an AI workflow.\nTake the raw extracted data below and format, summarize, or modify it exactly according to the node-specific instructions above.\n\nRaw Extracted Data:\n{__raw_data__}\n\nReturn ONLY a valid JSON object matching this exact schema: {__schema__}",
+    },
+    resolved_skills: resolvedSkills,
+    resolved_mcp_servers: resolvedServers,
+    graph_topology: {
+      nodes: config.orchestration?.nodes || [],
+      edges: config.orchestration?.edges || [],
+    },
+  };
+
+  return manifest;
 }

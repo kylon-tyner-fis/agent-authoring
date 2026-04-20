@@ -1,3 +1,5 @@
+// lib/constants.ts
+
 // --- TYPES ---
 export type FieldType =
   | "string"
@@ -90,7 +92,8 @@ export interface OrchestrationConfig {
   };
 }
 
-// UPDATED: AgentConfig now links to MCP servers and removes raw 'skills' array
+// UPDATED: AgentConfig now links to MCP servers, removes raw 'skills' array,
+// and includes compiled_manifest for standalone execution.
 export interface AgentConfig {
   agent_id: string;
   version: string;
@@ -105,6 +108,7 @@ export interface AgentConfig {
   persistence?: PersistenceConfig;
   interrupts?: Record<string, InterruptConfig>;
   orchestration?: OrchestrationConfig;
+  compiled_manifest?: any; // NEW: Standalone execution manifest
 }
 
 export interface Message {
