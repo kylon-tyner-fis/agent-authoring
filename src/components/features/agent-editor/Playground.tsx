@@ -141,7 +141,7 @@ export const Playground = ({
         resume_value: resumeValue,
       };
 
-      const response = await fetch("/api/agent/run", {
+      const response = await fetch("/api/agents/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

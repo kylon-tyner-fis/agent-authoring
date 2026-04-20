@@ -1,4 +1,3 @@
-// authoring-app/app/api/execute/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { executeAgentManifest } from "@/src/lib/runtime/manifest-executor";
