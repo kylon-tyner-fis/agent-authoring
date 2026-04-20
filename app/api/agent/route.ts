@@ -24,10 +24,21 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    const { data: skills, error } = await supabase.from("skills").select("*");
+    // ACTION A1: Fetch both skills and mcp_servers concurrently
+    const [skillsRes, serversRes] = await Promise.all([
+      supabase.from("skills").select("*"),
+      supabase.from("mcp_servers").select("*"),
+    ]);
 
-    if (error) {
-      throw new Error(`Failed to fetch skills dependencies: ${error.message}`);
+    if (skillsRes.error) {
+      throw new Error(
+        `Failed to fetch skills dependencies: ${skillsRes.error.message}`,
+      );
+    }
+    if (serversRes.error) {
+      throw new Error(
+        `Failed to fetch MCP server dependencies: ${serversRes.error.message}`,
+      );
     }
 
     const encoder = new TextEncoder();
@@ -71,17 +82,32 @@ export async function POST(req: Request) {
               ),
             );
           },
+          // ACTION A3: Map new reporter methods to SSE data chunks
+          onToolStart: (toolName: string, args: Record<string, any>) => {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "tool_start", toolName, args })}\n\n`,
+              ),
+            );
+          },
+          onToolEnd: (toolName: string, result: any) => {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "tool_end", toolName, result })}\n\n`,
+              ),
+            );
+          },
         };
 
         try {
-          // Pass the thread_id and resume_value down to the compiler
           const result = await compileAndRunAgent(
             config,
-            skills || [],
+            skillsRes.data || [],
+            serversRes.data || [], // Pass the hydrated servers to the compiler
             input,
             reporter,
-            thread_id, // Pass thread_id
-            resume_value, // Pass resume_value
+            thread_id,
+            resume_value,
           );
 
           // Handle Interrupted State

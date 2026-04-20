@@ -15,6 +15,9 @@ import {
   GitBranch,
   Brain,
   Hand,
+  Loader2,
+  CheckCircle2,
+  Wrench,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { RecursiveJsonViewer } from "./RecursiveJsonViewer";
@@ -72,7 +75,10 @@ type HistoryEvent =
       target: string;
       condition?: string;
       reasoning?: string;
-    };
+    }
+  // NEW EVENTS ADDED HERE
+  | { type: "tool_start"; toolName: string; args: Record<string, any> }
+  | { type: "tool_end"; toolName: string; result: any };
 
 interface PlaygroundProps {
   config: AgentConfig;
@@ -97,7 +103,6 @@ export const Playground = ({
   const [stateHistory, setStateHistory] = useState<HistoryEvent[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Session and Interrupt State
   const [threadId] = useState(() => uuidv4());
   const [interruptedNode, setInterruptedNode] = useState<string | null>(null);
 
@@ -118,7 +123,6 @@ export const Playground = ({
 
     setError(null);
 
-    // Add user message to chat for visual history
     const displayContent = input.trim();
     setMessages((prev) => [...prev, { role: "user", content: displayContent }]);
 
@@ -132,7 +136,6 @@ export const Playground = ({
     try {
       const body = {
         config,
-        // If it's a fresh start, send input. If it's a resume, send empty input
         input: resumeValue ? "" : displayContent,
         thread_id: threadId,
         resume_value: resumeValue,
@@ -205,8 +208,27 @@ export const Playground = ({
                   reasoning: event.reasoning,
                 },
               ]);
+            } else if (event.type === "tool_start") {
+              // NEW: Handle Tool Start
+              setStateHistory((prev) => [
+                ...prev,
+                {
+                  type: "tool_start",
+                  toolName: event.toolName,
+                  args: event.args,
+                },
+              ]);
+            } else if (event.type === "tool_end") {
+              // NEW: Handle Tool End
+              setStateHistory((prev) => [
+                ...prev,
+                {
+                  type: "tool_end",
+                  toolName: event.toolName,
+                  result: event.result,
+                },
+              ]);
             } else if (event.type === "interrupt") {
-              // Handle Interrupt logic
               setInterruptedNode(event.node);
               onActiveNodeChange?.(event.node);
               setMessages((prev) => [
@@ -337,78 +359,124 @@ export const Playground = ({
               </p>
             )}
 
-            {stateHistory.map((history, i) =>
-              history.type === "node_end" ? (
-                <div
-                  key={i}
-                  className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2"
-                >
-                  <div className="bg-slate-50 border-b border-gray-200 px-4 py-2.5 flex items-center gap-2">
-                    <Network className="w-4 h-4 text-slate-500" />
-                    <h3 className="font-semibold text-slate-700 m-0 text-xs uppercase tracking-wide">
-                      Node Completed:{" "}
-                      <span className="text-purple-600 font-bold">
-                        {history.node}
-                      </span>
-                    </h3>
-                  </div>
-                  <div className="p-4 overflow-x-auto space-y-4">
-                    <div>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                        State Updates
-                      </h4>
-                      <RecursiveJsonViewer data={history.updates} />
+            {stateHistory.map((history, i) => {
+              if (history.type === "node_end") {
+                return (
+                  <div
+                    key={i}
+                    className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2"
+                  >
+                    <div className="bg-slate-50 border-b border-gray-200 px-4 py-2.5 flex items-center gap-2">
+                      <Network className="w-4 h-4 text-slate-500" />
+                      <h3 className="font-semibold text-slate-700 m-0 text-xs uppercase tracking-wide">
+                        Node Completed:{" "}
+                        <span className="text-purple-600 font-bold">
+                          {history.node}
+                        </span>
+                      </h3>
                     </div>
-                    {history.fullState && (
-                      <div className="pt-3 border-t border-slate-100">
+                    <div className="p-4 overflow-x-auto space-y-4">
+                      <div>
                         <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                          Global State
+                          State Updates
                         </h4>
-                        <RecursiveJsonViewer data={history.fullState} />
+                        <RecursiveJsonViewer data={history.updates} />
+                      </div>
+                      {history.fullState && (
+                        <div className="pt-3 border-t border-slate-100">
+                          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Global State
+                          </h4>
+                          <RecursiveJsonViewer data={history.fullState} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              } else if (history.type === "tool_start") {
+                return (
+                  <div
+                    key={i}
+                    className="flex flex-col gap-1.5 ml-6 my-2 animate-in fade-in"
+                  >
+                    <div className="flex items-center gap-2 text-[11px] text-teal-600 font-mono px-4">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Executing Tool:</span>
+                      <span className="font-semibold bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded">
+                        {history.toolName}
+                      </span>
+                    </div>
+                    <div className="ml-10 text-[10px] text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200">
+                      <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
+                        Arguments
+                      </span>
+                      <RecursiveJsonViewer data={history.args} />
+                    </div>
+                  </div>
+                );
+              } else if (history.type === "tool_end") {
+                return (
+                  <div
+                    key={i}
+                    className="flex flex-col gap-1.5 ml-6 my-2 animate-in fade-in"
+                  >
+                    <div className="flex items-center gap-2 text-[11px] text-emerald-600 font-mono px-4">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Tool Completed:</span>
+                      <span className="font-semibold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                        {history.toolName}
+                      </span>
+                    </div>
+                    <div className="ml-10 text-[10px] text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">
+                      <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
+                        Result
+                      </span>
+                      <RecursiveJsonViewer data={history.result} />
+                    </div>
+                  </div>
+                );
+              } else {
+                return (
+                  <div
+                    key={i}
+                    className="flex flex-col gap-1.5 ml-6 my-2 animate-in fade-in"
+                  >
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono px-4">
+                      <CornerDownRight className="w-4 h-4" />
+                      <span>Traversing edge:</span>
+                      <span className="font-semibold text-slate-600 bg-slate-200/50 border border-slate-200 px-1.5 py-0.5 rounded">
+                        {history.source}
+                      </span>
+                      <ArrowRight className="w-3 h-3 text-slate-300" />
+                      <span className="font-semibold text-slate-600 bg-slate-200/50 border border-slate-200 px-1.5 py-0.5 rounded">
+                        {history.target}
+                      </span>
+                    </div>
+
+                    {history.condition && (
+                      <div className="flex items-center gap-1.5 text-[10px] text-orange-600 font-mono px-4 ml-6">
+                        <GitBranch className="w-3 h-3" />
+                        <span className="bg-orange-50 border border-orange-200 px-2 py-0.5 rounded italic">
+                          Condition met: "{history.condition}"
+                        </span>
+                      </div>
+                    )}
+
+                    {history.reasoning && (
+                      <div className="flex items-start gap-1.5 text-[11px] text-slate-500 px-4 ml-6 mt-1">
+                        <Brain className="w-3.5 h-3.5 mt-0.5 shrink-0 text-indigo-400" />
+                        <div className="bg-white border border-slate-200 shadow-sm px-3 py-2 rounded-lg leading-relaxed">
+                          <span className="font-semibold text-indigo-600 mr-1">
+                            Router Logic:
+                          </span>
+                          {history.reasoning}
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
-              ) : (
-                <div
-                  key={i}
-                  className="flex flex-col gap-1.5 ml-6 my-2 animate-in fade-in"
-                >
-                  <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono px-4">
-                    <CornerDownRight className="w-4 h-4" />
-                    <span>Traversing edge:</span>
-                    <span className="font-semibold text-slate-600 bg-slate-200/50 border border-slate-200 px-1.5 py-0.5 rounded">
-                      {history.source}
-                    </span>
-                    <ArrowRight className="w-3 h-3 text-slate-300" />
-                    <span className="font-semibold text-slate-600 bg-slate-200/50 border border-slate-200 px-1.5 py-0.5 rounded">
-                      {history.target}
-                    </span>
-                  </div>
-
-                  {history.condition && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-orange-600 font-mono px-4 ml-6">
-                      <GitBranch className="w-3 h-3" />
-                      <span className="bg-orange-50 border border-orange-200 px-2 py-0.5 rounded italic">
-                        Condition met: "{history.condition}"
-                      </span>
-                    </div>
-                  )}
-
-                  {history.reasoning && (
-                    <div className="flex items-start gap-1.5 text-[11px] text-slate-500 px-4 ml-6 mt-1">
-                      <Brain className="w-3.5 h-3.5 mt-0.5 shrink-0 text-indigo-400" />
-                      <div className="bg-white border border-slate-200 shadow-sm px-3 py-2 rounded-lg leading-relaxed">
-                        <span className="font-semibold text-indigo-600 mr-1">
-                          Router Logic:
-                        </span>
-                        {history.reasoning}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ),
-            )}
+                );
+              }
+            })}
           </div>
         )}
 
@@ -447,14 +515,12 @@ export const Playground = ({
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            // Dynamically change placeholder based on state
             placeholder={
               interruptedNode
-                ? "Type your answers, feedback, or instructions..."
+                ? "Type your feedback, or instructions..."
                 : "Type a message to test..."
             }
             className="flex-1 p-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-100 shadow-sm transition-all"
-            // Unlock the input!
             disabled={isSimulating}
           />
           <button

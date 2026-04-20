@@ -17,21 +17,19 @@ export class McpClient {
   }
 
   /**
-   * Executes a tool on the remote MCP server.
+   * Executes a tool on the remote (or local mock) MCP server.
    */
   async callTool(toolName: string, args: Record<string, any>) {
-    // SIMULATION MODE: Use this if you don't have a live server
-    if (this.config.url === "simulation://local") {
-      console.log(`[MCP SIMULATOR] Intercepted call to: ${toolName}`);
-      return this.generateSimulatedResponse(toolName, args);
-    }
-
-    // REAL PROTOCOL MODE
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    if (this.config.auth_type === "api_key")
-      headers["X-API-Key"] = "simulated_key";
+
+    // Apply auth if required by the configuration
+    if (this.config.auth_type === "api_key") {
+      headers["X-API-Key"] = "your_api_key_here"; // To be replaced with real secret management later
+    } else if (this.config.auth_type === "bearer") {
+      headers["Authorization"] = "Bearer your_token_here";
+    }
 
     const response = await fetch(`${this.config.url}/tools/call`, {
       method: "POST",
@@ -44,37 +42,34 @@ export class McpClient {
       }),
     });
 
-    if (!response.ok) throw new Error(`MCP Error: ${response.status}`);
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(
+        `MCP Error ${response.status}: ${errData?.error?.message || response.statusText}`,
+      );
+    }
+
     const data = await response.json();
+    if (data.error) {
+      throw new Error(`MCP JSON-RPC Error: ${data.error.message}`);
+    }
+
     return data.result.content;
   }
 
-  private generateSimulatedResponse(
-    toolName: string,
-    args: Record<string, any>,
-  ) {
-    // Basic mock logic for common tool patterns
-    if (toolName.includes("search") || toolName.includes("research")) {
-      return {
-        research_summary: `Simulated research results for "${args.search_query || args.query || "topic"}"`,
-        source_urls: ["https://example.com/simulated-source"],
-      };
-    }
-    return {
-      status: "success",
-      message: `Simulated output for ${toolName}`,
-      received_args: args,
-    };
-  }
-
   /**
-   * Fetches available tools from the server (for future tool discovery feature).
+   * Fetches available tools from the server.
    */
   async listTools() {
     const response = await fetch(`${this.config.url}/tools/list`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
+
+    if (!response.ok) {
+      throw new Error(`Failed to list tools: ${response.status}`);
+    }
+
     return response.json();
   }
 }

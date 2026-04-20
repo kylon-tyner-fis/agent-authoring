@@ -3,9 +3,12 @@ import { StateGraph, START, END } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
+import { HumanMessage, ToolMessage } from "@langchain/core/messages"; // IMPORTED CORE MESSAGES
 import { AgentConfig, SkillConfig, MCPServerConfig } from "./constants";
+import { McpClient } from "./mcp-client"; // IMPORTED MCP CLIENT
 import { Pool } from "pg";
 
+// ACTION A2: Extend ExecutionReporter
 export interface ExecutionReporter {
   onNodeStart?: (nodeId: string) => void;
   onNodeEnd?: (
@@ -20,16 +23,17 @@ export interface ExecutionReporter {
     condition?: string,
     reasoning?: string,
   ) => void;
+  onToolStart?: (toolName: string, args: Record<string, any>) => void;
+  onToolEnd?: (toolName: string, result: any) => void;
 }
 
 // 1. Initialize Postgres Pool and Checkpointer
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 10, // Max number of connections in the pool
+  max: 10,
 });
 const checkpointer = new PostgresSaver(pool);
 
-// Helper to ensure tables are created (only runs the first time)
 let isDbSetup = false;
 async function ensureDbSetup() {
   if (!isDbSetup) {
@@ -38,16 +42,18 @@ async function ensureDbSetup() {
   }
 }
 
+// ACTION B1: Update signature to accept servers
 export async function compileAndRunAgent(
   config: AgentConfig,
   skills: SkillConfig[],
+  servers: MCPServerConfig[],
   userInput: string,
   reporter?: ExecutionReporter,
-  threadId: string = "default-thread", // Added Thread ID for persistence
-  resumeValue?: any, // Added for handling human-in-the-loop approvals
+  threadId: string = "default-thread",
+  resumeValue?: any,
 ) {
   console.log(`\n--- [DEBUG] AGENT EXECUTION (Thread: ${threadId}) ---`);
-  await ensureDbSetup(); // Make sure Supabase tables exist
+  await ensureDbSetup();
 
   const nodes = config.orchestration?.nodes || [];
   const edges = config.orchestration?.edges || [];
@@ -75,7 +81,6 @@ export async function compileAndRunAgent(
   try {
     parsedInput = JSON.parse(userInput);
   } catch (e) {
-    // Skip extraction if we are just resuming the graph with an approval
     if (process.env.OPENAI_API_KEY && !resumeValue && userInput) {
       try {
         const extractionLlm = new ChatOpenAI({
@@ -196,7 +201,6 @@ export async function compileAndRunAgent(
       value: (prev: any, next: any) => (next !== undefined ? next : prev),
       default: () => null,
     },
-    // FIX: Add explicit channel for human feedback to power logic router
     __human_feedback__: {
       value: (prev: any, next: any) => (next !== undefined ? next : prev),
       default: () => null,
@@ -223,7 +227,7 @@ export async function compileAndRunAgent(
   const skillNodes = nodes.filter((n: any) => n.type === "skill");
   const interruptNodes = nodes.filter((n: any) => n.type === "interrupt");
 
-  // 5. ADD SKILL NODES
+  // 5. ADD SKILL NODES (With Tool Binding & Execution Loop)
   for (const node of skillNodes) {
     const skill = skills.find((s) => s.id === node.data.skillId);
     if (!skill) continue;
@@ -252,6 +256,40 @@ export async function compileAndRunAgent(
             modelKwargs: { response_format: { type: "json_object" } },
           });
 
+          // ACTION B3: Aggregate McpClients
+          const mcpDependencies = skill.mcp_dependencies || [];
+          const requiredServers = servers.filter((s) =>
+            mcpDependencies.includes(s.id),
+          );
+          const mcpClients = requiredServers.map((s) => new McpClient(s));
+
+          // ACTION B4: Fetch and map tools
+          const openAiTools: any[] = [];
+          const toolNameToClient = new Map<string, McpClient>();
+
+          for (const client of mcpClients) {
+            try {
+              const { tools } = await client.listTools();
+              for (const tool of tools) {
+                openAiTools.push({
+                  type: "function",
+                  function: {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: tool.inputSchema,
+                  },
+                });
+                toolNameToClient.set(tool.name, client);
+              }
+            } catch (err) {
+              console.error(`[DEBUG] Failed to list tools for server`, err);
+            }
+          }
+
+          // Bind tools to the model if any exist
+          const modelWithTools =
+            openAiTools.length > 0 ? llm.bindTools(openAiTools) : llm;
+
           const schemaString = JSON.stringify(skill.output_schema || {});
           const inputsString = JSON.stringify(localInputs, null, 2);
 
@@ -259,7 +297,7 @@ export async function compileAndRunAgent(
             ? `\n--- STEP-SPECIFIC INSTRUCTIONS ---\n${node.data.custom_instructions}\n`
             : "";
 
-          const systemInstruction = `\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. Return your response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.`;
+          const systemInstruction = `\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. If you have tools available, use them to gather required information.\n3. Return your final response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.`;
 
           const prompt = PromptTemplate.fromTemplate(
             skill.prompt_template + systemInstruction,
@@ -272,30 +310,85 @@ export async function compileAndRunAgent(
             __inputsString__: inputsString,
           });
 
-          const response = await llm.invoke(formatted);
+          // ACTION B5: The Multi-turn Execution Loop
+          const messages: any[] = [new HumanMessage(formatted)];
+          let maxTurns = 5;
 
-          try {
-            let cleanStr = response.content.toString().trim();
-            if (cleanStr.startsWith("```json"))
-              cleanStr = cleanStr
-                .replace(/^```json/, "")
-                .replace(/```$/, "")
-                .trim();
-            const parsedResponse = JSON.parse(cleanStr);
-            for (const key of Object.keys(skill.output_schema || {})) {
-              outputData[key] = parsedResponse[key];
+          while (maxTurns > 0) {
+            maxTurns--;
+            const response = await modelWithTools.invoke(messages);
+            messages.push(response);
+
+            // If the model decides to call a tool
+            if (response.tool_calls && response.tool_calls.length > 0) {
+              for (const toolCall of response.tool_calls) {
+                // ACTION B6: Fire start event
+                if (reporter?.onToolStart)
+                  reporter.onToolStart(toolCall.name, toolCall.args);
+
+                const client = toolNameToClient.get(toolCall.name);
+                let rawResult = null;
+                let toolResultStr = "";
+
+                if (client) {
+                  try {
+                    rawResult = await client.callTool(
+                      toolCall.name,
+                      toolCall.args,
+                    );
+                    toolResultStr =
+                      typeof rawResult === "string"
+                        ? rawResult
+                        : JSON.stringify(rawResult);
+                  } catch (err: any) {
+                    toolResultStr = `Error calling tool: ${err.message}`;
+                  }
+                } else {
+                  toolResultStr = `Error: Tool ${toolCall.name} not found on attached servers.`;
+                }
+
+                // ACTION B6: Fire end event
+                if (reporter?.onToolEnd)
+                  reporter.onToolEnd(toolCall.name, rawResult || toolResultStr);
+
+                // Push tool result back to the LLM
+                messages.push(
+                  new ToolMessage({
+                    content: toolResultStr,
+                    tool_call_id: toolCall.id,
+                    name: toolCall.name,
+                  }),
+                );
+              }
+            } else {
+              // Final answer generation
+              try {
+                let cleanStr = response.content.toString().trim();
+                if (cleanStr.startsWith("```json"))
+                  cleanStr = cleanStr
+                    .replace(/^```json/, "")
+                    .replace(/```$/, "")
+                    .trim();
+
+                const parsedResponse = JSON.parse(cleanStr);
+                for (const key of Object.keys(skill.output_schema || {})) {
+                  outputData[key] = parsedResponse[key];
+                }
+              } catch (parseErr) {
+                stateUpdates["__error__"] =
+                  `Skill '${skill.name}' failed to generate a valid JSON structure.`;
+              }
+              break;
             }
-          } catch (parseErr) {
+          }
+
+          if (maxTurns === 0) {
             stateUpdates["__error__"] =
-              `Skill '${skill.name}' failed to generate a valid JSON structure.`;
+              `Skill '${skill.name}' exceeded maximum tool iterations.`;
           }
         } catch (e: any) {
           stateUpdates["__error__"] =
             `Skill '${skill.name}' encountered an execution error: ${e.message}`;
-        }
-      } else {
-        for (const key of Object.keys(skill.output_schema || {})) {
-          outputData[key] = `[Mocked output for ${key}]`;
         }
       }
 
@@ -332,11 +425,9 @@ export async function compileAndRunAgent(
       if (state.__error__) return {};
       if (reporter?.onNodeStart) reporter.onNodeStart(intNode.id);
 
-      // Read the feedback that was injected into state just before resume
       const feedback = state.__human_feedback__ || "";
       const stateUpdates: Record<string, any> = {};
 
-      // NEW: Map the human's input to a specific global state variable if configured
       const outMap = intNode.data.output_mapping || {};
       if (outMap["human_input"]) {
         stateUpdates[outMap["human_input"]] = feedback;
@@ -459,7 +550,6 @@ export async function compileAndRunAgent(
     const sourceNode = nodes.find((n: any) => n.id === edge.source);
     if (!sourceNode) continue;
 
-    // Map the conceptual "Trigger" node to the actual LangGraph START node
     const actualSource = sourceNode.type === "trigger" ? START : edge.source;
 
     if (!edgesBySource[actualSource]) edgesBySource[actualSource] = [];
@@ -514,7 +604,6 @@ export async function compileAndRunAgent(
                   modelKwargs: { response_format: { type: "json_object" } },
                 });
 
-                // FIX: Explicitly instruct the router to use the human feedback
                 const prompt = PromptTemplate.fromTemplate(`
                 {__persona__}
                 You are a logic router for an AI agent. 
@@ -624,8 +713,6 @@ export async function compileAndRunAgent(
 
   if (resumeValue) {
     console.log(`[DEBUG] Resuming thread ${threadId} with value:`, resumeValue);
-
-    // FIX: Inject the human feedback directly into the state so the LLM router can evaluate it
     await app.updateState(executionConfig, { __human_feedback__: resumeValue });
 
     finalState = await app.invoke(null, {
@@ -633,7 +720,6 @@ export async function compileAndRunAgent(
       resume: resumeValue,
     });
   } else {
-    // Standard entry point
     finalState = await app.invoke(initialState, executionConfig);
   }
 
@@ -680,18 +766,11 @@ export async function compileAndRunAgent(
   };
 }
 
-/**
- * NEW: Generates a self-contained compiled manifest that external runners can use.
- * This filters the provided external dependencies down to only the ones used by this agent
- * and aggregates everything into a single deployable JSON object, including the core
- * engine prompts needed to execute the graph logic.
- */
 export function generateManifest(
   config: AgentConfig,
   allSkills: SkillConfig[],
   allServers: MCPServerConfig[],
 ) {
-  // 1. Identify which skills are actually used in the graph nodes
   const nodes = config.orchestration?.nodes || [];
   const usedSkillIds = new Set<string>();
 
@@ -701,7 +780,6 @@ export function generateManifest(
     }
   });
 
-  // 2. Filter skills to only the ones required by the agent
   const resolvedSkills = allSkills
     .filter((skill) => usedSkillIds.has(skill.id))
     .reduce(
@@ -718,7 +796,6 @@ export function generateManifest(
       {} as Record<string, any>,
     );
 
-  // 3. Filter MCP servers (both explicitly attached to the agent and implicitly needed by skills)
   const requiredServerIds = new Set<string>(config.mcp_servers || []);
   allSkills.forEach((skill) => {
     if (usedSkillIds.has(skill.id) && skill.mcp_dependencies) {
@@ -740,7 +817,6 @@ export function generateManifest(
       {} as Record<string, any>,
     );
 
-  // 4. Construct the full manifest
   const manifest = {
     metadata: {
       agent_id: config.agent_id,
@@ -752,7 +828,6 @@ export function generateManifest(
       system_prompt: config.system_prompt,
       state_schema: config.state_schema,
     },
-    // NEW: Core engine prompts so external apps know how to instruct the LLM
     engine_prompts: {
       trigger_extractor:
         "{__persona__}{__trigger_instructions__}\nYou are an API payload extractor. Extract the user's intent into the following JSON schema: {__schema__}\n\nUser Input: {__input__}\n\nReturn ONLY valid JSON. If a field is not explicitly mentioned but can be logically inferred, do so. Otherwise, leave it null.",
