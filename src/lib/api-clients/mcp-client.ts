@@ -1,5 +1,6 @@
 // lib/mcp-client.ts
-import { MCPServerConfig } from "./types/constants";
+
+import { MCPServerConfig } from "../types/constants";
 
 export interface McpToolCall {
   method: "tools/call";
