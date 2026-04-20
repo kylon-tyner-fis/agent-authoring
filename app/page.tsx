@@ -54,23 +54,6 @@ export default function GlobalDashboard() {
           </p>
         </header>
 
-        {/* QUICK STATS */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
-              <Activity className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase">
-                System Status
-              </p>
-              <p className="text-sm font-bold text-slate-900">
-                All Systems Operational
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* NAVIGATION CARDS */}
         <div className="grid grid-cols-1 gap-4">
           {sections.map((s) => (
@@ -86,14 +69,6 @@ export default function GlobalDashboard() {
                   {s.icon}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-bold text-slate-900">
-                      {s.title}
-                    </h3>
-                    <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
-                      {s.count}
-                    </span>
-                  </div>
                   <p className="text-slate-500 text-sm mt-1">{s.description}</p>
                 </div>
               </div>
