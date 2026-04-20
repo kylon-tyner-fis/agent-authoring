@@ -19,13 +19,7 @@ import {
   Key,
   Info,
 } from "lucide-react";
-import {
-  AgentConfig,
-  MOCK_PROVIDERS,
-  MOCK_MODELS,
-  MOCK_MCP_SERVERS,
-  MCPServerConfig,
-} from "@/lib/constants";
+import { AgentConfig, MCPServerConfig } from "@/lib/constants";
 import {
   OrchestrationCanvas,
   OrchestrationCanvasRef,
@@ -45,6 +39,13 @@ interface ConfigPanelProps {
 }
 
 type Tab = "identity" | "engine" | "schema" | "integrations" | "orchestration";
+
+const SUPPORTED_PROVIDERS = ["openai", "anthropic"];
+
+const SUPPORTED_MODELS: Record<string, string[]> = {
+  openai: ["gpt-4o-mini", "gpt-4o"],
+  anthropic: ["claude-3-5-sonnet-20240620", "claude-3-haiku"],
+};
 
 export const ConfigPanel = ({
   config,
@@ -397,15 +398,15 @@ export const ConfigPanel = ({
                           ...config.model,
                           provider: e.target.value,
                           model_name:
-                            MOCK_MODELS[
-                              e.target.value as keyof typeof MOCK_MODELS
+                            SUPPORTED_MODELS[
+                              e.target.value as keyof typeof SUPPORTED_MODELS
                             ][0],
                         },
                       })
                     }
                     className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50 text-slate-900"
                   >
-                    {MOCK_PROVIDERS.map((p) => (
+                    {SUPPORTED_PROVIDERS.map((p) => (
                       <option key={p} value={p}>
                         {p}
                       </option>
@@ -426,8 +427,8 @@ export const ConfigPanel = ({
                     }
                     className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50 text-slate-900"
                   >
-                    {MOCK_MODELS[
-                      config.model.provider as keyof typeof MOCK_MODELS
+                    {SUPPORTED_MODELS[
+                      config.model.provider as keyof typeof SUPPORTED_MODELS
                     ]?.map((m) => (
                       <option key={m} value={m}>
                         {m}
