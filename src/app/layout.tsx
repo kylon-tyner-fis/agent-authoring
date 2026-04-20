@@ -1,0 +1,39 @@
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import { ToastProvider } from "@/src/components/layout/Toast";
+import { AppChrome } from "@/src/components/layout/AppChrome";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "LangGraph Agent Studio",
+  description: "Visual authoring tool for LangGraph agents",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">
+        <ToastProvider>
+          <AppChrome>{children}</AppChrome>
+        </ToastProvider>
+      </body>
+    </html>
+  );
+}
