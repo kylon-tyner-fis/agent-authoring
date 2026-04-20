@@ -108,7 +108,9 @@ export default function AgentEditorPage({
         >
           <ConfigPanel
             config={config}
-            setConfig={setConfig}
+            setConfig={
+              setConfig as React.Dispatch<React.SetStateAction<AgentConfig>>
+            }
             availableSkills={availableSkills}
             availableServers={availableServers}
             activeNodeId={activeNodeId} // PASS TO PANEL

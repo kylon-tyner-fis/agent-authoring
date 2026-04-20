@@ -113,7 +113,7 @@ export async function executeAgentManifest(
             .replace(/```$/, "")
             .trim();
         outputData = JSON.parse(cleanStr);
-      } catch (e) {
+      } catch (e: any) {
         stateUpdates["__error__"] =
           `Skill ${skill.name} failed to return valid JSON.`;
       }
@@ -182,7 +182,9 @@ export async function executeAgentManifest(
   const edgesBySource: Record<string, any[]> = {};
   for (const edge of edges) {
     const sourceNode = nodes.find((n: any) => n.id === edge.source);
-    const actualSource = sourceNode?.type === "trigger" ? START : edge.source;
+    const actualSource = (
+      sourceNode?.type === "trigger" ? START : edge.source
+    ) as string;
     if (!edgesBySource[actualSource]) edgesBySource[actualSource] = [];
     edgesBySource[actualSource].push(edge);
   }
@@ -193,7 +195,7 @@ export async function executeAgentManifest(
 
     if (hasConditions) {
       workflow.addConditionalEdges(
-        sourceId,
+        sourceId as any,
         async (state: any) => {
           if (state.__error__) return END;
           for (const edge of outgoingEdges) {
@@ -237,7 +239,7 @@ export async function executeAgentManifest(
   });
 
   const executionConfig = { configurable: { thread_id: threadId } };
-  let finalState;
+  let finalState: any;
 
   // ==========================================
   // 2. EXECUTION LOGIC (Start vs Resume)
@@ -268,7 +270,7 @@ export async function executeAgentManifest(
           .replace(/```$/, "")
           .trim();
       parsedInput = JSON.parse(cleanStr);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Extraction failed, using raw input.");
     }
 

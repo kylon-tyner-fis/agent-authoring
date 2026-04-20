@@ -26,7 +26,7 @@ import { WorkflowNode } from "./nodes/WorkflowNode";
 import { TriggerNode } from "./nodes/TriggerNode";
 import { ResponseNode } from "./nodes/ResponseNode";
 import { ShiftEdge } from "./edges/ShiftEdge";
-import { MOCK_SKILLS, SkillConfig } from "@/lib/constants";
+import { SkillConfig } from "@/lib/constants";
 import { SchemaNode } from "./SchemaEditor";
 import { SchemaViewer } from "./SchemaViewer";
 import { useToast } from "./Toast";

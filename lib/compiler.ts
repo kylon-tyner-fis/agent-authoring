@@ -355,7 +355,7 @@ export async function compileAndRunAgent(
                 messages.push(
                   new ToolMessage({
                     content: toolResultStr,
-                    tool_call_id: toolCall.id,
+                    tool_call_id: toolCall.id ?? "",
                     name: toolCall.name,
                   }),
                 );
@@ -570,7 +570,7 @@ export async function compileAndRunAgent(
 
     if (hasConditions) {
       workflow.addConditionalEdges(
-        sourceId,
+        sourceId as any,
         async (state: any) => {
           if (state.__error__) return END;
 
@@ -668,7 +668,7 @@ export async function compileAndRunAgent(
       );
     } else {
       workflow.addConditionalEdges(
-        sourceId,
+        sourceId as any,
         (state: any) => {
           if (state.__error__) return END;
 
@@ -715,10 +715,7 @@ export async function compileAndRunAgent(
     console.log(`[DEBUG] Resuming thread ${threadId} with value:`, resumeValue);
     await app.updateState(executionConfig, { __human_feedback__: resumeValue });
 
-    finalState = await app.invoke(null, {
-      ...executionConfig,
-      resume: resumeValue,
-    });
+    finalState = await app.invoke(null, executionConfig);
   } else {
     finalState = await app.invoke(initialState, executionConfig);
   }
