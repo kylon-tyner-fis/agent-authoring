@@ -377,14 +377,14 @@ export const Playground = ({
                     </div>
                     <div className="p-4 overflow-x-auto space-y-4">
                       <div>
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">
                           State Updates
                         </h4>
                         <RecursiveJsonViewer data={history.updates} />
                       </div>
                       {history.fullState && (
                         <div className="pt-3 border-t border-slate-100">
-                          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">
                             Global State
                           </h4>
                           <RecursiveJsonViewer data={history.fullState} />
@@ -406,7 +406,7 @@ export const Playground = ({
                         {history.toolName}
                       </span>
                     </div>
-                    <div className="ml-10 text-[10px] text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200">
+                    <div className="ml-10 text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200">
                       <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
                         Arguments
                       </span>
@@ -427,7 +427,7 @@ export const Playground = ({
                         {history.toolName}
                       </span>
                     </div>
-                    <div className="ml-10 text-[10px] text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">
+                    <div className="ml-10 text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">
                       <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
                         Result
                       </span>
@@ -454,7 +454,7 @@ export const Playground = ({
                     </div>
 
                     {history.condition && (
-                      <div className="flex items-center gap-1.5 text-[10px] text-orange-600 font-mono px-4 ml-6">
+                      <div className="flex items-center gap-1.5 text-sm text-orange-600 font-mono px-4 ml-6">
                         <GitBranch className="w-3 h-3" />
                         <span className="bg-orange-50 border border-orange-200 px-2 py-0.5 rounded italic">
                           Condition met: "{history.condition}"

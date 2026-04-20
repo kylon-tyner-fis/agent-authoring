@@ -315,7 +315,7 @@ export default function SkillEditorPage({
                         className="mt-1"
                       />
                     </div>
-                    <span className="text-[10px] font-mono text-slate-500 truncate block">
+                    <span className="text-sm font-mono text-slate-500 truncate block">
                       {server.url}
                     </span>
                   </div>

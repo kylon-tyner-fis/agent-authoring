@@ -28,7 +28,7 @@ export const RecursiveJsonViewer = ({ data }: { data: any }) => {
             key={idx}
             className="flex gap-3 items-start border-l-2 border-indigo-200 hover:border-indigo-400 transition-colors pl-3 ml-1.5"
           >
-            <span className="text-[10px] font-mono text-indigo-400 mt-1 shrink-0 bg-indigo-50 px-1 rounded-sm">
+            <span className="text-sm font-mono text-indigo-700 mt-1 shrink-0 bg-indigo-50 px-1 rounded-sm">
               {idx}
             </span>
             <div className="flex-1 min-w-0 overflow-hidden">

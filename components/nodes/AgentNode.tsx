@@ -37,7 +37,7 @@ export function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
           <h3 className="text-sm font-bold text-slate-800 truncate">
             {data.label}
           </h3>
-          <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">
+          <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">
             Agent Node
           </p>
         </div>

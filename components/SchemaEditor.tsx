@@ -67,30 +67,46 @@ export const SchemaEditor = ({
               />
               <span className="text-gray-400 font-mono">:</span>
 
-              <input
-                type="text"
-                list="type-hints"
+              <select
                 value={node.typeHint}
-                placeholder="Type (e.g. string)"
                 onChange={(e) => {
                   const val = e.target.value;
-                  const vLower = val.toLowerCase().trim();
-                  const isComplex =
-                    vLower === "object" ||
-                    vLower === "dict" ||
-                    vLower === "array<object>" ||
-                    vLower === "object[]";
+                  const isComplex = val === "object" || val === "array<object>";
                   updateNode(node.id, {
                     typeHint: val,
                     ...(isComplex && !node.children ? { children: [] } : {}),
                   });
                 }}
-                className={`flex-[1.5] min-w-0 p-2.5 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-emerald-500 shadow-sm transition-all ${
+                className={`flex-[1.5] min-w-0 p-2.5 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-emerald-500 shadow-sm transition-all cursor-pointer ${
                   hasChildren
-                    ? "bg-emerald-50 text-slate-900 border-emerald-200 font-bold"
+                    ? "bg-emerald-50 text-slate-900 border-emerald-300 font-bold"
                     : "bg-white text-slate-900"
                 }`}
-              />
+              >
+                <option value="string">string</option>
+                <option value="number">number</option>
+                <option value="boolean">boolean</option>
+                <option value="object">object</option>
+                <option value="array<object>">array&lt;object&gt;</option>
+                <option value="array<string>">array&lt;string&gt;</option>
+                <option value="any">any</option>
+              </select>
+
+              {!hasChildren && (
+                <button
+                  onClick={() =>
+                    updateNode(node.id, { isNullable: !node.isNullable })
+                  }
+                  className={`px-3 py-2.5 text-xs font-bold rounded-lg border transition-colors ${
+                    node.isNullable
+                      ? "bg-amber-100 text-amber-800 border-amber-400 shadow-inner"
+                      : "bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-200"
+                  }`}
+                  title="Toggle Nullable (?)"
+                >
+                  Optional (?)
+                </button>
+              )}
 
               {!hasChildren && (
                 <button
@@ -117,7 +133,7 @@ export const SchemaEditor = ({
 
             {hasChildren && (
               <div className="ml-6 pl-4 border-l-2 border-emerald-100 py-1">
-                <div className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <div className="text-sm font-bold text-emerald-600/70 uppercase tracking-wider mb-2 flex items-center gap-1">
                   <ListTree className="w-3 h-3" />
                   {isArrayOfObject
                     ? "Array Item Properties"

@@ -90,7 +90,7 @@ export function WorkflowNode({
             {data.label}
           </h3>
           <p
-            className={`text-[10px] font-semibold uppercase tracking-wider ${theme.text}`}
+            className={`text-sm font-semibold uppercase tracking-wider ${theme.text}`}
           >
             {theme.label}
           </p>
@@ -100,7 +100,7 @@ export function WorkflowNode({
       <div className="p-3 bg-white rounded-b-xl min-h-[60px] flex flex-col gap-3">
         {type === "skill" ? (
           <>
-            <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-1 rounded border border-slate-100 self-start">
+            <div className="flex items-center gap-1 text-sm font-mono text-slate-400 bg-slate-50 px-1.5 py-1 rounded border border-slate-100 self-start">
               <Wrench className="w-3 h-3" /> {data.skillId}
             </div>
 

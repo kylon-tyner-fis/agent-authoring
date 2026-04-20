@@ -71,7 +71,7 @@ export function ResponseNode({ data, selected }: NodeProps<ResponseNodeType>) {
             {data.label || "API Response"}
           </h3>
           <p
-            className={`text-[10px] font-semibold uppercase tracking-wider ${theme.text}`}
+            className={`text-sm font-semibold uppercase tracking-wider ${theme.text}`}
           >
             {theme.label}
           </p>

@@ -92,7 +92,7 @@ export default function SkillsDashboard() {
                         skill.mcp_dependencies.map((dep) => (
                           <span
                             key={dep}
-                            className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono border border-slate-200"
+                            className="text-sm bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono border border-slate-200"
                           >
                             {dep}
                           </span>

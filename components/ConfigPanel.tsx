@@ -369,7 +369,7 @@ export const ConfigPanel = ({
                   onChange={(e) =>
                     setConfig({ ...config, system_prompt: e.target.value })
                   }
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm bg-gray-50 leading-relaxed text-slate-900"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[150px] text-sm bg-gray-50 leading-relaxed text-slate-900"
                 />
               </div>
             </div>
@@ -446,9 +446,23 @@ export const ConfigPanel = ({
                         Controls randomness (0 = deterministic, 2 = creative)
                       </span>
                     </div>
-                    <span className="text-sm font-mono bg-white px-2 py-1 rounded shadow-sm border border-gray-200">
-                      {config.model.temperature}
-                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                      value={config.model.temperature}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          model: {
+                            ...config.model,
+                            temperature: parseFloat(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      className="text-sm font-mono bg-white px-2 py-1 rounded shadow-sm border border-gray-300 w-20 outline-none focus:border-purple-500"
+                    />
                   </div>
                   <input
                     type="range"
@@ -477,9 +491,23 @@ export const ConfigPanel = ({
                         Maximum length of the generated response
                       </span>
                     </div>
-                    <span className="text-sm font-mono bg-white px-2 py-1 rounded shadow-sm border border-gray-200">
-                      {config.model.max_tokens}
-                    </span>
+                    <input
+                      type="number"
+                      min="256"
+                      max="8192"
+                      step="1"
+                      value={config.model.max_tokens}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          model: {
+                            ...config.model,
+                            max_tokens: parseInt(e.target.value) || 256,
+                          },
+                        })
+                      }
+                      className="text-sm font-mono bg-white px-2 py-1 rounded shadow-sm border border-gray-300 w-24 outline-none focus:border-purple-500"
+                    />
                   </div>
                   <input
                     type="range"
@@ -525,7 +553,7 @@ export const ConfigPanel = ({
                     </label>
                     <div className="relative group flex items-center">
                       <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
                         Defines the storage backend for agent memory. Currently
                         locked to postgresSaver default.
                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800"></div>
@@ -548,7 +576,7 @@ export const ConfigPanel = ({
                     </label>
                     <div className="relative group flex items-center">
                       <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
                         Time-to-live for a specific conversation thread.
                         Determines how long the agent remembers a continuous
                         chat.
@@ -577,7 +605,7 @@ export const ConfigPanel = ({
                     </label>
                     <div className="relative group flex items-center">
                       <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 text-center font-normal leading-relaxed">
                         Time-to-live for cross-thread memory. Determines how
                         long global state is retained across different sessions.
                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800"></div>

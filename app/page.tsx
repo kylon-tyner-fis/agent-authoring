@@ -69,6 +69,9 @@ export default function GlobalDashboard() {
                   {s.icon}
                 </div>
                 <div>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    {s.title}
+                  </h2>
                   <p className="text-slate-500 text-sm mt-1">{s.description}</p>
                 </div>
               </div>

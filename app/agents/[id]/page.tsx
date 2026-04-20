@@ -81,56 +81,44 @@ export default function AgentEditorPage({
 
   if (isLoading || !config) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+      <div className="fixed top-[57px] bottom-0 left-0 right-0 flex items-center justify-center bg-slate-50">
         <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50">
-      <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center shrink-0">
-        <button
-          onClick={() => router.push("/agents")} // Fixed route back to /agents
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Agents
-        </button>
+    <div className="fixed top-[57px] bottom-0 left-0 right-0 flex overflow-hidden bg-slate-50">
+      {/* Config Panel Container - Shrinks when playground opens */}
+      <div
+        className={`h-full transition-all duration-300 ease-in-out ${
+          isPlaygroundOpen ? "w-[60%]" : "w-full"
+        }`}
+      >
+        <ConfigPanel
+          config={config}
+          setConfig={
+            setConfig as React.Dispatch<React.SetStateAction<AgentConfig>>
+          }
+          availableSkills={availableSkills}
+          availableServers={availableServers}
+          activeNodeId={activeNodeId}
+          onOpenPlayground={() => setIsPlaygroundOpen(true)}
+        />
       </div>
 
-      {/* Main Layout Area */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Config Panel Container - Shrinks when playground opens */}
-        <div
-          className={`h-full transition-all duration-300 ease-in-out ${
-            isPlaygroundOpen ? "w-[60%]" : "w-full"
-          }`}
-        >
-          <ConfigPanel
+      {/* Playground Drawer - Sits side-by-side with the config panel */}
+      {isPlaygroundOpen && (
+        <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300 border-l border-slate-200">
+          <Playground
             config={config}
-            setConfig={
-              setConfig as React.Dispatch<React.SetStateAction<AgentConfig>>
-            }
-            availableSkills={availableSkills}
-            availableServers={availableServers}
-            activeNodeId={activeNodeId} // PASS TO PANEL
-            onOpenPlayground={() => setIsPlaygroundOpen(true)}
+            messages={messages}
+            setMessages={setMessages}
+            onClose={() => setIsPlaygroundOpen(false)}
+            onActiveNodeChange={setActiveNodeId}
           />
         </div>
-
-        {/* Playground Drawer - Slides in from right */}
-        {isPlaygroundOpen && (
-          <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300">
-            <Playground
-              config={config}
-              messages={messages}
-              setMessages={setMessages}
-              onClose={() => setIsPlaygroundOpen(false)}
-              onActiveNodeChange={setActiveNodeId}
-            />
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

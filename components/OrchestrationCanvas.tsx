@@ -41,6 +41,8 @@ import {
   ArrowRightLeft,
   Zap,
   Flag,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const nodeTypes = {
@@ -146,7 +148,7 @@ const CanvasEditor = forwardRef<
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(true);
   const [dragPreview, setDragPreview] = useState<{
     x: number;
     y: number;
@@ -371,6 +373,19 @@ const CanvasEditor = forwardRef<
     );
   };
 
+  const handleNodesChange = useCallback(
+    (changes: any[]) => {
+      onNodesChange(changes);
+      changes.forEach((change) => {
+        // If a node is removed via keyboard (Backspace/Delete), clear it from the inspector
+        if (change.type === "remove" && change.id === selectedNodeId) {
+          setSelectedNodeId(null);
+        }
+      });
+    },
+    [onNodesChange, selectedNodeId],
+  );
+
   const handleMappingChange = (
     type:
       | "input_mapping"
@@ -469,77 +484,91 @@ const CanvasEditor = forwardRef<
     <div className="flex h-full w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-inner relative">
       <div className="flex-1 h-full relative border-r border-slate-200 overflow-hidden bg-slate-50">
         {/* DRAG TOOLBAR */}
-        <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar">
-          <div className="flex items-center justify-between mb-1 px-1">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Skill Palette
+        <div
+          className={`absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 transition-all ${isPaletteOpen ? "w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar" : "w-auto"}`}
+        >
+          <div className="flex items-center justify-between mb-1 px-1 gap-6">
+            <p
+              className={`text-[10px] font-bold text-slate-400 uppercase tracking-wider`}
+            >
+              {isPaletteOpen ? "Skill Palette" : "Node Palette"}
             </p>
             <button
-              onClick={() => setShowDebug(!showDebug)}
-              className={`p-1 rounded transition-colors ${showDebug ? "bg-red-100 text-red-600" : "text-slate-400 hover:bg-slate-100"}`}
-              title="Toggle Debug Grid"
+              onClick={() => setIsPaletteOpen(!isPaletteOpen)}
+              className="p-1 rounded transition-colors text-slate-400 hover:bg-slate-100"
+              title={isPaletteOpen ? "Minimize Palette" : "Expand Palette"}
             >
-              <Bug className="w-3 h-3" />
+              {isPaletteOpen ? (
+                <ChevronUp className="w-3 h-3" />
+              ) : (
+                <ChevronDown className="w-3 h-3" />
+              )}
             </button>
           </div>
 
-          <div className="space-y-1.5">
-            {skillsList.map((skill) => (
-              <div
-                key={skill.id}
-                className="p-2 border border-blue-200 bg-white text-blue-700 rounded cursor-grab flex flex-col gap-1 hover:bg-blue-50 transition-colors shadow-sm"
-                onDragStart={(e) => onDragStart(e, "skill", skill.id)}
-                draggable
-              >
-                <div className="flex items-center gap-2">
-                  <Code2 className="w-3.5 h-3.5 shrink-0" />
-                  <span className="text-xs font-semibold truncate">
-                    {skill.name}
+          {isPaletteOpen && (
+            <div className="space-y-1.5 animate-in fade-in duration-200">
+              {skillsList.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="p-2 border border-blue-200 bg-white text-blue-700 rounded cursor-grab flex flex-col gap-1 hover:bg-blue-50 transition-colors shadow-sm"
+                  onDragStart={(e) => onDragStart(e, "skill", skill.id)}
+                  draggable
+                >
+                  <div className="flex items-center gap-2">
+                    <Code2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs font-semibold truncate">
+                      {skill.name}
+                    </span>
+                  </div>
+                </div>
+              ))}
+
+              <div className="mt-4 pt-2 border-t border-slate-200">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
+                  API Contract
+                </p>
+                <div
+                  className="p-2 border border-emerald-200 bg-white text-emerald-700 rounded cursor-grab flex items-center gap-2 hover:bg-emerald-50 transition-colors shadow-sm mb-1.5"
+                  onDragStart={(e) => onDragStart(e, "trigger")}
+                  draggable
+                >
+                  <Zap className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-xs font-semibold">Trigger (Input)</span>
+                </div>
+                <div
+                  className="p-2 border border-purple-200 bg-white text-purple-700 rounded cursor-grab flex items-center gap-2 hover:bg-purple-50 transition-colors shadow-sm mb-4"
+                  onDragStart={(e) => onDragStart(e, "response")}
+                  draggable
+                >
+                  <Flag className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-xs font-semibold">
+                    Response (Output)
+                  </span>
+                </div>
+
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
+                  Flow Control
+                </p>
+                <div
+                  className="p-2 border border-orange-200 bg-white text-orange-700 rounded cursor-grab flex items-center gap-2 hover:bg-orange-50 transition-colors shadow-sm"
+                  onDragStart={(e) => onDragStart(e, "interrupt")}
+                  draggable
+                >
+                  <Hand className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-xs font-semibold">
+                    Interrupt (Wait)
                   </span>
                 </div>
               </div>
-            ))}
-
-            <div className="mt-4 pt-2 border-t border-slate-200">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
-                API Contract
-              </p>
-              <div
-                className="p-2 border border-emerald-200 bg-white text-emerald-700 rounded cursor-grab flex items-center gap-2 hover:bg-emerald-50 transition-colors shadow-sm mb-1.5"
-                onDragStart={(e) => onDragStart(e, "trigger")}
-                draggable
-              >
-                <Zap className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-xs font-semibold">Trigger (Input)</span>
-              </div>
-              <div
-                className="p-2 border border-purple-200 bg-white text-purple-700 rounded cursor-grab flex items-center gap-2 hover:bg-purple-50 transition-colors shadow-sm mb-4"
-                onDragStart={(e) => onDragStart(e, "response")}
-                draggable
-              >
-                <Flag className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-xs font-semibold">Response (Output)</span>
-              </div>
-
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
-                Flow Control
-              </p>
-              <div
-                className="p-2 border border-orange-200 bg-white text-orange-700 rounded cursor-grab flex items-center gap-2 hover:bg-orange-50 transition-colors shadow-sm"
-                onDragStart={(e) => onDragStart(e, "interrupt")}
-                draggable
-              >
-                <Hand className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-xs font-semibold">Interrupt (Wait)</span>
-              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
+          onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeDragStart={onNodeDragStart}
@@ -580,7 +609,7 @@ const CanvasEditor = forwardRef<
                 transformOrigin: "0 0",
               }}
             >
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">
                 Drop Node
               </span>
             </div>
@@ -590,175 +619,283 @@ const CanvasEditor = forwardRef<
       </div>
 
       {/* INSPECTOR PANE */}
-      <div className="w-[340px] h-full bg-white flex flex-col shrink-0 border-l border-slate-200">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Settings2 className="w-4 h-4 text-slate-500" />
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-              {selectedNode
-                ? "Node Settings"
-                : selectedEdge
-                  ? "Edge Settings"
-                  : "Global Settings"}
-            </h2>
-          </div>
-          {(selectedNode || selectedEdge) && (
+      {(selectedNode || selectedEdge) && (
+        <div className="w-[340px] h-full bg-white flex flex-col shrink-0 border-l border-slate-200">
+          <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Settings2 className="w-4 h-4 text-slate-500" />
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                {selectedNode ? "Node Settings" : "Edge Settings"}
+              </h2>
+            </div>
             <button
               onClick={deleteSelected}
               className="text-red-400 hover:text-red-600 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
             </button>
-          )}
-        </div>
+          </div>
 
-        <div className="p-5 flex-1 overflow-y-auto custom-scrollbar">
-          {selectedNode ? (
-            <div className="space-y-6 animate-in fade-in">
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Node Label
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedNode.data.label as string}
-                    onChange={(e) => handleNodeChange("label", e.target.value)}
-                    className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 font-mono text-slate-900"
-                  />
-                </div>
+          <div className="p-5 flex-1 overflow-y-auto custom-scrollbar">
+            {selectedNode ? (
+              <div className="space-y-6 animate-in fade-in">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Node Label
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedNode.data.label as string}
+                      onChange={(e) =>
+                        handleNodeChange("label", e.target.value)
+                      }
+                      className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 font-mono text-slate-900"
+                    />
+                  </div>
 
-                {/* SKILL INSPECTOR */}
-                {selectedNode.type === "skill" && activeSkill && (
-                  <>
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        Node-Specific Instructions
-                      </label>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-1">
-                        Add extra context or rules that only apply to this
-                        specific step in the workflow.
-                      </p>
-                      <textarea
-                        rows={3}
-                        placeholder="e.g. Only return bullet points for this step..."
-                        value={
-                          (selectedNode.data.custom_instructions as string) ||
-                          ""
-                        }
-                        onChange={(e) =>
-                          handleNodeChange(
-                            "custom_instructions",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 text-slate-900 resize-none bg-slate-50"
-                      />
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                        <ArrowRightLeft className="w-4 h-4" />
-                        <h3 className="text-xs font-bold uppercase tracking-wider">
-                          Input Mapping
-                        </h3>
+                  {/* SKILL INSPECTOR */}
+                  {selectedNode.type === "skill" && activeSkill && (
+                    <>
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Node-Specific Instructions
+                        </label>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-1">
+                          Add extra context or rules that only apply to this
+                          specific step in the workflow.
+                        </p>
+                        <textarea
+                          placeholder="e.g. Only return bullet points for this step..."
+                          value={
+                            (selectedNode.data.custom_instructions as string) ||
+                            ""
+                          }
+                          onChange={(e) =>
+                            handleNodeChange(
+                              "custom_instructions",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 text-slate-900 min-h-[100px] bg-slate-50"
+                        />
                       </div>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                        Map the Agent's global state to the inputs expected by{" "}
-                        <strong className="font-mono">
-                          {activeSkill.name}
-                        </strong>
-                        .
-                      </p>
 
-                      {Object.keys(activeSkill.input_schema).map((inputKey) => {
-                        const currentVal =
-                          (
-                            selectedNode.data.input_mapping as Record<
-                              string,
-                              string
-                            >
-                          )?.[inputKey] || "";
-                        return (
-                          <div
-                            key={inputKey}
-                            className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
-                          >
-                            <span className="text-xs font-mono font-semibold text-slate-700">
-                              {inputKey}
-                            </span>
-                            <select
-                              value={currentVal}
-                              onChange={(e) =>
-                                handleMappingChange(
-                                  "input_mapping",
-                                  inputKey,
-                                  e.target.value,
-                                )
-                              }
-                              className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
-                            >
-                              <option value="">
-                                -- Select State Variable --
-                              </option>
-                              {stateKeys.map((k) => (
-                                <option key={k} value={k}>
-                                  {k}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })}
-                      {Object.keys(activeSkill.input_schema).length === 0 && (
-                        <div className="text-xs text-slate-400 italic">
-                          This skill expects no inputs.
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                          <ArrowRightLeft className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            Input Mapping
+                          </h3>
                         </div>
-                      )}
-                    </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          Map the Agent's global state to the inputs expected by{" "}
+                          <strong className="font-mono">
+                            {activeSkill.name}
+                          </strong>
+                          .
+                        </p>
 
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="flex items-center gap-2 text-emerald-600 mb-2">
-                        <ArrowRightLeft className="w-4 h-4" />
-                        <h3 className="text-xs font-bold uppercase tracking-wider">
-                          Output Mapping
-                        </h3>
+                        {Object.keys(activeSkill.input_schema).map(
+                          (inputKey) => {
+                            const currentVal =
+                              (
+                                selectedNode.data.input_mapping as Record<
+                                  string,
+                                  string
+                                >
+                              )?.[inputKey] || "";
+                            return (
+                              <div
+                                key={inputKey}
+                                className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                              >
+                                <span className="text-xs font-mono font-semibold text-slate-700">
+                                  {inputKey}
+                                </span>
+                                <select
+                                  value={currentVal}
+                                  onChange={(e) =>
+                                    handleMappingChange(
+                                      "input_mapping",
+                                      inputKey,
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                                >
+                                  <option value="">
+                                    -- Select State Variable --
+                                  </option>
+                                  {stateKeys.map((k) => (
+                                    <option key={k} value={k}>
+                                      {k}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          },
+                        )}
+                        {Object.keys(activeSkill.input_schema).length === 0 && (
+                          <div className="text-xs text-slate-400 italic">
+                            This skill expects no inputs.
+                          </div>
+                        )}
                       </div>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                        Map the data returned by this skill back into the
-                        Agent's state.
-                      </p>
 
-                      {Object.keys(activeSkill.output_schema).map(
-                        (outputKey) => {
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                          <ArrowRightLeft className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            Output Mapping
+                          </h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          Map the data returned by this skill back into the
+                          Agent's state.
+                        </p>
+
+                        {Object.keys(activeSkill.output_schema).map(
+                          (outputKey) => {
+                            const currentVal =
+                              (
+                                selectedNode.data.output_mapping as Record<
+                                  string,
+                                  string
+                                >
+                              )?.[outputKey] || "";
+                            return (
+                              <div
+                                key={outputKey}
+                                className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                              >
+                                <span className="text-xs font-mono font-semibold text-slate-700">
+                                  {outputKey}
+                                </span>
+                                <select
+                                  value={currentVal}
+                                  onChange={(e) =>
+                                    handleMappingChange(
+                                      "output_mapping",
+                                      outputKey,
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                                >
+                                  <option value="">
+                                    -- Select Target State --
+                                  </option>
+                                  {stateKeys.map((k) => (
+                                    <option key={k} value={k}>
+                                      {k}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          },
+                        )}
+                        {Object.keys(activeSkill.output_schema).length ===
+                          0 && (
+                          <div className="text-xs text-slate-400 italic">
+                            This skill returns no outputs.
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* TRIGGER INSPECTOR */}
+                  {selectedNode.type === "trigger" && (
+                    <>
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Node-Specific Instructions
+                        </label>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-1">
+                          Add extra context or rules for extracting the user's
+                          input.
+                        </p>
+                        <textarea
+                          placeholder="e.g. If the user doesn't specify a language, default to Spanish..."
+                          value={
+                            (selectedNode.data.custom_instructions as string) ||
+                            ""
+                          }
+                          onChange={(e) =>
+                            handleNodeChange(
+                              "custom_instructions",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-emerald-500 text-slate-900 min-h-[100px] bg-slate-50"
+                        />
+                      </div>
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                          <Zap className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            Expected Payload
+                          </h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          Define the JSON schema the external caller must
+                          provide to start this agent.
+                        </p>
+                        <SchemaViewer
+                          title="Expected Payload"
+                          nodes={inspectorSchema}
+                          setNodes={handleSchemaChange}
+                          addButtonText="Add Input Field"
+                        />
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                          <ArrowRightLeft className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            Initialization Mapping
+                          </h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          Map the incoming payload fields to the Agent's global
+                          state.
+                        </p>
+
+                        {Object.keys(
+                          selectedNode.data.expected_payload || {},
+                        ).map((payloadKey) => {
                           const currentVal =
                             (
-                              selectedNode.data.output_mapping as Record<
+                              selectedNode.data
+                                .initialization_mapping as Record<
                                 string,
                                 string
                               >
-                            )?.[outputKey] || "";
+                            )?.[payloadKey] || "";
                           return (
                             <div
-                              key={outputKey}
+                              key={payloadKey}
                               className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
                             >
                               <span className="text-xs font-mono font-semibold text-slate-700">
-                                {outputKey}
+                                {payloadKey}
                               </span>
                               <select
                                 value={currentVal}
                                 onChange={(e) =>
                                   handleMappingChange(
-                                    "output_mapping",
-                                    outputKey,
+                                    "initialization_mapping",
+                                    payloadKey,
                                     e.target.value,
                                   )
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
                               >
                                 <option value="">
-                                  -- Select Target State --
+                                  -- Select State Variable --
                                 </option>
                                 {stateKeys.map((k) => (
                                   <option key={k} value={k}>
@@ -768,320 +905,202 @@ const CanvasEditor = forwardRef<
                               </select>
                             </div>
                           );
-                        },
-                      )}
-                      {Object.keys(activeSkill.output_schema).length === 0 && (
-                        <div className="text-xs text-slate-400 italic">
-                          This skill returns no outputs.
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* TRIGGER INSPECTOR */}
-                {selectedNode.type === "trigger" && (
-                  <>
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        Node-Specific Instructions
-                      </label>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-1">
-                        Add extra context or rules for extracting the user's
-                        input.
-                      </p>
-                      <textarea
-                        rows={3}
-                        placeholder="e.g. If the user doesn't specify a language, default to Spanish..."
-                        value={
-                          (selectedNode.data.custom_instructions as string) ||
-                          ""
-                        }
-                        onChange={(e) =>
-                          handleNodeChange(
-                            "custom_instructions",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-emerald-500 text-slate-900 resize-none bg-slate-50"
-                      />
-                    </div>
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="flex items-center gap-2 text-emerald-600 mb-2">
-                        <Zap className="w-4 h-4" />
-                        <h3 className="text-xs font-bold uppercase tracking-wider">
-                          Expected Payload
-                        </h3>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                        Define the JSON schema the external caller must provide
-                        to start this agent.
-                      </p>
-                      <SchemaViewer
-                        title="Expected Payload"
-                        nodes={inspectorSchema}
-                        setNodes={handleSchemaChange}
-                        addButtonText="Add Input Field"
-                      />
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                        <ArrowRightLeft className="w-4 h-4" />
-                        <h3 className="text-xs font-bold uppercase tracking-wider">
-                          Initialization Mapping
-                        </h3>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                        Map the incoming payload fields to the Agent's global
-                        state.
-                      </p>
-
-                      {Object.keys(
-                        selectedNode.data.expected_payload || {},
-                      ).map((payloadKey) => {
-                        const currentVal =
-                          (
-                            selectedNode.data.initialization_mapping as Record<
-                              string,
-                              string
-                            >
-                          )?.[payloadKey] || "";
-                        return (
-                          <div
-                            key={payloadKey}
-                            className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
-                          >
-                            <span className="text-xs font-mono font-semibold text-slate-700">
-                              {payloadKey}
-                            </span>
-                            <select
-                              value={currentVal}
-                              onChange={(e) =>
-                                handleMappingChange(
-                                  "initialization_mapping",
-                                  payloadKey,
-                                  e.target.value,
-                                )
-                              }
-                              className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
-                            >
-                              <option value="">
-                                -- Select State Variable --
-                              </option>
-                              {stateKeys.map((k) => (
-                                <option key={k} value={k}>
-                                  {k}
-                                </option>
-                              ))}
-                            </select>
+                        })}
+                        {Object.keys(selectedNode.data.expected_payload || {})
+                          .length === 0 && (
+                          <div className="text-xs text-slate-400 italic">
+                            No payload fields defined yet.
                           </div>
-                        );
-                      })}
-                      {Object.keys(selectedNode.data.expected_payload || {})
-                        .length === 0 && (
-                        <div className="text-xs text-slate-400 italic">
-                          No payload fields defined yet.
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* RESPONSE INSPECTOR */}
-                {selectedNode.type === "response" && (
-                  <>
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        Node-Specific Instructions
-                      </label>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-1">
-                        Add extra context or rules for formatting the final
-                        output.
-                      </p>
-                      <textarea
-                        rows={3}
-                        placeholder="e.g. Summarize the output in 3 concise bullet points..."
-                        value={
-                          (selectedNode.data.custom_instructions as string) ||
-                          ""
-                        }
-                        onChange={(e) =>
-                          handleNodeChange(
-                            "custom_instructions",
-                            e.target.value,
-                          )
-                        }
-                        className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-purple-500 text-slate-900 resize-none bg-slate-50"
-                      />
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="flex items-center gap-2 text-purple-600 mb-2">
-                        <Flag className="w-4 h-4" />
-                        <h3 className="text-xs font-bold uppercase tracking-wider">
-                          Response Payload
-                        </h3>
+                        )}
                       </div>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                        Define the JSON schema this agent will return to the
-                        caller.
-                      </p>
-                      <SchemaViewer
-                        title="Response Payload"
-                        nodes={inspectorSchema}
-                        setNodes={handleSchemaChange}
-                        addButtonText="Add Output Field"
-                      />
-                    </div>
+                    </>
+                  )}
 
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                        <ArrowRightLeft className="w-4 h-4" />
-                        <h3 className="text-xs font-bold uppercase tracking-wider">
-                          Extraction Mapping
-                        </h3>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                        Select which variables from the global state should be
-                        returned.
-                      </p>
-
-                      {Object.keys(
-                        selectedNode.data.response_payload || {},
-                      ).map((payloadKey) => {
-                        const currentVal =
-                          (
-                            selectedNode.data.extraction_mapping as Record<
-                              string,
-                              string
-                            >
-                          )?.[payloadKey] || "";
-                        return (
-                          <div
-                            key={payloadKey}
-                            className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
-                          >
-                            <span className="text-xs font-mono font-semibold text-slate-700">
-                              {payloadKey}
-                            </span>
-                            <select
-                              value={currentVal}
-                              onChange={(e) =>
-                                handleMappingChange(
-                                  "extraction_mapping",
-                                  payloadKey,
-                                  e.target.value,
-                                )
-                              }
-                              className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white text-slate-900"
-                            >
-                              <option value="">
-                                -- Select State Variable --
-                              </option>
-                              {stateKeys.map((k) => (
-                                <option key={k} value={k}>
-                                  {k}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })}
-                      {Object.keys(selectedNode.data.response_payload || {})
-                        .length === 0 && (
-                        <div className="text-xs text-slate-400 italic">
-                          No response fields defined yet.
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* INTERRUPT INSPECTOR */}
-                {selectedNode.type === "interrupt" && (
-                  <>
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <div className="flex items-center gap-2 text-orange-600 mb-2">
-                        <ArrowRightLeft className="w-4 h-4" />
-                        <h3 className="text-xs font-bold uppercase tracking-wider">
-                          Output Mapping
-                        </h3>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                        Map the human's input to a global state variable to use
-                        it later in the workflow.
-                      </p>
-
-                      <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                        <span className="text-xs font-mono font-semibold text-slate-700">
-                          human_input
-                        </span>
-                        <select
+                  {/* RESPONSE INSPECTOR */}
+                  {selectedNode.type === "response" && (
+                    <>
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Node-Specific Instructions
+                        </label>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-1">
+                          Add extra context or rules for formatting the final
+                          output.
+                        </p>
+                        <textarea
+                          placeholder="e.g. Summarize the output in 3 concise bullet points..."
                           value={
-                            (
-                              selectedNode.data.output_mapping as Record<
-                                string,
-                                string
-                              >
-                            )?.[`human_input`] || ""
+                            (selectedNode.data.custom_instructions as string) ||
+                            ""
                           }
                           onChange={(e) =>
-                            handleMappingChange(
-                              "output_mapping",
-                              "human_input",
+                            handleNodeChange(
+                              "custom_instructions",
                               e.target.value,
                             )
                           }
-                          className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-orange-500 bg-white"
-                        >
-                          <option value="">-- Select Target State --</option>
-                          {stateKeys.map((k) => (
-                            <option key={k} value={k}>
-                              {k}
-                            </option>
-                          ))}
-                        </select>
+                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-purple-500 text-slate-900 min-h-[100px] bg-slate-50"
+                        />
                       </div>
-                    </div>
-                  </>
-                )}
+
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-purple-600 mb-2">
+                          <Flag className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            Response Payload
+                          </h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          Define the JSON schema this agent will return to the
+                          caller.
+                        </p>
+                        <SchemaViewer
+                          title="Response Payload"
+                          nodes={inspectorSchema}
+                          setNodes={handleSchemaChange}
+                          addButtonText="Add Output Field"
+                        />
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                          <ArrowRightLeft className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            Extraction Mapping
+                          </h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          Select which variables from the global state should be
+                          returned.
+                        </p>
+
+                        {Object.keys(
+                          selectedNode.data.response_payload || {},
+                        ).map((payloadKey) => {
+                          const currentVal =
+                            (
+                              selectedNode.data.extraction_mapping as Record<
+                                string,
+                                string
+                              >
+                            )?.[payloadKey] || "";
+                          return (
+                            <div
+                              key={payloadKey}
+                              className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                            >
+                              <span className="text-xs font-mono font-semibold text-slate-700">
+                                {payloadKey}
+                              </span>
+                              <select
+                                value={currentVal}
+                                onChange={(e) =>
+                                  handleMappingChange(
+                                    "extraction_mapping",
+                                    payloadKey,
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white text-slate-900"
+                              >
+                                <option value="">
+                                  -- Select State Variable --
+                                </option>
+                                {stateKeys.map((k) => (
+                                  <option key={k} value={k}>
+                                    {k}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })}
+                        {Object.keys(selectedNode.data.response_payload || {})
+                          .length === 0 && (
+                          <div className="text-xs text-slate-400 italic">
+                            No response fields defined yet.
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* INTERRUPT INSPECTOR */}
+                  {selectedNode.type === "interrupt" && (
+                    <>
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-orange-600 mb-2">
+                          <ArrowRightLeft className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            Output Mapping
+                          </h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          Map the human's input to a global state variable to
+                          use it later in the workflow.
+                        </p>
+
+                        <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                          <span className="text-xs font-mono font-semibold text-slate-700">
+                            human_input
+                          </span>
+                          <select
+                            value={
+                              (
+                                selectedNode.data.output_mapping as Record<
+                                  string,
+                                  string
+                                >
+                              )?.[`human_input`] || ""
+                            }
+                            onChange={(e) =>
+                              handleMappingChange(
+                                "output_mapping",
+                                "human_input",
+                                e.target.value,
+                              )
+                            }
+                            className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-orange-500 bg-white"
+                          >
+                            <option value="">-- Select Target State --</option>
+                            {stateKeys.map((k) => (
+                              <option key={k} value={k}>
+                                {k}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : selectedEdge ? (
-            <div className="space-y-4 animate-in fade-in">
-              <div className="flex items-center gap-3 bg-slate-50 p-3 rounded border border-slate-200 text-sm font-mono text-slate-600">
-                <span className="flex-1 truncate">{selectedEdge.source}</span>
-                <GitMerge className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="flex-1 truncate text-right">
-                  {selectedEdge.target}
-                </span>
+            ) : selectedEdge ? (
+              <div className="space-y-4 animate-in fade-in">
+                <div className="flex items-center gap-3 bg-slate-50 p-3 rounded border border-slate-200 text-sm font-mono text-slate-600">
+                  <span className="flex-1 truncate">{selectedEdge.source}</span>
+                  <GitMerge className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="flex-1 truncate text-right">
+                    {selectedEdge.target}
+                  </span>
+                </div>
+                <div className="space-y-1.5 mt-4">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Condition
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. priority == 'high'"
+                    value={(selectedEdge.data?.label as string) || ""}
+                    onChange={(e) => handleEdgeChange("label", e.target.value)}
+                    className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-orange-500 font-mono text-slate-900"
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5 mt-4">
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Condition
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. priority == 'high'"
-                  value={(selectedEdge.data?.label as string) || ""}
-                  onChange={(e) => handleEdgeChange("label", e.target.value)}
-                  className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-orange-500 font-mono text-slate-900"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6 animate-in fade-in">
-              <div className="flex flex-col items-center justify-center py-6 text-center space-y-3 opacity-50 px-6 border-b border-slate-100">
-                <Braces className="w-8 h-8 text-slate-400" />
-                <p className="text-sm text-slate-500 leading-relaxed italic">
-                  Select a node or edge to configure parameters.
-                </p>
-              </div>
-            </div>
-          )}
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 });

@@ -25,7 +25,7 @@ export function NodeMapping({
       : "text-emerald-500";
 
   return (
-    <div className="text-[10px] flex items-center justify-between gap-2 text-slate-500 font-mono bg-slate-50 rounded px-1.5 py-1 border border-slate-100">
+    <div className="text-sm flex items-center justify-between gap-2 text-slate-500 font-mono bg-slate-50 rounded px-1.5 py-1 border border-slate-100">
       {/* Left Side: Global State */}
       <div
         className={`flex items-center gap-1 w-[45%] overflow-hidden ${globalColor}`}
@@ -38,7 +38,7 @@ export function NodeMapping({
 
       {/* Center: Directional Arrow */}
       <div className="flex-1 flex justify-center">
-        <ArrowIcon className="w-3 h-3 text-slate-400 shrink-0" />
+        <ArrowIcon className="w-3 h-3 text-slate-600 shrink-0" />
       </div>
 
       {/* Right Side: Local Field */}

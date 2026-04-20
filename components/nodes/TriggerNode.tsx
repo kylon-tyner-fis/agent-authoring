@@ -58,7 +58,7 @@ export function TriggerNode({ data, selected }: NodeProps<TriggerNodeType>) {
             {data.label || "API Request"}
           </h3>
           <p
-            className={`text-[10px] font-semibold uppercase tracking-wider ${theme.text}`}
+            className={`text-sm font-semibold uppercase tracking-wider ${theme.text}`}
           >
             {theme.label}
           </p>

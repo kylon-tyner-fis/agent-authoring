@@ -16,6 +16,7 @@ export default function AgentsDashboard() {
   const router = useRouter();
   const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAgents = async () => {
@@ -33,14 +34,15 @@ export default function AgentsDashboard() {
     fetchAgents();
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(`Are you sure you want to delete ${id}?`)) return;
-
+  const confirmDelete = async () => {
+    if (!deletingId) return;
     try {
-      await fetch(`/api/agents/${id}`, { method: "DELETE" });
-      setAgents(agents.filter((a) => a.agent_id !== id));
+      await fetch(`/api/agents/${deletingId}`, { method: "DELETE" });
+      setAgents(agents.filter((a) => a.agent_id !== deletingId));
     } catch (error) {
       console.error("Failed to delete agent", error);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -89,7 +91,7 @@ export default function AgentsDashboard() {
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">
                       <span className="truncate">{agent.agent_id}</span>
-                      <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono border border-slate-200">
+                      <span className="text-sm bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono border border-slate-200">
                         v{agent.version}
                       </span>
                     </h3>
@@ -116,7 +118,7 @@ export default function AgentsDashboard() {
                     Edit Agent
                   </button>
                   <button
-                    onClick={() => handleDelete(agent.agent_id)}
+                    onClick={() => setDeletingId(agent.agent_id)}
                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete Agent"
                   >
@@ -128,6 +130,33 @@ export default function AgentsDashboard() {
           )}
         </div>
       </div>
+      {deletingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full animate-in zoom-in-95">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              Delete Agent?
+            </h3>
+            <p className="text-sm text-slate-500 mb-6">
+              Are you sure you want to permanently delete this agent? This
+              action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeletingId(null)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
