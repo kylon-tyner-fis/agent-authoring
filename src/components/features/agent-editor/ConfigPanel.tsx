@@ -38,7 +38,7 @@ interface ConfigPanelProps {
   onOpenPlayground: () => void;
 }
 
-type Tab = "identity" | "engine" | "schema" | "integrations" | "orchestration";
+type Tab = "identity" | "engine" | "schema" | "orchestration";
 
 const SUPPORTED_PROVIDERS = ["openai", "anthropic"];
 
@@ -272,9 +272,8 @@ export const ConfigPanel = ({
       <div className="flex px-4 pt-2 bg-slate-50 border-b border-gray-200 shrink-0 overflow-x-auto">
         {[
           { id: "identity", label: "Identity", icon: Fingerprint },
-          { id: "engine", label: "Engine", icon: Cpu },
+          { id: "engine", label: "AI Engine", icon: Cpu },
           { id: "schema", label: "State Schema", icon: Braces },
-          { id: "integrations", label: "Integrations", icon: Database },
           { id: "orchestration", label: "Orchestration", icon: Network },
         ].map((tab) => (
           <button
@@ -649,73 +648,7 @@ export const ConfigPanel = ({
           </div>
         )}
 
-        {/* TAB 4: INTEGRATIONS */}
-        {activeTab === "integrations" && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
-            <div className="flex flex-col gap-1 mb-4">
-              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                <Database className="w-5 h-5 text-teal-500" />
-                MCP Server Integrations
-              </h2>
-              <p className="text-sm text-gray-500">
-                Enable external tools and APIs for this agent by attaching MCP
-                servers. Skills used in the orchestration graph will inherit
-                these connections.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {availableServers.length === 0 ? (
-                <p className="text-sm text-gray-400 italic">
-                  No MCP servers available. Add some in the dashboard.
-                </p>
-              ) : (
-                availableServers.map((server) => {
-                  const isSelected =
-                    config.mcp_servers?.includes(server.id) || false;
-                  return (
-                    <div
-                      key={server.id}
-                      onClick={() => {
-                        const newServers = isSelected
-                          ? config.mcp_servers.filter((id) => id !== server.id)
-                          : [...(config.mcp_servers || []), server.id];
-                        setConfig({ ...config, mcp_servers: newServers });
-                      }}
-                      className={`p-5 border rounded-xl cursor-pointer transition-all flex flex-col gap-3 ${
-                        isSelected
-                          ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500 shadow-sm"
-                          : "border-slate-200 bg-white hover:border-slate-300 shadow-sm"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="font-bold text-slate-900">
-                          {server.name}
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          readOnly
-                          className="mt-1 accent-teal-600 w-4 h-4 cursor-pointer"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5 mt-auto pt-2 border-t border-slate-100/50">
-                        <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
-                          <Link2 className="w-3 h-3" /> {server.url}
-                        </span>
-                        <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
-                          <Key className="w-3 h-3" /> Auth: {server.auth_type}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: ORCHESTRATION */}
+        {/* TAB 4: ORCHESTRATION */}
         {activeTab === "orchestration" && (
           <div className="space-y-6 h-full flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex flex-col gap-1 shrink-0">
