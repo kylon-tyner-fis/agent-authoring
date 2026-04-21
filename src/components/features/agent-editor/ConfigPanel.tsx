@@ -15,11 +15,9 @@ import {
   Cpu,
   Play,
   Database,
-  Link2,
-  Key,
   Info,
 } from "lucide-react";
-import { AgentConfig, MCPServerConfig } from "@/src/lib/types/constants";
+import { AgentConfig } from "@/src/lib/types/constants";
 import {
   OrchestrationCanvas,
   OrchestrationCanvasRef,
@@ -33,7 +31,6 @@ interface ConfigPanelProps {
   config: AgentConfig;
   setConfig: React.Dispatch<React.SetStateAction<AgentConfig>>;
   availableSkills: SkillConfig[];
-  availableServers: MCPServerConfig[];
   activeNodeId?: string | null;
   onOpenPlayground: () => void;
 }
@@ -52,7 +49,6 @@ export const ConfigPanel = ({
   setConfig,
   activeNodeId,
   availableSkills,
-  availableServers,
   onOpenPlayground,
 }: ConfigPanelProps) => {
   const [activeTab, setActiveTab] = useState<Tab>("identity");
@@ -122,6 +118,33 @@ export const ConfigPanel = ({
     setConfig((prev) => ({ ...prev, state_schema: compileNodes(schemaNodes) }));
   }, [schemaNodes, setConfig]);
 
+  // NEW: Sync the orchestration canvas state to the parent config
+  const syncCanvasToConfig = () => {
+    if (activeTab === "orchestration" && canvasRef.current) {
+      const latestCanvasData = canvasRef.current.getCanvasData();
+      setConfig((prev) => ({
+        ...prev,
+        orchestration: {
+          nodes: latestCanvasData.nodes,
+          edges: latestCanvasData.edges,
+          viewport: latestCanvasData.viewport,
+        },
+      }));
+    }
+  };
+
+  // NEW: Intercept tab changes to save state beforehand
+  const handleTabChange = (newTab: Tab) => {
+    syncCanvasToConfig();
+    setActiveTab(newTab);
+  };
+
+  // NEW: Sync state before opening playground to test current changes
+  const handleOpenPlayground = () => {
+    syncCanvasToConfig();
+    onOpenPlayground();
+  };
+
   const handleSaveAgent = async () => {
     if (!config.agent_id.trim()) {
       addToast("Please provide an Agent ID before saving.", "error");
@@ -133,9 +156,14 @@ export const ConfigPanel = ({
 
     try {
       let latestCanvasData = null;
-      if (canvasRef.current) {
+      // UPDATED: Grab live data if on tab, else use stored config
+      if (activeTab === "orchestration" && canvasRef.current) {
         latestCanvasData = canvasRef.current.getCanvasData();
+      } else {
+        latestCanvasData = config.orchestration;
+      }
 
+      if (latestCanvasData) {
         // Run Pre-Flight Validations
         const canvasNodes = latestCanvasData.nodes || [];
         const hasTrigger = canvasNodes.some((n: any) => n.type === "trigger");
@@ -240,7 +268,7 @@ export const ConfigPanel = ({
 
         <div className="flex items-center gap-3">
           <button
-            onClick={onOpenPlayground}
+            onClick={handleOpenPlayground}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200"
           >
             <Play className="w-4 h-4" /> Test Agent
@@ -278,7 +306,7 @@ export const ConfigPanel = ({
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as Tab)}
+            onClick={() => handleTabChange(tab.id as Tab)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? "border-blue-600 text-blue-700 bg-blue-50/50 rounded-t-lg"
