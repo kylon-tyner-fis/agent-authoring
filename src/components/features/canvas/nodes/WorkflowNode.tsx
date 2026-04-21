@@ -107,18 +107,32 @@ export function WorkflowNode({
             {/* Mapping Visualizer */}
             {(hasInputs || hasOutputs) && (
               <div className="space-y-1.5 border-t border-slate-100 pt-2 mt-1">
-                {Object.entries(data.input_mapping || {}).map(
-                  ([k, v]) =>
-                    v && (
-                      <NodeMapping
-                        key={`in-${k}`}
-                        globalKey={v}
-                        localKey={k}
-                        flowDirection="global-to-local"
-                        localType="input"
-                      />
-                    ),
-                )}
+                {Object.entries(data.input_mapping || {}).flatMap(([k, v]) => {
+                  if (Array.isArray(v)) {
+                    return v
+                      .filter(Boolean)
+                      .map((item, idx) => (
+                        <NodeMapping
+                          key={`in-${k}-${idx}`}
+                          globalKey={item}
+                          localKey={`${k}[${idx}]`}
+                          flowDirection="global-to-local"
+                          localType="input"
+                        />
+                      ));
+                  }
+                  return v
+                    ? [
+                        <NodeMapping
+                          key={`in-${k}`}
+                          globalKey={v as string}
+                          localKey={k}
+                          flowDirection="global-to-local"
+                          localType="input"
+                        />,
+                      ]
+                    : [];
+                })}
                 {Object.entries(data.output_mapping || {}).map(
                   ([k, v]) =>
                     v && (

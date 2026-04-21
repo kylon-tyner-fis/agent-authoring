@@ -45,8 +45,8 @@ export interface MCPServerConfig {
 export interface GraphNode {
   type: string; // e.g., "skill", "subgraph", "interrupt"
   skill_id?: string;
-  input_mapping?: Record<string, string>; // e.g., { "query": "ticket_description" }
-  output_mapping?: Record<string, string>; // e.g., { "summary": "research_notes" }
+  input_mapping?: Record<string, string | string[]>;
+  output_mapping?: Record<string, string>;
   custom_instructions?: string;
   interrupt_before?: string[];
   subgraph_id?: string;

@@ -33,6 +33,7 @@ import {
   Flag,
   ChevronDown,
   ChevronUp,
+  Plus,
 } from "lucide-react";
 import { SkillConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
@@ -391,7 +392,7 @@ const CanvasEditor = forwardRef<
       | "initialization_mapping"
       | "extraction_mapping",
     key: string,
-    value: string,
+    value: string | string[],
   ) => {
     if (!selectedNodeId || !selectedNode) return;
     const currentMapping =
@@ -696,41 +697,139 @@ const CanvasEditor = forwardRef<
 
                         {Object.keys(activeSkill.input_schema).map(
                           (inputKey) => {
-                            const currentVal =
-                              (
-                                selectedNode.data.input_mapping as Record<
-                                  string,
-                                  string
-                                >
-                              )?.[inputKey] || "";
+                            // Safely determine the type hint, as it might be an object or array instead of a string
+                            const rawHint = activeSkill.input_schema[inputKey];
+                            const typeHint =
+                              typeof rawHint === "string"
+                                ? rawHint.toLowerCase()
+                                : Array.isArray(rawHint)
+                                  ? "array<object>"
+                                  : "object";
+
+                            const isArrayType =
+                              typeHint.includes("array") ||
+                              typeHint.includes("[]");
+                            const currentVal = (
+                              selectedNode.data.input_mapping as Record<
+                                string,
+                                any
+                              >
+                            )?.[inputKey];
+
                             return (
                               <div
                                 key={inputKey}
                                 className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
                               >
-                                <span className="text-xs font-mono font-semibold text-slate-700">
-                                  {inputKey}
-                                </span>
-                                <select
-                                  value={currentVal}
-                                  onChange={(e) =>
-                                    handleMappingChange(
-                                      "input_mapping",
-                                      inputKey,
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
-                                >
-                                  <option value="">
-                                    -- Select State Variable --
-                                  </option>
-                                  {stateKeys.map((k) => (
-                                    <option key={k} value={k}>
-                                      {k}
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-mono font-semibold text-slate-700">
+                                    {inputKey}
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 bg-white px-1 border border-slate-100 rounded uppercase font-bold tracking-wider">
+                                    {typeHint}
+                                  </span>
+                                </div>
+
+                                {isArrayType ? (
+                                  <div className="space-y-1.5 mt-1">
+                                    {(Array.isArray(currentVal)
+                                      ? currentVal
+                                      : currentVal
+                                        ? [currentVal]
+                                        : []
+                                    ).map((val, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-center gap-1.5"
+                                      >
+                                        <select
+                                          value={val}
+                                          onChange={(e) => {
+                                            const newArr = Array.isArray(
+                                              currentVal,
+                                            )
+                                              ? [...currentVal]
+                                              : currentVal
+                                                ? [currentVal]
+                                                : [];
+                                            newArr[idx] = e.target.value;
+                                            handleMappingChange(
+                                              "input_mapping",
+                                              inputKey,
+                                              newArr,
+                                            );
+                                          }}
+                                          className="flex-1 p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white text-slate-900"
+                                        >
+                                          <option value="">
+                                            -- Select State Variable --
+                                          </option>
+                                          {stateKeys.map((k) => (
+                                            <option key={k} value={k}>
+                                              {k}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <button
+                                          onClick={() => {
+                                            const newArr = (
+                                              Array.isArray(currentVal)
+                                                ? currentVal
+                                                : [currentVal]
+                                            ).filter((_, i) => i !== idx);
+                                            handleMappingChange(
+                                              "input_mapping",
+                                              inputKey,
+                                              newArr,
+                                            );
+                                          }}
+                                          className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                    <button
+                                      onClick={() => {
+                                        const newArr = Array.isArray(currentVal)
+                                          ? [...currentVal, ""]
+                                          : currentVal
+                                            ? [currentVal, ""]
+                                            : [""];
+                                        handleMappingChange(
+                                          "input_mapping",
+                                          inputKey,
+                                          newArr,
+                                        );
+                                      }}
+                                      className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 py-1"
+                                    >
+                                      <Plus className="w-3 h-3" /> Add mapped
+                                      variable
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <select
+                                    value={currentVal || ""}
+                                    onChange={(e) =>
+                                      handleMappingChange(
+                                        "input_mapping",
+                                        inputKey,
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                                  >
+                                    <option value="">
+                                      -- Select State Variable --
                                     </option>
-                                  ))}
-                                </select>
+                                    {stateKeys.map((k) => (
+                                      <option key={k} value={k}>
+                                        {k}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
                               </div>
                             );
                           },

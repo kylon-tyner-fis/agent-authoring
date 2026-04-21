@@ -240,9 +240,23 @@ export async function compileAndRunAgent(
       const localInputs: Record<string, any> = {};
       const inMap = node.data.input_mapping || {};
       for (const localKey of Object.keys(skill.input_schema || {})) {
-        const globalKey = inMap[localKey] || localKey;
-        localInputs[localKey] =
-          state[globalKey] !== undefined ? state[globalKey] : "";
+        const mapping = inMap[localKey];
+
+        if (Array.isArray(mapping)) {
+          // Collect all mapped states, drop nulls/undefined, and flatten the results
+          const aggregated = mapping
+            .map((globalKey) => state[globalKey])
+            .filter((val) => val !== undefined && val !== null);
+
+          localInputs[localKey] = aggregated.reduce(
+            (acc, val) => acc.concat(Array.isArray(val) ? val : [val]),
+            [],
+          );
+        } else {
+          const globalKey = (mapping as string) || localKey;
+          localInputs[localKey] =
+            state[globalKey] !== undefined ? state[globalKey] : "";
+        }
       }
 
       let outputData: Record<string, any> = {};
