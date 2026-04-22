@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { useRouter } from "next/navigation";
 import {
   AgentConfig,
   SkillConfig,
-  MCPServerConfig,
   DEFAULT_AGENT_CONFIG,
-  Message, // <-- Import Message type
+  Message,
 } from "@/src/lib/types/constants";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { ConfigPanel } from "@/src/components/features/agent-editor/ConfigPanel";
 import { Playground } from "@/src/components/features/agent-editor/Playground";
 
@@ -18,35 +16,25 @@ export default function AgentEditorPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const router = useRouter();
   const resolvedParams = use(params);
   const id = resolvedParams.id;
   const isNew = id === "new";
 
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [availableSkills, setAvailableSkills] = useState<SkillConfig[]>([]);
-  const [availableServers, setAvailableServers] = useState<MCPServerConfig[]>(
-    [],
-  );
   const [isLoading, setIsLoading] = useState(true);
 
   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [activeNodeId, setActiveNodeId] = useState<string | null>(null); // NEW STATE
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [skillsRes, serversRes] = await Promise.all([
-          fetch("/api/skills"),
-          fetch("/api/mcp-servers"),
-        ]);
-
+        const skillsRes = await fetch("/api/skills");
         const skillsData = await skillsRes.json();
-        const serversData = await serversRes.json();
 
         if (skillsData.skills) setAvailableSkills(skillsData.skills);
-        if (serversData.servers) setAvailableServers(serversData.servers);
 
         if (isNew) {
           setConfig({ ...DEFAULT_AGENT_CONFIG, agent_id: "" });
@@ -101,7 +89,6 @@ export default function AgentEditorPage({
             setConfig as React.Dispatch<React.SetStateAction<AgentConfig>>
           }
           availableSkills={availableSkills}
-          availableServers={availableServers}
           activeNodeId={activeNodeId}
           onOpenPlayground={() => setIsPlaygroundOpen(true)}
         />
