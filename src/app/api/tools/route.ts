@@ -9,12 +9,12 @@ const supabase = createClient(
 export async function GET() {
   try {
     const { data, error } = await supabase
-      .from("agents")
+      .from("tools") // <-- Updated table
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("name", { ascending: true });
 
     if (error) throw error;
-    return NextResponse.json({ agents: data });
+    return NextResponse.json({ tools: data }); // <-- Updated key
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -22,15 +22,15 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const agent = await req.json();
+    const tool = await req.json();
     const { data, error } = await supabase
-      .from("agents")
-      .upsert([agent], { onConflict: "id" })
+      .from("tools") // <-- Updated table
+      .upsert([tool], { onConflict: "id" })
       .select()
       .single();
 
     if (error) throw error;
-    return NextResponse.json({ success: true, agent: data });
+    return NextResponse.json({ success: true, tool: data }); // <-- Updated key
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

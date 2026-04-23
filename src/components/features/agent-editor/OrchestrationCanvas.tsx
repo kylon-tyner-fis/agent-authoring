@@ -35,7 +35,7 @@ import {
   ChevronUp,
   Plus,
 } from "lucide-react";
-import { SkillConfig } from "@/src/lib/types/constants";
+import { ToolConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "../../shared/json-tools/SchemaViewer";
@@ -62,7 +62,7 @@ export interface OrchestrationCanvasRef {
 export interface OrchestrationCanvasProps {
   initialData?: any;
   globalStateSchema?: Record<string, string>;
-  availableSkills?: SkillConfig[];
+  availableSkills?: ToolConfig[];
   activeNodeId?: string | null;
 }
 

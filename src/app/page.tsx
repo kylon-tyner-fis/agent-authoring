@@ -8,7 +8,7 @@ import {
   Server,
   ChevronRight,
   PlusCircle,
-  Activity,
+  Network,
 } from "lucide-react";
 
 export default function GlobalDashboard() {
@@ -17,21 +17,30 @@ export default function GlobalDashboard() {
   const sections = [
     {
       title: "Agents",
-      description: "Manage orchestration workflows and LLM configurations.",
-      icon: <Bot className="w-6 h-6 text-blue-600" />,
-      path: "/agents", // Note: You might want to move your current dashboard to /agents
-      count: "3 Active",
-      color: "blue",
-      action: () => router.push("/agents"), // Current dashboard is at root
+      description: "Manage high-level Agents and their assigned skills.",
+      icon: <Bot className="w-6 h-6 text-emerald-600" />,
+      path: "/agents",
+      count: "0 Active",
+      color: "emerald",
+      action: () => router.push("/agents"),
     },
     {
-      title: "Skill Library",
+      title: "Skills",
+      description: "Manage orchestration workflows and LLM configurations.",
+      icon: <Network className="w-6 h-6 text-blue-600" />,
+      path: "/skills",
+      count: "3 Active",
+      color: "blue",
+      action: () => router.push("/skills"),
+    },
+    {
+      title: "Tool Library",
       description: "Reusable functions, prompt templates, and tool logic.",
       icon: <Wrench className="w-6 h-6 text-indigo-600" />,
-      path: "/skills",
-      count: "12 Skills",
+      path: "/tools",
+      count: "12 Tools",
       color: "indigo",
-      action: () => router.push("/skills"),
+      action: () => router.push("/tools"),
     },
     {
       title: "MCP Servers",

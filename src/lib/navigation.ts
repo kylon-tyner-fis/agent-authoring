@@ -1,4 +1,9 @@
-export type PrimarySectionKey = "dashboard" | "skills" | "agents" | "mcpServers";
+export type PrimarySectionKey =
+  | "dashboard"
+  | "agents"
+  | "skills"
+  | "tools"
+  | "mcpServers";
 
 export interface PrimaryNavItem {
   key: PrimarySectionKey;
@@ -14,8 +19,9 @@ export interface BreadcrumbItem {
 
 export const PRIMARY_NAV: PrimaryNavItem[] = [
   { key: "dashboard", label: "Dashboard", href: "/" },
-  { key: "skills", label: "Skills", href: "/skills" },
   { key: "agents", label: "Agents", href: "/agents" },
+  { key: "skills", label: "Skills", href: "/skills" },
+  { key: "tools", label: "Tools", href: "/tools" },
   { key: "mcpServers", label: "MCP Servers", href: "/mcp-servers" },
 ];
 
@@ -24,8 +30,9 @@ const startsWithSegment = (pathname: string, prefix: string) =>
 
 export const resolvePrimarySection = (pathname: string): PrimarySectionKey => {
   if (pathname === "/") return "dashboard";
-  if (startsWithSegment(pathname, "/skills")) return "skills";
   if (startsWithSegment(pathname, "/agents")) return "agents";
+  if (startsWithSegment(pathname, "/skills")) return "skills";
+  if (startsWithSegment(pathname, "/tools")) return "tools";
   if (startsWithSegment(pathname, "/mcp-servers")) return "mcpServers";
   return "dashboard";
 };

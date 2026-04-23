@@ -22,7 +22,7 @@ export interface ModelConfig {
 }
 
 // NEW: Skill Definition
-export interface SkillConfig {
+export interface ToolConfig {
   id: string;
   name: string;
   description: string;
@@ -94,8 +94,8 @@ export interface OrchestrationConfig {
 
 // UPDATED: AgentConfig now links to MCP servers, removes raw 'skills' array,
 // and includes compiled_manifest for standalone execution.
-export interface AgentConfig {
-  agent_id: string;
+export interface SkillConfig {
+  id: string;
   version: string;
   description: string;
   model: ModelConfig;
@@ -116,8 +116,16 @@ export interface Message {
   content: string;
 }
 
-export const DEFAULT_AGENT_CONFIG: AgentConfig = {
-  agent_id: "",
+export interface AgentConfig {
+  id: string;
+  name: string;
+  description: string;
+  skills: string[]; // Array of Skill IDs this Agent has access to
+  status: "active" | "inactive";
+}
+
+export const DEFAULT_SKILL_CONFIG: SkillConfig = {
+  id: "",
   version: "1.0.0",
   description: "",
   model: {

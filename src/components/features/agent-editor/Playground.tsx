@@ -20,7 +20,7 @@ import {
   Wrench,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { AgentConfig, Message } from "@/src/lib/types/constants";
+import { SkillConfig, Message } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { RecursiveJsonViewer } from "../../shared/json-tools/RecursiveJsonViewer";
 
@@ -81,7 +81,7 @@ type HistoryEvent =
   | { type: "tool_end"; toolName: string; result: any };
 
 interface PlaygroundProps {
-  config: AgentConfig;
+  config: SkillConfig;
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   onClose: () => void;

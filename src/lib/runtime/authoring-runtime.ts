@@ -4,7 +4,7 @@ import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { HumanMessage, ToolMessage } from "@langchain/core/messages"; // IMPORTED CORE MESSAGES
-import { AgentConfig, SkillConfig, MCPServerConfig } from "../types/constants";
+import { SkillConfig, ToolConfig, MCPServerConfig } from "../types/constants";
 import { Pool } from "pg";
 import { McpClient } from "../api-clients/mcp-client";
 
@@ -44,8 +44,8 @@ async function ensureDbSetup() {
 
 // ACTION B1: Update signature to accept servers
 export async function compileAndRunAgent(
-  config: AgentConfig,
-  skills: SkillConfig[],
+  config: SkillConfig,
+  tools: ToolConfig[],
   servers: MCPServerConfig[],
   userInput: string,
   reporter?: ExecutionReporter,
@@ -229,8 +229,8 @@ export async function compileAndRunAgent(
 
   // 5. ADD SKILL NODES (With Tool Binding & Execution Loop)
   for (const node of skillNodes) {
-    const skill = skills.find((s) => s.id === node.data.skillId);
-    if (!skill) continue;
+    const tool = tools.find((s) => s.id === node.data.skillId);
+    if (!tool) continue;
 
     workflow.addNode(node.id, async (state: any) => {
       if (state.__error__) return {};
@@ -239,7 +239,7 @@ export async function compileAndRunAgent(
 
       const localInputs: Record<string, any> = {};
       const inMap = node.data.input_mapping || {};
-      for (const localKey of Object.keys(skill.input_schema || {})) {
+      for (const localKey of Object.keys(tool.input_schema || {})) {
         const mapping = inMap[localKey];
 
         if (Array.isArray(mapping)) {
@@ -271,7 +271,7 @@ export async function compileAndRunAgent(
           });
 
           // ACTION B3: Aggregate McpClients
-          const mcpDependencies = skill.mcp_dependencies || [];
+          const mcpDependencies = tool.mcp_dependencies || [];
           const requiredServers = servers.filter((s) =>
             mcpDependencies.includes(s.id),
           );
@@ -283,17 +283,17 @@ export async function compileAndRunAgent(
 
           for (const client of mcpClients) {
             try {
-              const { tools } = await client.listTools();
-              for (const tool of tools) {
+              const { tools: remoteTools } = await client.listTools();
+              for (const remoteTool of remoteTools) {
                 openAiTools.push({
                   type: "function",
                   function: {
-                    name: tool.name,
-                    description: tool.description,
-                    parameters: tool.inputSchema,
+                    name: remoteTool.name,
+                    description: remoteTool.description,
+                    parameters: remoteTool.inputSchema,
                   },
                 });
-                toolNameToClient.set(tool.name, client);
+                toolNameToClient.set(remoteTool.name, client);
               }
             } catch (err) {
               console.error(`[DEBUG] Failed to list tools for server`, err);
@@ -304,7 +304,7 @@ export async function compileAndRunAgent(
           const modelWithTools =
             openAiTools.length > 0 ? llm.bindTools(openAiTools) : llm;
 
-          const schemaString = JSON.stringify(skill.output_schema || {});
+          const schemaString = JSON.stringify(tool.output_schema || {});
           const inputsString = JSON.stringify(localInputs, null, 2);
 
           const nodeInstructions = node.data.custom_instructions?.trim()
@@ -314,7 +314,7 @@ export async function compileAndRunAgent(
           const systemInstruction = `\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. If you have tools available, use them to gather required information.\n3. Return your final response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.`;
 
           const prompt = PromptTemplate.fromTemplate(
-            skill.prompt_template + systemInstruction,
+            tool.prompt_template + systemInstruction,
           );
           const formatted = await prompt.format({
             ...localInputs,
@@ -385,12 +385,12 @@ export async function compileAndRunAgent(
                     .trim();
 
                 const parsedResponse = JSON.parse(cleanStr);
-                for (const key of Object.keys(skill.output_schema || {})) {
+                for (const key of Object.keys(tool.output_schema || {})) {
                   outputData[key] = parsedResponse[key];
                 }
               } catch (parseErr) {
                 stateUpdates["__error__"] =
-                  `Skill '${skill.name}' failed to generate a valid JSON structure.`;
+                  `Tool '${tool.name}' failed to generate a valid JSON structure.`;
               }
               break;
             }
@@ -398,11 +398,11 @@ export async function compileAndRunAgent(
 
           if (maxTurns === 0) {
             stateUpdates["__error__"] =
-              `Skill '${skill.name}' exceeded maximum tool iterations.`;
+              `Tool '${tool.name}' exceeded maximum tool iterations.`;
           }
         } catch (e: any) {
           stateUpdates["__error__"] =
-            `Skill '${skill.name}' encountered an execution error: ${e.message}`;
+            `Tool '${tool.name}' encountered an execution error: ${e.message}`;
         }
       }
 
@@ -778,29 +778,29 @@ export async function compileAndRunAgent(
 }
 
 export function generateManifest(
-  config: AgentConfig,
-  allSkills: SkillConfig[],
+  config: SkillConfig,
+  allTools: ToolConfig[],
   allServers: MCPServerConfig[],
 ) {
   const nodes = config.orchestration?.nodes || [];
-  const usedSkillIds = new Set<string>();
+  const usedToolIds = new Set<string>();
 
   nodes.forEach((n: any) => {
     if (n.type === "skill" && n.data?.skillId) {
-      usedSkillIds.add(n.data.skillId);
+      usedToolIds.add(n.data.skillId);
     }
   });
 
-  const resolvedSkills = allSkills
-    .filter((skill) => usedSkillIds.has(skill.id))
+  const resolvedTools = allTools
+    .filter((tool) => usedToolIds.has(tool.id))
     .reduce(
-      (acc, skill) => {
-        acc[skill.id] = {
-          name: skill.name,
-          prompt_template: skill.prompt_template,
-          input_schema: skill.input_schema,
-          output_schema: skill.output_schema,
-          mcp_dependencies: skill.mcp_dependencies,
+      (acc, tool) => {
+        acc[tool.id] = {
+          name: tool.name,
+          prompt_template: tool.prompt_template,
+          input_schema: tool.input_schema,
+          output_schema: tool.output_schema,
+          mcp_dependencies: tool.mcp_dependencies,
         };
         return acc;
       },
@@ -808,9 +808,9 @@ export function generateManifest(
     );
 
   const requiredServerIds = new Set<string>(config.mcp_servers || []);
-  allSkills.forEach((skill) => {
-    if (usedSkillIds.has(skill.id) && skill.mcp_dependencies) {
-      skill.mcp_dependencies.forEach((dep) => requiredServerIds.add(dep));
+  allTools.forEach((tool) => {
+    if (usedToolIds.has(tool.id) && tool.mcp_dependencies) {
+      tool.mcp_dependencies.forEach((dep) => requiredServerIds.add(dep));
     }
   });
 
@@ -830,7 +830,7 @@ export function generateManifest(
 
   const manifest = {
     metadata: {
-      agent_id: config.agent_id,
+      skill_id: config.skill_id,
       version: config.version,
       description: config.description,
     },
@@ -852,7 +852,7 @@ export function generateManifest(
       response_formatter:
         "{__persona__}\n--- NODE-SPECIFIC INSTRUCTIONS ---\n{__response_instructions__}\n\n--- SYSTEM INSTRUCTIONS ---\nYou are the final response formatter for an AI workflow.\nTake the raw extracted data below and format, summarize, or modify it exactly according to the node-specific instructions above.\n\nRaw Extracted Data:\n{__raw_data__}\n\nReturn ONLY a valid JSON object matching this exact schema: {__schema__}",
     },
-    resolved_skills: resolvedSkills,
+    resolved_skills: resolvedTools,
     resolved_mcp_servers: resolvedServers,
     graph_topology: {
       nodes: config.orchestration?.nodes || [],

@@ -17,20 +17,20 @@ import {
   Database,
   Info,
 } from "lucide-react";
-import { AgentConfig } from "@/src/lib/types/constants";
+import { SkillConfig } from "@/src/lib/types/constants";
 import {
   OrchestrationCanvas,
   OrchestrationCanvasRef,
 } from "./OrchestrationCanvas";
-import { SkillConfig } from "@/src/lib/types/constants";
+import { ToolConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "../../shared/json-tools/SchemaViewer";
 
 interface ConfigPanelProps {
-  config: AgentConfig;
-  setConfig: React.Dispatch<React.SetStateAction<AgentConfig>>;
-  availableSkills: SkillConfig[];
+  config: SkillConfig;
+  setConfig: React.Dispatch<React.SetStateAction<SkillConfig>>;
+  availableTools: ToolConfig[];
   activeNodeId?: string | null;
   onOpenPlayground: () => void;
 }
@@ -48,7 +48,7 @@ export const ConfigPanel = ({
   config,
   setConfig,
   activeNodeId,
-  availableSkills,
+  availableTools: availableSkills,
   onOpenPlayground,
 }: ConfigPanelProps) => {
   const [activeTab, setActiveTab] = useState<Tab>("identity");
@@ -146,7 +146,7 @@ export const ConfigPanel = ({
   };
 
   const handleSaveAgent = async () => {
-    if (!config.agent_id.trim()) {
+    if (!config.id.trim()) {
       addToast("Please provide an Agent ID before saving.", "error");
       return;
     }
@@ -227,7 +227,7 @@ export const ConfigPanel = ({
 
   // Helper for merging persistence state safely
   const updatePersistence = (
-    updates: Partial<NonNullable<AgentConfig["persistence"]>>,
+    updates: Partial<NonNullable<SkillConfig["persistence"]>>,
   ) => {
     setConfig((prev) => ({
       ...prev,
@@ -340,9 +340,9 @@ export const ConfigPanel = ({
                   </label>
                   <input
                     type="text"
-                    value={config.agent_id || ""}
+                    value={config.id || ""}
                     onChange={(e) =>
-                      setConfig({ ...config, agent_id: e.target.value })
+                      setConfig({ ...config, id: e.target.value })
                     }
                     className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono bg-gray-50 text-slate-900"
                   />

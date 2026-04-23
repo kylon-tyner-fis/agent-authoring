@@ -1,3 +1,4 @@
+// src/app/api/skills/[id]/run/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { executeAgentManifest } from "@/src/lib/runtime/manifest-executor";
@@ -7,38 +8,36 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-// 1. Define CORS headers
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // Allows any origin to call this API
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// 2. Handle the OPTIONS preflight request (Required for CORS)
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
 export async function POST(req: Request) {
   try {
-    const { agentId, input, threadId, resumeData } = await req.json();
+    const { skillId, input, threadId, resumeData } = await req.json(); // Changed from agentId
 
-    if (!agentId || !threadId) {
+    if (!skillId || !threadId) {
       return NextResponse.json(
-        { error: "Missing agentId or threadId." },
-        { status: 400, headers: corsHeaders }, // Add headers to errors too!
+        { error: "Missing skillId or threadId." },
+        { status: 400, headers: corsHeaders },
       );
     }
 
     const { data, error } = await supabase
-      .from("agents")
+      .from("skills") // Was "agents"
       .select("compiled_manifest")
-      .eq("agent_id", agentId)
+      .eq("skill_id", skillId) // Was "agent_id"
       .single();
 
     if (error || !data?.compiled_manifest) {
       return NextResponse.json(
-        { error: "Agent not found or no compiled manifest available." },
+        { error: "Skill not found or no compiled manifest available." },
         { status: 404, headers: corsHeaders },
       );
     }
@@ -50,7 +49,6 @@ export async function POST(req: Request) {
       resumeData,
     );
 
-    // 3. Add CORS headers to the successful response
     return NextResponse.json(result, { headers: corsHeaders });
   } catch (error: any) {
     console.error("Execution Error:", error);
