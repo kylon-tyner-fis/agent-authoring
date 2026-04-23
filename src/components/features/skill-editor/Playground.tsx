@@ -76,7 +76,6 @@ type HistoryEvent =
       condition?: string;
       reasoning?: string;
     }
-  // NEW EVENTS ADDED HERE
   | { type: "tool_start"; toolName: string; args: Record<string, any> }
   | { type: "tool_end"; toolName: string; result: any };
 
@@ -141,7 +140,7 @@ export const Playground = ({
         resume_value: resumeValue,
       };
 
-      const response = await fetch("/api/agents/simulate", {
+      const response = await fetch("/api/skills/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -209,7 +208,6 @@ export const Playground = ({
                 },
               ]);
             } else if (event.type === "tool_start") {
-              // NEW: Handle Tool Start
               setStateHistory((prev) => [
                 ...prev,
                 {
@@ -219,7 +217,6 @@ export const Playground = ({
                 },
               ]);
             } else if (event.type === "tool_end") {
-              // NEW: Handle Tool End
               setStateHistory((prev) => [
                 ...prev,
                 {
@@ -358,7 +355,6 @@ export const Playground = ({
                 Run an execution to see state updates.
               </p>
             )}
-
             {stateHistory.map((history, i) => {
               if (history.type === "node_end") {
                 return (
@@ -452,7 +448,6 @@ export const Playground = ({
                         {history.target}
                       </span>
                     </div>
-
                     {history.condition && (
                       <div className="flex items-center gap-1.5 text-sm text-orange-600 font-mono px-4 ml-6">
                         <GitBranch className="w-3 h-3" />
@@ -461,7 +456,6 @@ export const Playground = ({
                         </span>
                       </div>
                     )}
-
                     {history.reasoning && (
                       <div className="flex items-start gap-1.5 text-[11px] text-slate-500 px-4 ml-6 mt-1">
                         <Brain className="w-3.5 h-3.5 mt-0.5 shrink-0 text-indigo-400" />

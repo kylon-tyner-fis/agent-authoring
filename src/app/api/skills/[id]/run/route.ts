@@ -1,4 +1,3 @@
-// src/app/api/skills/[id]/run/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { executeAgentManifest } from "@/src/lib/runtime/manifest-executor";
@@ -20,7 +19,7 @@ export async function OPTIONS() {
 
 export async function POST(req: Request) {
   try {
-    const { skillId, input, threadId, resumeData } = await req.json(); // Changed from agentId
+    const { skillId, input, threadId, resumeData } = await req.json();
 
     if (!skillId || !threadId) {
       return NextResponse.json(
@@ -30,9 +29,9 @@ export async function POST(req: Request) {
     }
 
     const { data, error } = await supabase
-      .from("skills") // Was "agents"
+      .from("skills")
       .select("compiled_manifest")
-      .eq("skill_id", skillId) // Was "agent_id"
+      .eq("id", skillId)
       .single();
 
     if (error || !data?.compiled_manifest) {

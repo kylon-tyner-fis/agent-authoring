@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Plus, Trash2, Loader2, Cpu, Clock } from "lucide-react";
+import { Bot, Plus, Trash2, Loader2, Cpu, Clock, Network } from "lucide-react";
 
 interface SkillListItem {
   id: string;
@@ -12,7 +12,7 @@ interface SkillListItem {
   updated_at: string;
 }
 
-export default function AgentsDashboard() {
+export default function SkillsDashboard() {
   const router = useRouter();
   const [skills, setSkills] = useState<SkillListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +40,7 @@ export default function AgentsDashboard() {
       await fetch(`/api/skills/${deletingId}`, { method: "DELETE" });
       setSkills(skills.filter((s) => s.id !== deletingId));
     } catch (error) {
-      console.error("Failed to delete agent", error);
+      console.error("Failed to delete skill", error);
     } finally {
       setDeletingId(null);
     }
@@ -52,10 +52,12 @@ export default function AgentsDashboard() {
         <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Bot className="w-6 h-6 text-blue-600" /> Skills
+              <Network className="w-6 h-6 text-blue-600" /> Skills
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              Manage your orchestration configurations.
+              Pre-determined, orchestrated workflows. Combine tools, logic
+              routing, and state management into repeatable multi-step
+              processes.
             </p>
           </div>
           <button
@@ -74,9 +76,6 @@ export default function AgentsDashboard() {
           ) : skills.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-xl border border-slate-200">
               <p className="text-slate-900 font-bold">No skills found</p>
-              <p className="text-slate-500 text-sm mt-1">
-                Create your first skill to get started.
-              </p>
             </div>
           ) : (
             skills.map((skill) => (
@@ -86,7 +85,7 @@ export default function AgentsDashboard() {
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
                   <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-blue-50 border-blue-200">
-                    <Bot className="w-5 h-5 text-blue-600" />
+                    <Network className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">
@@ -98,29 +97,19 @@ export default function AgentsDashboard() {
                     <p className="text-sm text-slate-500 mt-1 line-clamp-1">
                       {skill.description}
                     </p>
-                    <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <Cpu className="w-3.5 h-3.5" /> {skill.model_name}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        {new Date(skill.updated_at).toLocaleDateString()}
-                      </span>
-                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
                   <button
-                    onClick={() => router.push(`/agents/${skill.id}`)}
+                    onClick={() => router.push(`/skills/${skill.id}`)}
                     className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
                   >
-                    Edit Agent
+                    Edit Skill
                   </button>
                   <button
                     onClick={() => setDeletingId(skill.id)}
                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete Agent"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -134,10 +123,10 @@ export default function AgentsDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full animate-in zoom-in-95">
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Delete Agent?
+              Delete Skill?
             </h3>
             <p className="text-sm text-slate-500 mb-6">
-              Are you sure you want to permanently delete this agent? This
+              Are you sure you want to permanently delete this skill? This
               action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">

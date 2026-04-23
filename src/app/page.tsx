@@ -17,7 +17,8 @@ export default function GlobalDashboard() {
   const sections = [
     {
       title: "Agents",
-      description: "Manage high-level Agents and their assigned skills.",
+      description:
+        "Autonomous executive systems that reason, plan, and delegate tasks to specific Skills to achieve open-ended goals.",
       icon: <Bot className="w-6 h-6 text-emerald-600" />,
       path: "/agents",
       count: "0 Active",
@@ -26,7 +27,8 @@ export default function GlobalDashboard() {
     },
     {
       title: "Skills",
-      description: "Manage orchestration workflows and LLM configurations.",
+      description:
+        "Structured, repeatable workflows that orchestrate Tools, logic routing, and state management into multi-step processes.",
       icon: <Network className="w-6 h-6 text-blue-600" />,
       path: "/skills",
       count: "3 Active",
@@ -35,7 +37,8 @@ export default function GlobalDashboard() {
     },
     {
       title: "Tool Library",
-      description: "Reusable functions, prompt templates, and tool logic.",
+      description:
+        "Fundamental, single-purpose building blocks like API integrations, specialized functions, and prompt templates.",
       icon: <Wrench className="w-6 h-6 text-indigo-600" />,
       path: "/tools",
       count: "12 Tools",

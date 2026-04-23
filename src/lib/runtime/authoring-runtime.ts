@@ -1,14 +1,12 @@
-// lib/compiler.ts
 import { StateGraph, START, END } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { HumanMessage, ToolMessage } from "@langchain/core/messages"; // IMPORTED CORE MESSAGES
+import { HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { SkillConfig, ToolConfig, MCPServerConfig } from "../types/constants";
 import { Pool } from "pg";
 import { McpClient } from "../api-clients/mcp-client";
 
-// ACTION A2: Extend ExecutionReporter
 export interface ExecutionReporter {
   onNodeStart?: (nodeId: string) => void;
   onNodeEnd?: (
@@ -27,7 +25,6 @@ export interface ExecutionReporter {
   onToolEnd?: (toolName: string, result: any) => void;
 }
 
-// 1. Initialize Postgres Pool and Checkpointer
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 10,
@@ -42,7 +39,6 @@ async function ensureDbSetup() {
   }
 }
 
-// ACTION B1: Update signature to accept servers
 export async function compileAndRunAgent(
   config: SkillConfig,
   tools: ToolConfig[],
@@ -76,7 +72,6 @@ export async function compileAndRunAgent(
   if (reporter?.onNodeStart && !resumeValue)
     reporter.onNodeStart(triggerNode.id);
 
-  // 1. SMART INPUT EXTRACTION
   let parsedInput: any = {};
   try {
     parsedInput = JSON.parse(userInput);
@@ -137,7 +132,6 @@ export async function compileAndRunAgent(
     }
   }
 
-  // 2. PRE-FLIGHT VALIDATION: Check for Missing Required Fields
   const expectedPayload = triggerNode.data.expected_payload || {};
   const missingKeys: string[] = [];
 
@@ -171,7 +165,6 @@ export async function compileAndRunAgent(
     }
   }
 
-  // 3. INITIALIZE STATE
   const initialState: Record<string, any> = {};
   const initMap = triggerNode.data.initialization_mapping || {};
 
@@ -191,7 +184,6 @@ export async function compileAndRunAgent(
     );
   }
 
-  // 4. DEFINE STATEGRAPH CHANNELS
   const channels: Record<string, any> = {
     __final_payload__: {
       value: (prev: any, next: any) => (next !== undefined ? next : prev),
@@ -224,12 +216,11 @@ export async function compileAndRunAgent(
   });
 
   const workflow = new StateGraph<any>({ channels });
-  const skillNodes = nodes.filter((n: any) => n.type === "skill");
+  const toolNodes = nodes.filter((n: any) => n.type === "tool");
   const interruptNodes = nodes.filter((n: any) => n.type === "interrupt");
 
-  // 5. ADD SKILL NODES (With Tool Binding & Execution Loop)
-  for (const node of skillNodes) {
-    const tool = tools.find((s) => s.id === node.data.skillId);
+  for (const node of toolNodes) {
+    const tool = tools.find((s) => s.id === node.data.toolId);
     if (!tool) continue;
 
     workflow.addNode(node.id, async (state: any) => {
@@ -243,7 +234,6 @@ export async function compileAndRunAgent(
         const mapping = inMap[localKey];
 
         if (Array.isArray(mapping)) {
-          // Collect all mapped states, drop nulls/undefined, and flatten the results
           const aggregated = mapping
             .map((globalKey) => state[globalKey])
             .filter((val) => val !== undefined && val !== null);
@@ -270,14 +260,12 @@ export async function compileAndRunAgent(
             modelKwargs: { response_format: { type: "json_object" } },
           });
 
-          // ACTION B3: Aggregate McpClients
           const mcpDependencies = tool.mcp_dependencies || [];
           const requiredServers = servers.filter((s) =>
             mcpDependencies.includes(s.id),
           );
           const mcpClients = requiredServers.map((s) => new McpClient(s));
 
-          // ACTION B4: Fetch and map tools
           const openAiTools: any[] = [];
           const toolNameToClient = new Map<string, McpClient>();
 
@@ -300,7 +288,6 @@ export async function compileAndRunAgent(
             }
           }
 
-          // Bind tools to the model if any exist
           const modelWithTools =
             openAiTools.length > 0 ? llm.bindTools(openAiTools) : llm;
 
@@ -324,7 +311,6 @@ export async function compileAndRunAgent(
             __inputsString__: inputsString,
           });
 
-          // ACTION B5: The Multi-turn Execution Loop
           const messages: any[] = [new HumanMessage(formatted)];
           let maxTurns = 5;
 
@@ -333,10 +319,8 @@ export async function compileAndRunAgent(
             const response = await modelWithTools.invoke(messages);
             messages.push(response);
 
-            // If the model decides to call a tool
             if (response.tool_calls && response.tool_calls.length > 0) {
               for (const toolCall of response.tool_calls) {
-                // ACTION B6: Fire start event
                 if (reporter?.onToolStart)
                   reporter.onToolStart(toolCall.name, toolCall.args);
 
@@ -361,11 +345,9 @@ export async function compileAndRunAgent(
                   toolResultStr = `Error: Tool ${toolCall.name} not found on attached servers.`;
                 }
 
-                // ACTION B6: Fire end event
                 if (reporter?.onToolEnd)
                   reporter.onToolEnd(toolCall.name, rawResult || toolResultStr);
 
-                // Push tool result back to the LLM
                 messages.push(
                   new ToolMessage({
                     content: toolResultStr,
@@ -375,7 +357,6 @@ export async function compileAndRunAgent(
                 );
               }
             } else {
-              // Final answer generation
               try {
                 let cleanStr = response.content.toString().trim();
                 if (cleanStr.startsWith("```json"))
@@ -433,7 +414,6 @@ export async function compileAndRunAgent(
     });
   }
 
-  // 6. ADD INTERRUPT NODES
   for (const intNode of interruptNodes) {
     workflow.addNode(intNode.id, async (state: any) => {
       if (state.__error__) return {};
@@ -467,7 +447,6 @@ export async function compileAndRunAgent(
     });
   }
 
-  // 7. ADD RESPONSE NODES
   for (const resNode of responseNodes) {
     workflow.addNode(resNode.id, async (state: any) => {
       if (reporter?.onNodeStart) reporter.onNodeStart(resNode.id);
@@ -558,7 +537,6 @@ export async function compileAndRunAgent(
     workflow.addEdge(resNode.id, END);
   }
 
-  // 8. ADVANCED EDGE ROUTING
   const edgesBySource: Record<string, any[]> = {};
   for (const edge of edges) {
     const sourceNode = nodes.find((n: any) => n.id === edge.source);
@@ -699,22 +677,21 @@ export async function compileAndRunAgent(
     return src?.type === "trigger";
   });
 
-  if (!hasStartEdge && skillNodes.length > 0) {
+  if (!hasStartEdge && toolNodes.length > 0) {
     workflow.addConditionalEdges(
       START,
-      (state: any) => (state.__error__ ? END : skillNodes[0].id),
-      [skillNodes[0].id, END],
+      (state: any) => (state.__error__ ? END : toolNodes[0].id),
+      [toolNodes[0].id, END],
     );
     if (responseNodes.length > 0) {
       workflow.addConditionalEdges(
-        skillNodes[skillNodes.length - 1].id,
+        toolNodes[toolNodes.length - 1].id,
         (state: any) => (state.__error__ ? END : responseNodes[0].id),
         [responseNodes[0].id, END],
       );
     }
   }
 
-  // 9. COMPILE WITH CHECKPOINTER & INTERRUPTS
   const app = workflow.compile({
     checkpointer,
     interruptBefore: interruptNodes.map((n: any) => n.id),
@@ -722,7 +699,6 @@ export async function compileAndRunAgent(
 
   const executionConfig = { configurable: { thread_id: threadId } };
 
-  // 10. RUN OR RESUME
   let finalState;
 
   if (resumeValue) {
@@ -734,7 +710,6 @@ export async function compileAndRunAgent(
     finalState = await app.invoke(initialState, executionConfig);
   }
 
-  // 11. CHECK FOR INTERRUPT STATE
   const threadState = await app.getState(executionConfig);
   const isInterrupted = threadState.next && threadState.next.length > 0;
 
@@ -749,7 +724,6 @@ export async function compileAndRunAgent(
     };
   }
 
-  // 12. HANDLE GENERIC ERROR OVERRIDE
   if (finalState.__error__) {
     const errorPayload = { error: finalState.__error__ };
 
@@ -758,7 +732,7 @@ export async function compileAndRunAgent(
       reporter.onNodeEnd(
         "System Error Handler",
         errorPayload,
-        `Graph execution was aborted early due to a system or skill error.`,
+        `Graph execution was aborted early due to a system or tool error.`,
         { ...finalState, ...errorPayload },
       );
 
@@ -786,8 +760,8 @@ export function generateManifest(
   const usedToolIds = new Set<string>();
 
   nodes.forEach((n: any) => {
-    if (n.type === "skill" && n.data?.skillId) {
-      usedToolIds.add(n.data.skillId);
+    if (n.type === "tool" && n.data?.toolId) {
+      usedToolIds.add(n.data.toolId);
     }
   });
 
@@ -830,7 +804,7 @@ export function generateManifest(
 
   const manifest = {
     metadata: {
-      skill_id: config.skill_id,
+      skill_id: config.id, // UPDATED: Changed from config.skill_id
       version: config.version,
       description: config.description,
     },

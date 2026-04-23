@@ -8,7 +8,6 @@ import { v4 as uuidv4 } from "uuid";
 import { SchemaNode } from "@/src/components/shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "@/src/components/shared/json-tools/SchemaViewer";
 
-// Utility to parse schemas
 const parseSchema = (schema: Record<string, any>): SchemaNode[] => {
   if (!schema) return [];
   return Object.entries(schema).map(([key, val]) => {
@@ -41,7 +40,6 @@ const parseSchema = (schema: Record<string, any>): SchemaNode[] => {
   });
 };
 
-// Utility to compile schemas
 const compileSchema = (nodes: SchemaNode[]): any => {
   const result: any = {};
   nodes.forEach((n) => {
@@ -61,7 +59,7 @@ const compileSchema = (nodes: SchemaNode[]): any => {
   return result;
 };
 
-export default function SkillEditorPage({
+export default function ToolEditorPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -70,7 +68,7 @@ export default function SkillEditorPage({
   const { id } = use(params);
   const isNew = id === "new";
 
-  const [skill, setSkill] = useState<ToolConfig>({
+  const [tool, setTool] = useState<ToolConfig>({
     id: "",
     name: "",
     description: "",
@@ -85,32 +83,29 @@ export default function SkillEditorPage({
   const [outputNodes, setOutputNodes] = useState<SchemaNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch the skill data and available MCP servers on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch MCP servers unconditionally
         const fetchServers = fetch("/api/mcp-servers").then((res) =>
           res.json(),
         );
-        // Fetch skill only if we are editing an existing one
-        const fetchSkill = isNew
+        const fetchTool = isNew
           ? Promise.resolve(null)
-          : fetch(`/api/skills/${id}`).then((res) => res.json());
+          : fetch(`/api/tools/${id}`).then((res) => res.json());
 
-        const [serversData, skillData] = await Promise.all([
+        const [serversData, toolData] = await Promise.all([
           fetchServers,
-          fetchSkill,
+          fetchTool,
         ]);
 
         if (serversData?.servers) {
           setMcpServers(serversData.servers);
         }
 
-        if (skillData?.skill) {
-          setSkill(skillData.skill);
-          setInputNodes(parseSchema(skillData.skill.input_schema || {}));
-          setOutputNodes(parseSchema(skillData.skill.output_schema || {}));
+        if (toolData?.tool) {
+          setTool(toolData.tool);
+          setInputNodes(parseSchema(toolData.tool.input_schema || {}));
+          setOutputNodes(parseSchema(toolData.tool.output_schema || {}));
         }
       } catch (error) {
         console.error("Failed to load data:", error);
@@ -123,32 +118,32 @@ export default function SkillEditorPage({
   }, [id, isNew]);
 
   const handleSave = async () => {
-    const finalId = skill.id || uuidv4(); // Generate valid UUID if new
+    const finalId = tool.id || uuidv4();
 
-    const finalSkill = {
-      ...skill,
+    const finalTool = {
+      ...tool,
       id: finalId,
       input_schema: compileSchema(inputNodes),
       output_schema: compileSchema(outputNodes),
     };
 
     try {
-      const res = await fetch("/api/skills", {
+      const res = await fetch("/api/tools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalSkill),
+        body: JSON.stringify(finalTool),
       });
 
       if (res.ok) {
-        router.push("/skills");
+        router.push("/tools");
       }
     } catch (error) {
-      console.error("Error saving skill:", error);
+      console.error("Error saving tool:", error);
     }
   };
 
   const toggleMCP = (serverId: string) => {
-    setSkill((prev) => ({
+    setTool((prev) => ({
       ...prev,
       mcp_dependencies: (prev.mcp_dependencies || []).includes(serverId)
         ? prev.mcp_dependencies.filter((id) => id !== serverId)
@@ -168,7 +163,7 @@ export default function SkillEditorPage({
     <div className="h-screen flex flex-col bg-slate-50">
       <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
         <button
-          onClick={() => router.push("/skills")}
+          onClick={() => router.push("/tools")}
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Library
@@ -177,26 +172,25 @@ export default function SkillEditorPage({
           onClick={handleSave}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
         >
-          <Save className="w-4 h-4" /> Save Skill
+          <Save className="w-4 h-4" /> Save Tool
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-5xl mx-auto space-y-8">
-          {/* Metadata */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-indigo-500" /> Skill Details
+              <Wrench className="w-4 h-4 text-indigo-500" /> Tool Details
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600">
-                  Skill Name
+                  Tool Name
                 </label>
                 <input
                   type="text"
-                  value={skill.name}
-                  onChange={(e) => setSkill({ ...skill, name: e.target.value })}
+                  value={tool.name}
+                  onChange={(e) => setTool({ ...tool, name: e.target.value })}
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500 text-slate-900"
                   placeholder="e.g. Database Query"
                 />
@@ -207,7 +201,7 @@ export default function SkillEditorPage({
                 </label>
                 <input
                   type="text"
-                  value={skill.id || "Generated on save"}
+                  value={tool.id || "Generated on save"}
                   disabled
                   className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
                 />
@@ -218,18 +212,17 @@ export default function SkillEditorPage({
                 </label>
                 <input
                   type="text"
-                  value={skill.description}
+                  value={tool.description}
                   onChange={(e) =>
-                    setSkill({ ...skill, description: e.target.value })
+                    setTool({ ...tool, description: e.target.value })
                   }
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500 text-slate-900"
-                  placeholder="What does this skill do?"
+                  placeholder="What does this tool do?"
                 />
               </div>
             </div>
           </div>
 
-          {/* Prompt Template */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
               Prompt Template
@@ -243,17 +236,15 @@ export default function SkillEditorPage({
             </p>
             <textarea
               rows={6}
-              value={skill.prompt_template}
+              value={tool.prompt_template}
               onChange={(e) =>
-                setSkill({ ...skill, prompt_template: e.target.value })
+                setTool({ ...tool, prompt_template: e.target.value })
               }
               className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-indigo-500 resize-none text-sm font-mono text-slate-900 leading-relaxed"
-              placeholder="e.g. Summarize the following text: {{document_text}}"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-6">
-            {/* Input Schema */}
             <div className="bg-white min-w-0 p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                 Expected Inputs
@@ -266,7 +257,6 @@ export default function SkillEditorPage({
               />
             </div>
 
-            {/* Output Schema */}
             <div className="bg-white min-w-0 p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                 Expected Outputs
@@ -280,27 +270,21 @@ export default function SkillEditorPage({
             </div>
           </div>
 
-          {/* MCP Servers */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
               <Database className="w-4 h-4 text-teal-500" /> Tool Dependencies
-              (MCP Servers)
             </h2>
-            <p className="text-xs text-slate-500">
-              Select which servers this skill requires to function.
-            </p>
             <div className="grid grid-cols-3 gap-4 mt-2">
               {mcpServers.length === 0 ? (
                 <div className="col-span-3 p-4 text-sm text-slate-400 italic text-center border border-dashed border-slate-300 rounded-xl">
-                  No MCP servers available. Add one in the MCP Servers
-                  dashboard.
+                  No MCP servers available.
                 </div>
               ) : (
                 mcpServers.map((server) => (
                   <div
                     key={server.id}
                     onClick={() => toggleMCP(server.id)}
-                    className={`p-4 border rounded-xl cursor-pointer transition-all ${(skill.mcp_dependencies || []).includes(server.id) ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500" : "border-slate-200 hover:border-slate-300"}`}
+                    className={`p-4 border rounded-xl cursor-pointer transition-all ${(tool.mcp_dependencies || []).includes(server.id) ? "border-teal-500 bg-teal-50/30 ring-1 ring-teal-500" : "border-slate-200 hover:border-slate-300"}`}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-bold text-sm text-slate-800">
@@ -308,7 +292,7 @@ export default function SkillEditorPage({
                       </span>
                       <input
                         type="checkbox"
-                        checked={(skill.mcp_dependencies || []).includes(
+                        checked={(tool.mcp_dependencies || []).includes(
                           server.id,
                         )}
                         readOnly

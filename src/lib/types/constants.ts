@@ -136,9 +136,7 @@ export const DEFAULT_SKILL_CONFIG: SkillConfig = {
   },
   mcp_servers: [],
   system_prompt: "",
-  state_schema: {
-    messages: "array<any>",
-  },
+  state_schema: {},
   custom_types: {},
   graph: {
     nodes: {},

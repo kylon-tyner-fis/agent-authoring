@@ -44,7 +44,8 @@ export default function AgentsDashboard() {
               <Bot className="w-6 h-6 text-emerald-600" /> Agents
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              High-level autonomous entities with assigned skills.
+              Autonomous executive systems that reason, plan, and dynamically
+              delegate tasks to your Skills.
             </p>
           </div>
           <button

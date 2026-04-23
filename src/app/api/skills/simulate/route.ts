@@ -4,19 +4,18 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: Request) {
   try {
-    // Extract thread_id and resume_value
     const { config, input, thread_id, resume_value } = await req.json();
 
     if (!config) {
       return NextResponse.json(
-        { error: "Missing Agent Configuration" },
+        { error: "Missing Skill Configuration" },
         { status: 400 },
       );
     }
 
     if (process.env.LANGCHAIN_API_KEY) {
       process.env.LANGCHAIN_TRACING_V2 = "true";
-      process.env.LANGCHAIN_PROJECT = config.agent_id || "Agent_Studio_Project";
+      process.env.LANGCHAIN_PROJECT = config.skill_id || "Agent_Studio_Project";
     }
 
     const supabase = createClient(
@@ -24,15 +23,15 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    // ACTION A1: Fetch both skills and mcp_servers concurrently
-    const [skillsRes, serversRes] = await Promise.all([
-      supabase.from("skills").select("*"),
+    // ACTION: Fetch both tools and mcp_servers concurrently
+    const [toolsRes, serversRes] = await Promise.all([
+      supabase.from("tools").select("*"), // Was "skills"
       supabase.from("mcp_servers").select("*"),
     ]);
 
-    if (skillsRes.error) {
+    if (toolsRes.error) {
       throw new Error(
-        `Failed to fetch skills dependencies: ${skillsRes.error.message}`,
+        `Failed to fetch tool dependencies: ${toolsRes.error.message}`,
       );
     }
     if (serversRes.error) {
@@ -72,17 +71,10 @@ export async function POST(req: Request) {
           ) => {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({
-                  type: "edge_traversal",
-                  source: sourceId,
-                  target: targetId,
-                  condition,
-                  reasoning,
-                })}\n\n`,
+                `data: ${JSON.stringify({ type: "edge_traversal", source: sourceId, target: targetId, condition, reasoning })}\n\n`,
               ),
             );
           },
-          // ACTION A3: Map new reporter methods to SSE data chunks
           onToolStart: (toolName: string, args: Record<string, any>) => {
             controller.enqueue(
               encoder.encode(
@@ -102,23 +94,18 @@ export async function POST(req: Request) {
         try {
           const result = await compileAndRunAgent(
             config,
-            skillsRes.data || [],
-            serversRes.data || [], // Pass the hydrated servers to the compiler
+            toolsRes.data || [],
+            serversRes.data || [],
             input,
             reporter,
             thread_id,
             resume_value,
           );
 
-          // Handle Interrupted State
           if (result.__interrupted__) {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({
-                  type: "interrupt",
-                  node: result.__active_node__,
-                  state: result,
-                })}\n\n`,
+                `data: ${JSON.stringify({ type: "interrupt", node: result.__active_node__, state: result })}\n\n`,
               ),
             );
           } else {

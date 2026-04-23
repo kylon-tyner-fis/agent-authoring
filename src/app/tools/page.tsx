@@ -44,7 +44,8 @@ export default function ToolsDashboard() {
               <Wrench className="w-6 h-6 text-indigo-600" /> Tool Library
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              Reusable functions and prompts that your skills can execute.
+              Fundamental, single-purpose building blocks. Integrations, prompt
+              templates, and actions that perform discrete tasks.
             </p>
           </div>
           <button

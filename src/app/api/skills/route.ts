@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     // 1. Fetch full dependencies from the renamed 'tools' table
     const [toolsResponse, serversResponse] = await Promise.all([
-      supabase.from("tools").select("*"), // Was "skills"
+      supabase.from("tools").select("*"),
       supabase.from("mcp_servers").select("*"),
     ]);
 
@@ -33,11 +33,11 @@ export async function POST(req: Request) {
 
     // 3. Save the orchestration config to the renamed 'skills' table
     const { data, error } = await supabase
-      .from("skills") // Was "agents"
+      .from("skills")
       .upsert(
         [
           {
-            skill_id: config.id, // Was agent_id
+            id: config.id,
             version: config.version,
             description: config.description,
             provider: config.model.provider,
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
             compiled_manifest: compiledManifest,
           },
         ],
-        { onConflict: "id" }, // Was agent_id
+        { onConflict: "id" },
       )
       .select()
       .single();
@@ -72,14 +72,12 @@ export async function POST(req: Request) {
 export async function GET() {
   try {
     const { data, error } = await supabase
-      .from("skills") // Was "agents"
-      .select(
-        "id, version, description, provider, model_name, updated_at", // Was agent_id
-      )
+      .from("skills")
+      .select("id, version, description, provider, model_name, updated_at")
       .order("updated_at", { ascending: false });
 
     if (error) throw error;
-    return NextResponse.json({ skills: data }); // Was agents
+    return NextResponse.json({ skills: data });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

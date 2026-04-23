@@ -4,7 +4,7 @@ import { NodeMapping } from "./NodeMapping";
 
 export type WorkflowNodeData = {
   label: string;
-  skillId?: string;
+  toolId?: string;
   description?: string;
   input_mapping?: Record<string, string>;
   output_mapping?: Record<string, string>;
@@ -12,7 +12,7 @@ export type WorkflowNodeData = {
   active?: boolean;
 };
 
-export type WorkflowNodeType = Node<WorkflowNodeData, "skill" | "interrupt">;
+export type WorkflowNodeType = Node<WorkflowNodeData, "tool" | "interrupt">;
 
 export function WorkflowNode({
   data,
@@ -25,7 +25,7 @@ export function WorkflowNode({
     iconBg: "bg-blue-100",
     text: "text-blue-600",
     ring: "border-blue-500 shadow-md ring-4 ring-blue-50",
-    label: "Skill Node",
+    label: "Tool Node",
     Icon: Bot,
   };
 
@@ -98,13 +98,12 @@ export function WorkflowNode({
       </div>
 
       <div className="p-3 bg-white rounded-b-xl min-h-[60px] flex flex-col gap-3">
-        {type === "skill" ? (
+        {type === "tool" ? (
           <>
             <div className="flex items-center gap-1 text-sm font-mono text-slate-400 bg-slate-50 px-1.5 py-1 rounded border border-slate-100 self-start">
-              <Wrench className="w-3 h-3" /> {data.skillId}
+              <Wrench className="w-3 h-3" /> {data.toolId}
             </div>
 
-            {/* Mapping Visualizer */}
             {(hasInputs || hasOutputs) && (
               <div className="space-y-1.5 border-t border-slate-100 pt-2 mt-1">
                 {Object.entries(data.input_mapping || {}).flatMap(([k, v]) => {

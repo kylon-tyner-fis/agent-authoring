@@ -1,4 +1,3 @@
-// src/app/api/skills/[id]/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -14,13 +13,13 @@ export async function GET(
   try {
     const { id } = await params;
     const { data, error } = await supabase
-      .from("skills") // Was "agents"
+      .from("skills")
       .select("*")
-      .eq("skill_id", id) // Was "agent_id"
+      .eq("id", id)
       .single();
 
     if (error) throw error;
-    return NextResponse.json({ skill: data }); // Was "agent: data"
+    return NextResponse.json({ skill: data });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -32,7 +31,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { error } = await supabase.from("skills").delete().eq("skill_id", id);
+    const { error } = await supabase.from("skills").delete().eq("id", id); // UPDATED
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {
