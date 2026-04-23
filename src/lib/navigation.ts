@@ -1,4 +1,8 @@
-export type PrimarySectionKey = "dashboard" | "skills" | "agents" | "mcpServers";
+export type PrimarySectionKey =
+  | "dashboard"
+  | "skills"
+  | "agents"
+  | "mcpServers";
 
 export interface PrimaryNavItem {
   key: PrimarySectionKey;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Settings2,
   SlidersHorizontal,
@@ -16,12 +16,17 @@ import {
   Play,
   Database,
   Info,
+  Sparkles,
 } from "lucide-react";
 import { AgentConfig } from "@/src/lib/types/constants";
 import {
   OrchestrationCanvas,
   OrchestrationCanvasRef,
 } from "./OrchestrationCanvas";
+import {
+  ConversationalAuthoring,
+  ChatMessage,
+} from "./ConversationalAuthoring";
 import { SkillConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
@@ -52,13 +57,25 @@ export const ConfigPanel = ({
   onOpenPlayground,
 }: ConfigPanelProps) => {
   const [activeTab, setActiveTab] = useState<Tab>("identity");
+  const [authoringMode, setAuthoringMode] = useState<
+    "canvas" | "conversational"
+  >("canvas");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const [isMetaAgentProcessing, setIsMetaAgentProcessing] = useState(false);
+  const [metaAgentMessages, setMetaAgentMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      content:
+        "Hi! I'm the Meta-Agent. Describe the workflow you want to build, and I'll configure the graph nodes, edges, and mappings for you. You can say things like:\n\n*\"Create a workflow that takes a topic, searches the web, and generates a quiz.\"*",
+    },
+  ]);
 
   const canvasRef = useRef<OrchestrationCanvasRef>(null);
   const { addToast } = useToast();
 
-  const parseConfigToNodes = (schema: any): SchemaNode[] => {
+  const parseConfigToNodes = useCallback((schema: any): SchemaNode[] => {
     if (!schema) return [];
     return Object.entries(schema).map(([key, val]) => {
       if (Array.isArray(val) && typeof val[0] === "object") {
@@ -88,39 +105,64 @@ export const ConfigPanel = ({
         isNullable,
       };
     });
-  };
+  }, []);
+
+  const compileNodes = useCallback((nodes: SchemaNode[]): any => {
+    const result: any = {};
+    nodes.forEach((n) => {
+      if (!n.key.trim()) return;
+      const typeLower = n.typeHint.toLowerCase().trim();
+      const isObject = typeLower === "object" || typeLower === "dict";
+      const isArrayOfObject =
+        typeLower === "array<object>" || typeLower === "object[]";
+
+      if (isObject && n.children && n.children.length > 0) {
+        result[n.key.trim()] = compileNodes(n.children);
+      } else if (isArrayOfObject && n.children && n.children.length > 0) {
+        result[n.key.trim()] = [compileNodes(n.children)];
+      } else {
+        result[n.key.trim()] = n.typeHint + (n.isNullable ? "?" : "");
+      }
+    });
+    return result;
+  }, []);
 
   const [schemaNodes, setSchemaNodes] = useState<SchemaNode[]>(
     parseConfigToNodes(config.state_schema),
   );
 
+  // TWO-WAY SYNC 1: Listen for external changes (like the Meta-Agent updating the config)
   useEffect(() => {
-    const compileNodes = (nodes: SchemaNode[]): any => {
-      const result: any = {};
-      nodes.forEach((n) => {
-        if (!n.key.trim()) return;
-        const typeLower = n.typeHint.toLowerCase().trim();
-        const isObject = typeLower === "object" || typeLower === "dict";
-        const isArrayOfObject =
-          typeLower === "array<object>" || typeLower === "object[]";
+    const currentCompiledStr = JSON.stringify(compileNodes(schemaNodes));
+    const externalSchemaStr = JSON.stringify(config.state_schema || {});
 
-        if (isObject && n.children && n.children.length > 0) {
-          result[n.key.trim()] = compileNodes(n.children);
-        } else if (isArrayOfObject && n.children && n.children.length > 0) {
-          result[n.key.trim()] = [compileNodes(n.children)];
-        } else {
-          result[n.key.trim()] = n.typeHint + (n.isNullable ? "?" : "");
-        }
-      });
-      return result;
-    };
+    // Only update the local UI state if the LLM provided a genuinely different schema
+    if (currentCompiledStr !== externalSchemaStr) {
+      setSchemaNodes(parseConfigToNodes(config.state_schema || {}));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.state_schema]);
 
-    setConfig((prev) => ({ ...prev, state_schema: compileNodes(schemaNodes) }));
+  // TWO-WAY SYNC 2: Listen for manual UI changes and push them back to the global config
+  useEffect(() => {
+    const compiled = compileNodes(schemaNodes);
+    setConfig((prev) => {
+      // Deep compare to prevent infinite re-render loops
+      if (JSON.stringify(prev.state_schema) === JSON.stringify(compiled)) {
+        return prev;
+      }
+      return { ...prev, state_schema: compiled };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemaNodes, setConfig]);
 
-  // NEW: Sync the orchestration canvas state to the parent config
+  // Sync the orchestration canvas state to the parent config
   const syncCanvasToConfig = () => {
-    if (activeTab === "orchestration" && canvasRef.current) {
+    if (
+      activeTab === "orchestration" &&
+      authoringMode === "canvas" &&
+      canvasRef.current
+    ) {
       const latestCanvasData = canvasRef.current.getCanvasData();
       setConfig((prev) => ({
         ...prev,
@@ -133,13 +175,13 @@ export const ConfigPanel = ({
     }
   };
 
-  // NEW: Intercept tab changes to save state beforehand
+  // Intercept tab changes to save state beforehand
   const handleTabChange = (newTab: Tab) => {
     syncCanvasToConfig();
     setActiveTab(newTab);
   };
 
-  // NEW: Sync state before opening playground to test current changes
+  // Sync state before opening playground to test current changes
   const handleOpenPlayground = () => {
     syncCanvasToConfig();
     onOpenPlayground();
@@ -156,8 +198,12 @@ export const ConfigPanel = ({
 
     try {
       let latestCanvasData = null;
-      // UPDATED: Grab live data if on tab, else use stored config
-      if (activeTab === "orchestration" && canvasRef.current) {
+      // Grab live data if on tab AND in canvas mode, else use stored config
+      if (
+        activeTab === "orchestration" &&
+        authoringMode === "canvas" &&
+        canvasRef.current
+      ) {
         latestCanvasData = canvasRef.current.getCanvasData();
       } else {
         latestCanvasData = config.orchestration;
@@ -680,22 +726,68 @@ export const ConfigPanel = ({
         {activeTab === "orchestration" && (
           <div className="space-y-6 h-full flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex flex-col gap-1 shrink-0">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Share2 className="w-4 h-4 text-orange-500" /> Workflow
-                Configuration
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Share2 className="w-4 h-4 text-orange-500" /> Workflow
+                  Configuration
+                </h2>
+
+                {/* Feature Toggle */}
+                <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-inner">
+                  <button
+                    onClick={() => {
+                      syncCanvasToConfig();
+                      setAuthoringMode("canvas");
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 ${
+                      authoringMode === "canvas"
+                        ? "bg-white shadow-sm text-blue-600 border border-slate-200/50"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <Network className="w-3.5 h-3.5" /> Visual Canvas
+                  </button>
+                  <button
+                    onClick={() => {
+                      syncCanvasToConfig();
+                      setAuthoringMode("conversational");
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 ${
+                      authoringMode === "conversational"
+                        ? "bg-white shadow-sm text-purple-600 border border-slate-200/50"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" /> AI Authoring
+                  </button>
+                </div>
+              </div>
               <p className="text-sm text-gray-500">
-                Define your LangGraph Nodes, Edges, Subgraphs, and Interrupts.
+                {authoringMode === "canvas"
+                  ? "Define your LangGraph Nodes, Edges, Subgraphs, and Interrupts."
+                  : "Describe your goal to the Meta-Agent and let it assemble the workflow."}
               </p>
             </div>
 
-            <OrchestrationCanvas
-              ref={canvasRef}
-              initialData={config.orchestration}
-              globalStateSchema={config.state_schema}
-              availableSkills={availableSkills}
-              activeNodeId={activeNodeId} // PASS TO CANVAS
-            />
+            {authoringMode === "canvas" ? (
+              <OrchestrationCanvas
+                ref={canvasRef}
+                initialData={config.orchestration}
+                globalStateSchema={config.state_schema}
+                availableSkills={availableSkills}
+                activeNodeId={activeNodeId}
+              />
+            ) : (
+              <ConversationalAuthoring
+                config={config}
+                setConfig={setConfig}
+                availableSkills={availableSkills}
+                messages={metaAgentMessages} // <--- ADD THIS
+                setMessages={setMetaAgentMessages} // <--- ADD THIS
+                isProcessing={isMetaAgentProcessing} // <--- ADD THIS
+                setIsProcessing={setIsMetaAgentProcessing} // <--- ADD THIS
+              />
+            )}
           </div>
         )}
       </div>

@@ -6,17 +6,32 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { Pool } from "pg";
 
 // 1. Initialize Postgres Pool and Checkpointer for Serverless persistence
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 10,
-});
-const checkpointer = new PostgresSaver(pool);
+// 1. Attach to the global object to survive Next.js HMR
+const globalForDb = globalThis as unknown as {
+  pool: Pool | undefined;
+  checkpointer: PostgresSaver | undefined;
+  isDbSetup: boolean | undefined;
+};
 
-let isDbSetup = false;
+const pool =
+  globalForDb.pool ??
+  new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 10,
+  });
+
+const checkpointer = globalForDb.checkpointer ?? new PostgresSaver(pool);
+
+// Only save to the global object in development
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.pool = pool;
+  globalForDb.checkpointer = checkpointer;
+}
+
 async function ensureDbSetup() {
-  if (!isDbSetup) {
+  if (!globalForDb.isDbSetup) {
     await checkpointer.setup();
-    isDbSetup = true;
+    globalForDb.isDbSetup = true;
   }
 }
 

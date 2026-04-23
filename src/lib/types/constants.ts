@@ -128,9 +128,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   },
   mcp_servers: [],
   system_prompt: "",
-  state_schema: {
-    messages: "array<any>",
-  },
+  state_schema: {},
   custom_types: {},
   graph: {
     nodes: {},
