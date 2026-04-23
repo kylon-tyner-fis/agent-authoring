@@ -17,7 +17,11 @@ import {
   Database,
   Info,
 } from "lucide-react";
-import { SkillConfig, ToolConfig } from "@/src/lib/types/constants";
+import {
+  SkillConfig,
+  ToolConfig,
+  MCPServerConfig,
+} from "@/src/lib/types/constants";
 import {
   OrchestrationCanvas,
   OrchestrationCanvasRef,
@@ -25,12 +29,13 @@ import {
 import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "../../shared/json-tools/SchemaViewer";
-import { v4 as uuidv4 } from "uuid"; // NEW: Ensure UUID generation on save
+import { v4 as uuidv4 } from "uuid";
 
 interface ConfigPanelProps {
   config: SkillConfig;
   setConfig: React.Dispatch<React.SetStateAction<SkillConfig>>;
   availableTools: ToolConfig[];
+  availableServers: MCPServerConfig[]; // NEW
   activeNodeId?: string | null;
   onOpenPlayground: () => void;
 }
@@ -48,6 +53,7 @@ export const ConfigPanel = ({
   setConfig,
   activeNodeId,
   availableTools,
+  availableServers,
   onOpenPlayground,
 }: ConfigPanelProps) => {
   const [activeTab, setActiveTab] = useState<Tab>("identity");
@@ -120,8 +126,19 @@ export const ConfigPanel = ({
   const syncCanvasToConfig = () => {
     if (activeTab === "orchestration" && canvasRef.current) {
       const latestCanvasData = canvasRef.current.getCanvasData();
+
+      // NEW: Automatically extract required mcp_servers from the orchestration nodes
+      const requiredServers = Array.from(
+        new Set(
+          (latestCanvasData.nodes || [])
+            .filter((n: any) => n.type === "mcp_node" && n.data?.serverId)
+            .map((n: any) => n.data.serverId),
+        ),
+      ) as string[];
+
       setConfig((prev) => ({
         ...prev,
+        mcp_servers: requiredServers, // Keeps config in sync with canvas
         orchestration: {
           nodes: latestCanvasData.nodes,
           edges: latestCanvasData.edges,
@@ -147,8 +164,17 @@ export const ConfigPanel = ({
 
     try {
       let latestCanvasData = null;
+      let mcpServers = config.mcp_servers || [];
+
       if (activeTab === "orchestration" && canvasRef.current) {
         latestCanvasData = canvasRef.current.getCanvasData();
+        mcpServers = Array.from(
+          new Set(
+            (latestCanvasData.nodes || [])
+              .filter((n: any) => n.type === "mcp_node" && n.data?.serverId)
+              .map((n: any) => n.data.serverId),
+          ),
+        ) as string[];
       } else {
         latestCanvasData = config.orchestration;
       }
@@ -176,12 +202,12 @@ export const ConfigPanel = ({
         }
       }
 
-      // UPDATED: Generate UUID if new.
       const finalId = config.id || uuidv4();
 
       const finalConfig = {
         ...config,
         id: finalId,
+        mcp_servers: mcpServers,
         persistence: {
           ...config.persistence,
           checkpointer: "postgresSaver",
@@ -628,6 +654,7 @@ export const ConfigPanel = ({
               initialData={config.orchestration}
               globalStateSchema={config.state_schema}
               availableTools={availableTools}
+              availableServers={availableServers}
               activeNodeId={activeNodeId}
             />
           </div>

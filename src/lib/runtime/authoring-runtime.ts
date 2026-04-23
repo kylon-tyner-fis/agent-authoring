@@ -2,7 +2,7 @@ import { StateGraph, START, END } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { SkillConfig, ToolConfig, MCPServerConfig } from "../types/constants";
 import { Pool } from "pg";
 import { McpClient } from "../api-clients/mcp-client";
@@ -217,8 +217,10 @@ export async function compileAndRunAgent(
 
   const workflow = new StateGraph<any>({ channels });
   const toolNodes = nodes.filter((n: any) => n.type === "tool");
+  const mcpNodes = nodes.filter((n: any) => n.type === "mcp_node"); // NEW
   const interruptNodes = nodes.filter((n: any) => n.type === "interrupt");
 
+  // 1. LLM TOOL NODES
   for (const node of toolNodes) {
     const tool = tools.find((s) => s.id === node.data.toolId);
     if (!tool) continue;
@@ -260,37 +262,6 @@ export async function compileAndRunAgent(
             modelKwargs: { response_format: { type: "json_object" } },
           });
 
-          const mcpDependencies = tool.mcp_dependencies || [];
-          const requiredServers = servers.filter((s) =>
-            mcpDependencies.includes(s.id),
-          );
-          const mcpClients = requiredServers.map((s) => new McpClient(s));
-
-          const openAiTools: any[] = [];
-          const toolNameToClient = new Map<string, McpClient>();
-
-          for (const client of mcpClients) {
-            try {
-              const { tools: remoteTools } = await client.listTools();
-              for (const remoteTool of remoteTools) {
-                openAiTools.push({
-                  type: "function",
-                  function: {
-                    name: remoteTool.name,
-                    description: remoteTool.description,
-                    parameters: remoteTool.inputSchema,
-                  },
-                });
-                toolNameToClient.set(remoteTool.name, client);
-              }
-            } catch (err) {
-              console.error(`[DEBUG] Failed to list tools for server`, err);
-            }
-          }
-
-          const modelWithTools =
-            openAiTools.length > 0 ? llm.bindTools(openAiTools) : llm;
-
           const schemaString = JSON.stringify(tool.output_schema || {});
           const inputsString = JSON.stringify(localInputs, null, 2);
 
@@ -298,7 +269,7 @@ export async function compileAndRunAgent(
             ? `\n--- STEP-SPECIFIC INSTRUCTIONS ---\n${node.data.custom_instructions}\n`
             : "";
 
-          const systemInstruction = `\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. If you have tools available, use them to gather required information.\n3. Return your final response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.`;
+          const systemInstruction = `\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. Return your final response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.`;
 
           const prompt = PromptTemplate.fromTemplate(
             tool.prompt_template + systemInstruction,
@@ -311,75 +282,23 @@ export async function compileAndRunAgent(
             __inputsString__: inputsString,
           });
 
-          const messages: any[] = [new HumanMessage(formatted)];
-          let maxTurns = 5;
+          const response = await llm.invoke([new HumanMessage(formatted)]);
 
-          while (maxTurns > 0) {
-            maxTurns--;
-            const response = await modelWithTools.invoke(messages);
-            messages.push(response);
+          try {
+            let cleanStr = response.content.toString().trim();
+            if (cleanStr.startsWith("```json"))
+              cleanStr = cleanStr
+                .replace(/^```json/, "")
+                .replace(/```$/, "")
+                .trim();
 
-            if (response.tool_calls && response.tool_calls.length > 0) {
-              for (const toolCall of response.tool_calls) {
-                if (reporter?.onToolStart)
-                  reporter.onToolStart(toolCall.name, toolCall.args);
-
-                const client = toolNameToClient.get(toolCall.name);
-                let rawResult = null;
-                let toolResultStr = "";
-
-                if (client) {
-                  try {
-                    rawResult = await client.callTool(
-                      toolCall.name,
-                      toolCall.args,
-                    );
-                    toolResultStr =
-                      typeof rawResult === "string"
-                        ? rawResult
-                        : JSON.stringify(rawResult);
-                  } catch (err: any) {
-                    toolResultStr = `Error calling tool: ${err.message}`;
-                  }
-                } else {
-                  toolResultStr = `Error: Tool ${toolCall.name} not found on attached servers.`;
-                }
-
-                if (reporter?.onToolEnd)
-                  reporter.onToolEnd(toolCall.name, rawResult || toolResultStr);
-
-                messages.push(
-                  new ToolMessage({
-                    content: toolResultStr,
-                    tool_call_id: toolCall.id ?? "",
-                    name: toolCall.name,
-                  }),
-                );
-              }
-            } else {
-              try {
-                let cleanStr = response.content.toString().trim();
-                if (cleanStr.startsWith("```json"))
-                  cleanStr = cleanStr
-                    .replace(/^```json/, "")
-                    .replace(/```$/, "")
-                    .trim();
-
-                const parsedResponse = JSON.parse(cleanStr);
-                for (const key of Object.keys(tool.output_schema || {})) {
-                  outputData[key] = parsedResponse[key];
-                }
-              } catch (parseErr) {
-                stateUpdates["__error__"] =
-                  `Tool '${tool.name}' failed to generate a valid JSON structure.`;
-              }
-              break;
+            const parsedResponse = JSON.parse(cleanStr);
+            for (const key of Object.keys(tool.output_schema || {})) {
+              outputData[key] = parsedResponse[key];
             }
-          }
-
-          if (maxTurns === 0) {
+          } catch (parseErr) {
             stateUpdates["__error__"] =
-              `Tool '${tool.name}' exceeded maximum tool iterations.`;
+              `Tool '${tool.name}' failed to generate a valid JSON structure.`;
           }
         } catch (e: any) {
           stateUpdates["__error__"] =
@@ -414,6 +333,83 @@ export async function compileAndRunAgent(
     });
   }
 
+  // 2. NEW: MCP NODES (Direct Execution)
+  for (const node of mcpNodes) {
+    const serverConfig = servers.find((s) => s.id === node.data.serverId);
+    const toolName = node.data.toolName;
+
+    if (!serverConfig || !toolName) continue;
+
+    workflow.addNode(node.id, async (state: any) => {
+      if (state.__error__) return {};
+      if (reporter?.onNodeStart) reporter.onNodeStart(node.id);
+
+      const stateUpdates: Record<string, any> = {};
+      const localInputs: Record<string, any> = {};
+      const inMap = node.data.input_mapping || {};
+
+      // Map inputs
+      for (const [inputKey, mapping] of Object.entries(inMap)) {
+        if (Array.isArray(mapping)) {
+          const aggregated = mapping
+            .map((globalKey) => state[globalKey])
+            .filter((val) => val !== undefined && val !== null);
+          localInputs[inputKey] = aggregated.reduce(
+            (acc, val) => acc.concat(Array.isArray(val) ? val : [val]),
+            [],
+          );
+        } else {
+          localInputs[inputKey] =
+            state[mapping as string] !== undefined
+              ? state[mapping as string]
+              : "";
+        }
+      }
+
+      if (reporter?.onToolStart) reporter.onToolStart(toolName, localInputs);
+
+      // Execute directly
+      const client = new McpClient(serverConfig);
+      let rawResult = null;
+
+      try {
+        rawResult = await client.callTool(toolName, localInputs);
+        const outputTarget = (
+          node.data.output_mapping as Record<string, string>
+        )?.[`mcp_response`];
+
+        if (outputTarget) {
+          stateUpdates[outputTarget] = rawResult;
+        }
+      } catch (err: any) {
+        stateUpdates["__error__"] =
+          `MCP Tool '${toolName}' execution failed: ${err.message}`;
+      }
+
+      if (reporter?.onToolEnd) reporter.onToolEnd(toolName, rawResult);
+
+      if (reporter?.onNodeEnd)
+        reporter.onNodeEnd(node.id, stateUpdates, undefined, {
+          ...state,
+          ...stateUpdates,
+        });
+
+      if (!stateUpdates.__error__) {
+        const outgoingEdges = edges.filter((e: any) => e.source === node.id);
+        if (
+          outgoingEdges.length === 1 &&
+          !outgoingEdges[0].data?.label?.trim()
+        ) {
+          if (reporter?.onEdgeTraversal)
+            reporter.onEdgeTraversal(node.id, outgoingEdges[0].target);
+        }
+      }
+
+      return stateUpdates;
+    });
+  }
+
+  // 3. INTERRUPT NODES
   for (const intNode of interruptNodes) {
     workflow.addNode(intNode.id, async (state: any) => {
       if (state.__error__) return {};
@@ -447,6 +443,7 @@ export async function compileAndRunAgent(
     });
   }
 
+  // 4. RESPONSE NODES
   for (const resNode of responseNodes) {
     workflow.addNode(resNode.id, async (state: any) => {
       if (reporter?.onNodeStart) reporter.onNodeStart(resNode.id);
@@ -537,6 +534,7 @@ export async function compileAndRunAgent(
     workflow.addEdge(resNode.id, END);
   }
 
+  // 5. ROUTING
   const edgesBySource: Record<string, any[]> = {};
   for (const edge of edges) {
     const sourceNode = nodes.find((n: any) => n.id === edge.source);
@@ -677,15 +675,17 @@ export async function compileAndRunAgent(
     return src?.type === "trigger";
   });
 
-  if (!hasStartEdge && toolNodes.length > 0) {
+  const executionNodes = [...toolNodes, ...mcpNodes];
+
+  if (!hasStartEdge && executionNodes.length > 0) {
     workflow.addConditionalEdges(
       START,
-      (state: any) => (state.__error__ ? END : toolNodes[0].id),
-      [toolNodes[0].id, END],
+      (state: any) => (state.__error__ ? END : executionNodes[0].id),
+      [executionNodes[0].id, END],
     );
     if (responseNodes.length > 0) {
       workflow.addConditionalEdges(
-        toolNodes[toolNodes.length - 1].id,
+        executionNodes[executionNodes.length - 1].id,
         (state: any) => (state.__error__ ? END : responseNodes[0].id),
         [responseNodes[0].id, END],
       );
@@ -774,22 +774,14 @@ export function generateManifest(
           prompt_template: tool.prompt_template,
           input_schema: tool.input_schema,
           output_schema: tool.output_schema,
-          mcp_dependencies: tool.mcp_dependencies,
         };
         return acc;
       },
       {} as Record<string, any>,
     );
 
-  const requiredServerIds = new Set<string>(config.mcp_servers || []);
-  allTools.forEach((tool) => {
-    if (usedToolIds.has(tool.id) && tool.mcp_dependencies) {
-      tool.mcp_dependencies.forEach((dep) => requiredServerIds.add(dep));
-    }
-  });
-
   const resolvedServers = allServers
-    .filter((server) => requiredServerIds.has(server.id))
+    .filter((server) => (config.mcp_servers || []).includes(server.id))
     .reduce(
       (acc, server) => {
         acc[server.id] = {
@@ -804,7 +796,7 @@ export function generateManifest(
 
   const manifest = {
     metadata: {
-      skill_id: config.id, // UPDATED: Changed from config.skill_id
+      skill_id: config.id,
       version: config.version,
       description: config.description,
     },

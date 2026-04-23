@@ -1,6 +1,5 @@
 // lib/constants.ts
 
-// --- TYPES ---
 export type FieldType =
   | "string"
   | "number"
@@ -21,7 +20,7 @@ export interface ModelConfig {
   max_tokens: number;
 }
 
-// NEW: Skill Definition
+// UPDATED: Removed mcp_dependencies
 export interface ToolConfig {
   id: string;
   name: string;
@@ -29,10 +28,8 @@ export interface ToolConfig {
   prompt_template: string;
   input_schema: Record<string, string>;
   output_schema: Record<string, string>;
-  mcp_dependencies: string[];
 }
 
-// NEW: MCP Server Definition
 export interface MCPServerConfig {
   id: string;
   name: string;
@@ -41,10 +38,12 @@ export interface MCPServerConfig {
   status: "active" | "inactive" | "error";
 }
 
-// UPDATED: GraphNode now maps state rather than holding prompts directly
 export interface GraphNode {
-  type: string; // e.g., "skill", "subgraph", "interrupt"
+  type: string;
   skill_id?: string;
+  toolId?: string;
+  serverId?: string; // NEW: For MCP nodes
+  toolName?: string; // NEW: The specific action on the MCP server
   input_mapping?: Record<string, string | string[]>;
   output_mapping?: Record<string, string>;
   custom_instructions?: string;
@@ -92,14 +91,12 @@ export interface OrchestrationConfig {
   };
 }
 
-// UPDATED: AgentConfig now links to MCP servers, removes raw 'skills' array,
-// and includes compiled_manifest for standalone execution.
 export interface SkillConfig {
   id: string;
   version: string;
   description: string;
   model: ModelConfig;
-  mcp_servers: string[]; // Linked MCP Server IDs
+  mcp_servers: string[];
   system_prompt: string;
   state_schema: Record<string, string>;
   custom_types?: Record<string, Record<string, string>>;
@@ -108,7 +105,7 @@ export interface SkillConfig {
   persistence?: PersistenceConfig;
   interrupts?: Record<string, InterruptConfig>;
   orchestration?: OrchestrationConfig;
-  compiled_manifest?: any; // NEW: Standalone execution manifest
+  compiled_manifest?: any;
 }
 
 export interface Message {
@@ -120,7 +117,7 @@ export interface AgentConfig {
   id: string;
   name: string;
   description: string;
-  skills: string[]; // Array of Skill IDs this Agent has access to
+  skills: string[];
   status: "active" | "inactive";
 }
 

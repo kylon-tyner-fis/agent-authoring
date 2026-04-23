@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import {
   SkillConfig,
   ToolConfig,
+  MCPServerConfig,
   DEFAULT_SKILL_CONFIG,
   Message,
 } from "@/src/lib/types/constants";
@@ -22,6 +23,9 @@ export default function SkillEditorPage({
 
   const [config, setConfig] = useState<SkillConfig | null>(null);
   const [availableTools, setAvailableTools] = useState<ToolConfig[]>([]);
+  const [availableServers, setAvailableServers] = useState<MCPServerConfig[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
@@ -31,10 +35,13 @@ export default function SkillEditorPage({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const toolsRes = await fetch("/api/tools");
-        const toolsData = await toolsRes.json();
+        const [toolsRes, serversRes] = await Promise.all([
+          fetch("/api/tools").then((r) => r.json()),
+          fetch("/api/mcp-servers").then((r) => r.json()),
+        ]);
 
-        if (toolsData.tools) setAvailableTools(toolsData.tools);
+        if (toolsRes.tools) setAvailableTools(toolsRes.tools);
+        if (serversRes.servers) setAvailableServers(serversRes.servers);
 
         if (isNew) {
           setConfig({ ...DEFAULT_SKILL_CONFIG, id: "" });
@@ -58,7 +65,7 @@ export default function SkillEditorPage({
           });
         }
       } catch (err) {
-        console.error("Failed to load skill or tools data");
+        console.error("Failed to load skill, tools, or server data");
       } finally {
         setIsLoading(false);
       }
@@ -88,6 +95,7 @@ export default function SkillEditorPage({
             setConfig as React.Dispatch<React.SetStateAction<SkillConfig>>
           }
           availableTools={availableTools}
+          availableServers={availableServers}
           activeNodeId={activeNodeId}
           onOpenPlayground={() => setIsPlaygroundOpen(true)}
         />
