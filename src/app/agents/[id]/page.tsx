@@ -28,13 +28,19 @@ export default function AgentEditorPage({
   const [availableSkills, setAvailableSkills] = useState<SkillConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false); // NEW
+  const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
+  const [availableAgents, setAvailableAgents] = useState<AgentConfig[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const skillsData = await fetch("/api/skills").then((res) => res.json());
+        const [skillsData, agentsData] = await Promise.all([
+          fetch("/api/skills").then((res) => res.json()),
+          fetch("/api/agents").then((res) => res.json()), // Fetch all agents
+        ]);
+
         if (skillsData.skills) setAvailableSkills(skillsData.skills);
+        if (agentsData.agents) setAvailableAgents(agentsData.agents);
 
         if (!isNew) {
           const agentData = await fetch(`/api/agents/${id}`).then((res) =>
@@ -50,6 +56,15 @@ export default function AgentEditorPage({
     };
     fetchData();
   }, [id, isNew]);
+
+  const toggleSubAgent = (agentId: string) => {
+    setAgent((prev) => ({
+      ...prev,
+      sub_agents: (prev.sub_agents || []).includes(agentId)
+        ? prev.sub_agents!.filter((id) => id !== agentId)
+        : [...(prev.sub_agents || []), agentId],
+    }));
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -214,7 +229,7 @@ export default function AgentEditorPage({
                   >
                     <div className="flex justify-between items-start mb-1">
                       <span className="font-bold text-sm text-slate-800 truncate">
-                        {skill.id}
+                        {skill.name}
                       </span>
                       <input
                         type="checkbox"
@@ -233,6 +248,45 @@ export default function AgentEditorPage({
                     No skills available. Create one in the Skills tab first.
                   </div>
                 )}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Bot className="w-4 h-4 text-purple-500" /> Assigned Sub-Agents
+              </h2>
+              <p className="text-xs text-slate-500">
+                Allow this agent to delegate complex reasoning to specialized
+                sub-agents.
+              </p>
+
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                {availableAgents
+                  .filter((a) => a.id !== agent.id) // Prevent self-assignment
+                  .map((subAgent) => (
+                    <div
+                      key={subAgent.id}
+                      onClick={() => toggleSubAgent(subAgent.id)}
+                      className={`p-4 border rounded-xl cursor-pointer transition-all ${(agent.sub_agents || []).includes(subAgent.id) ? "border-purple-500 bg-purple-50/30 ring-1 ring-purple-500" : "border-slate-200 hover:border-slate-300"}`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-bold text-sm text-slate-800 truncate">
+                          {subAgent.name}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={(agent.sub_agents || []).includes(
+                            subAgent.id,
+                          )}
+                          readOnly
+                          className="mt-1"
+                        />
+                      </div>
+                      <span className="text-xs text-slate-500 line-clamp-2">
+                        {subAgent.description}
+                      </span>
+                    </div>
+                  ))}
               </div>
             </div>
           </div>

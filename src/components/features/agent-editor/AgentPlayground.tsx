@@ -1,15 +1,112 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, AlertCircle, X, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  Send,
+  Bot,
+  AlertCircle,
+  X,
+  Loader2,
+  CheckCircle2,
+  Network,
+  CornerDownRight,
+  ArrowRight,
+  GitBranch,
+  Brain,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { AgentConfig, Message } from "@/src/lib/types/constants";
+import { AgentConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
+import { RecursiveJsonViewer } from "../../shared/json-tools/RecursiveJsonViewer";
+
+// Explicitly define how every markdown element should be styled
+const MarkdownComponents = {
+  p: ({ node, ...props }: any) => (
+    <p
+      className="mb-4 leading-relaxed text-sm text-slate-700 last:mb-0"
+      {...props}
+    />
+  ),
+  ul: ({ node, ...props }: any) => (
+    <ul
+      className="list-disc pl-6 mb-4 space-y-2 text-sm text-slate-700"
+      {...props}
+    />
+  ),
+  ol: ({ node, ...props }: any) => (
+    <ol
+      className="list-decimal pl-6 mb-4 space-y-2 text-sm text-slate-700"
+      {...props}
+    />
+  ),
+  li: ({ node, ...props }: any) => <li className="pl-1" {...props} />,
+  h1: ({ node, ...props }: any) => (
+    <h1 className="text-xl font-bold mb-4 mt-6 text-slate-900" {...props} />
+  ),
+  h2: ({ node, ...props }: any) => (
+    <h2 className="text-lg font-bold mb-3 mt-5 text-slate-900" {...props} />
+  ),
+  h3: ({ node, ...props }: any) => (
+    <h3 className="text-base font-bold mb-2 mt-4 text-slate-900" {...props} />
+  ),
+  strong: ({ node, ...props }: any) => (
+    <strong className="font-bold text-slate-900" {...props} />
+  ),
+  a: ({ node, ...props }: any) => (
+    <a className="text-emerald-600 hover:underline font-medium" {...props} />
+  ),
+  blockquote: ({ node, ...props }: any) => (
+    <blockquote
+      className="border-l-4 border-slate-300 pl-4 italic text-slate-600 mb-4 bg-slate-50 py-2 rounded-r"
+      {...props}
+    />
+  ),
+  code: ({ node, className, children, ...props }: any) => {
+    const isInline = !className;
+    return isInline ? (
+      <code
+        className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-[13px] font-mono border border-slate-200"
+        {...props}
+      >
+        {children}
+      </code>
+    ) : (
+      <pre className="bg-slate-800 text-slate-50 p-4 rounded-lg text-[13px] font-mono overflow-x-auto mb-4 mt-2">
+        <code className={className} {...props}>
+          {children}
+        </code>
+      </pre>
+    );
+  },
+};
 
 type HistoryEvent =
   | { type: "message"; content: string }
   | { type: "skill_start"; skillName: string; args: any }
-  | { type: "skill_end"; skillName: string; result: any };
+  | { type: "skill_end"; skillName: string; result: any }
+  | { type: "skill_node_start"; skillName: string; nodeId: string }
+  | {
+      type: "skill_node_end";
+      skillName: string;
+      nodeId: string;
+      updates: any;
+      fullState?: any;
+    }
+  | {
+      type: "skill_edge_traversal";
+      skillName: string;
+      source: string;
+      target: string;
+      condition?: string;
+      reasoning?: string;
+    }
+  | { type: "skill_tool_start"; skillName: string; toolName: string; args: any }
+  | {
+      type: "skill_tool_end";
+      skillName: string;
+      toolName: string;
+      result: any;
+    };
 
 interface AgentPlaygroundProps {
   agent: AgentConfig;
@@ -38,7 +135,6 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
     setError(null);
     const displayContent = input.trim();
 
-    // Add user message to UI immediately
     setHistory((prev) => [
       ...prev,
       { type: "message", content: `**User:** ${displayContent}` },
@@ -63,7 +159,6 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Initialize an empty assistant message to append chunks to
       setHistory((prev) => [...prev, { type: "message", content: "" }]);
 
       while (true) {
@@ -114,6 +209,58 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                   result: event.result,
                 },
                 { type: "message", content: "" },
+              ]);
+            } else if (event.type === "skill_node_start") {
+              setHistory((prev) => [
+                ...prev,
+                {
+                  type: "skill_node_start",
+                  skillName: event.skillName,
+                  nodeId: event.nodeId,
+                },
+              ]);
+            } else if (event.type === "skill_node_end") {
+              setHistory((prev) => [
+                ...prev,
+                {
+                  type: "skill_node_end",
+                  skillName: event.skillName,
+                  nodeId: event.nodeId,
+                  updates: event.updates,
+                  fullState: event.fullState,
+                },
+              ]);
+            } else if (event.type === "skill_edge_traversal") {
+              setHistory((prev) => [
+                ...prev,
+                {
+                  type: "skill_edge_traversal",
+                  skillName: event.skillName,
+                  source: event.source,
+                  target: event.target,
+                  condition: event.condition,
+                  reasoning: event.reasoning,
+                },
+              ]);
+            } else if (event.type === "skill_tool_start") {
+              setHistory((prev) => [
+                ...prev,
+                {
+                  type: "skill_tool_start",
+                  skillName: event.skillName,
+                  toolName: event.toolName,
+                  args: event.args,
+                },
+              ]);
+            } else if (event.type === "skill_tool_end") {
+              setHistory((prev) => [
+                ...prev,
+                {
+                  type: "skill_tool_end",
+                  skillName: event.skillName,
+                  toolName: event.toolName,
+                  result: event.result,
+                },
               ]);
             } else if (event.type === "error") {
               throw new Error(event.error);
@@ -192,33 +339,163 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                       {cleanContent}
                     </p>
                   ) : (
-                    <div className="prose prose-slate prose-sm max-w-none">
-                      <ReactMarkdown>{cleanContent}</ReactMarkdown>
+                    <div className="w-full">
+                      <ReactMarkdown components={MarkdownComponents}>
+                        {cleanContent}
+                      </ReactMarkdown>
                     </div>
                   )}
                 </div>
               </div>
             );
           } else if (item.type === "skill_start") {
+            const isSubAgent =
+              item.args?.request !== undefined &&
+              Object.keys(item.args).length === 1;
+
             return (
               <div
                 key={i}
                 className="flex flex-col gap-1.5 ml-11 animate-in fade-in w-[85%]"
               >
-                <div className="flex items-center gap-2 text-[11px] text-blue-600 font-mono">
+                <div
+                  className={`flex items-center gap-2 text-[11px] font-mono ${isSubAgent ? "text-purple-600" : "text-blue-600"}`}
+                >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Delegating to Skill:</span>
-                  <span className="font-semibold bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                  <span>
+                    {isSubAgent
+                      ? "Delegating to Sub-Agent:"
+                      : "Executing Workflow Skill:"}
+                  </span>
+                  <span
+                    className={`font-semibold border px-1.5 py-0.5 rounded ${isSubAgent ? "bg-purple-50 border-purple-200" : "bg-blue-50 border-blue-200"}`}
+                  >
                     {item.skillName}
                   </span>
                 </div>
                 <div className="text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200">
-                  <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
-                    Parameters
+                  <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider text-xs">
+                    {isSubAgent
+                      ? "Agent Instructions / Request"
+                      : "Workflow Parameters"}
                   </span>
-                  <pre className="text-xs bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto font-mono text-slate-700">
-                    {JSON.stringify(item.args, null, 2)}
-                  </pre>
+                  {isSubAgent ? (
+                    <pre className="text-xs bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto font-mono text-slate-700 whitespace-pre-wrap">
+                      {item.args.request}
+                    </pre>
+                  ) : (
+                    <div className="bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto">
+                      <RecursiveJsonViewer data={item.args} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          } else if (item.type === "skill_node_end") {
+            return (
+              <div
+                key={i}
+                className="flex flex-col gap-1.5 ml-14 my-2 animate-in fade-in w-[80%]"
+              >
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <div className="bg-slate-50 border-b border-gray-200 px-4 py-2 flex items-center gap-2">
+                    <Network className="w-4 h-4 text-slate-500" />
+                    <h3 className="font-semibold text-slate-700 m-0 text-[11px] uppercase tracking-wide">
+                      Graph Node Completed:{" "}
+                      <span className="text-blue-600 font-bold">
+                        {item.nodeId}
+                      </span>
+                    </h3>
+                  </div>
+                  <div className="p-3 overflow-x-auto">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                      State Updates
+                    </h4>
+                    <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                      <RecursiveJsonViewer data={item.updates} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          } else if (item.type === "skill_edge_traversal") {
+            return (
+              <div
+                key={i}
+                className="flex flex-col gap-1.5 ml-14 my-2 animate-in fade-in w-[80%]"
+              >
+                <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono px-2">
+                  <CornerDownRight className="w-4 h-4" />
+                  <span>Traversing edge:</span>
+                  <span className="font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                    {item.source}
+                  </span>
+                  <ArrowRight className="w-3 h-3 text-slate-300" />
+                  <span className="font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                    {item.target}
+                  </span>
+                </div>
+                {item.condition && (
+                  <div className="flex items-center gap-1.5 text-xs text-orange-600 font-mono px-2 ml-6">
+                    <GitBranch className="w-3 h-3" />
+                    <span className="bg-orange-50 border border-orange-200 px-2 py-0.5 rounded italic">
+                      Condition met: "{item.condition}"
+                    </span>
+                  </div>
+                )}
+                {item.reasoning && (
+                  <div className="flex items-start gap-1.5 text-[11px] text-slate-500 px-2 ml-6 mt-1">
+                    <Brain className="w-3.5 h-3.5 mt-0.5 shrink-0 text-indigo-400" />
+                    <div className="bg-white border border-slate-200 shadow-sm px-3 py-2 rounded-lg leading-relaxed">
+                      <span className="font-semibold text-indigo-600 mr-1">
+                        Router Logic:
+                      </span>
+                      {item.reasoning}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          } else if (item.type === "skill_tool_start") {
+            return (
+              <div
+                key={i}
+                className="flex flex-col gap-1.5 ml-16 my-2 animate-in fade-in w-[75%] border-l-2 border-teal-200 pl-3"
+              >
+                <div className="flex items-center gap-2 text-[11px] text-teal-600 font-mono">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Calling Tool / MCP:</span>
+                  <span className="font-semibold bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded">
+                    {item.toolName}
+                  </span>
+                </div>
+                <div className="bg-white border border-teal-100 rounded shadow-sm p-2">
+                  <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider block mb-1">
+                    Tool Inputs
+                  </span>
+                  <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto">
+                    <RecursiveJsonViewer data={item.args} />
+                  </div>
+                </div>
+              </div>
+            );
+          } else if (item.type === "skill_tool_end") {
+            return (
+              <div
+                key={i}
+                className="flex flex-col gap-1.5 ml-16 mb-4 animate-in fade-in w-[75%] border-l-2 border-teal-200 pl-3"
+              >
+                <div className="flex items-center gap-2 text-[11px] text-teal-600 font-mono">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Tool / MCP Completed</span>
+                </div>
+                <div className="bg-white border border-teal-100 rounded shadow-sm p-2">
+                  <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider block mb-1">
+                    Tool Outputs
+                  </span>
+                  <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto max-h-60 overflow-y-auto custom-scrollbar">
+                    <RecursiveJsonViewer data={item.result} />
+                  </div>
                 </div>
               </div>
             );
@@ -226,22 +503,28 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1.5 ml-11 animate-in fade-in w-[85%]"
+                className="flex flex-col gap-1.5 ml-11 animate-in fade-in w-[85%] mb-4"
               >
                 <div className="flex items-center gap-2 text-[11px] text-emerald-600 font-mono">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Skill Completed:</span>
+                  <span>Execution Completed:</span>
                   <span className="font-semibold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                     {item.skillName}
                   </span>
                 </div>
                 <div className="text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">
-                  <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
-                    Workflow Output
+                  <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider text-xs">
+                    Final Output
                   </span>
-                  <pre className="text-xs bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto font-mono text-slate-700">
-                    {JSON.stringify(item.result, null, 2)}
-                  </pre>
+                  {typeof item.result === "string" ? (
+                    <pre className="text-xs bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto font-mono text-slate-700 whitespace-pre-wrap">
+                      {item.result}
+                    </pre>
+                  ) : (
+                    <div className="bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto">
+                      <RecursiveJsonViewer data={item.result} />
+                    </div>
+                  )}
                 </div>
               </div>
             );

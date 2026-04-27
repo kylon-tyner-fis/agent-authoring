@@ -1,12 +1,28 @@
-// lib/runtime/manifest-executor.ts
 import { StateGraph, START, END } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { Pool } from "pg";
-import { McpClient } from "../api-clients/mcp-client"; // NEW: Import the MCP Client
+import { McpClient } from "../api-clients/mcp-client";
 
-// 1. Initialize Postgres Pool and Checkpointer for Serverless persistence
+export interface ManifestExecutionReporter {
+  onNodeStart?: (nodeName: string) => void;
+  onNodeEnd?: (
+    nodeName: string,
+    stateUpdates: any,
+    reasoning?: string,
+    fullState?: any,
+  ) => void;
+  onEdgeTraversal?: (
+    sourceName: string,
+    targetName: string,
+    condition?: string,
+    reasoning?: string,
+  ) => void;
+  onToolStart?: (toolName: string, args: Record<string, any>) => void;
+  onToolEnd?: (toolName: string, result: any) => void;
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 10,
@@ -26,6 +42,7 @@ export async function executeAgentManifest(
   userInput: string,
   threadId: string,
   resumeData?: any,
+  reporter?: ManifestExecutionReporter,
 ) {
   await ensureDbSetup();
 
@@ -44,15 +61,17 @@ export async function executeAgentManifest(
 
   const triggerNode = nodes.find((n: any) => n.type === "trigger");
   const responseNodes = nodes.filter((n: any) => n.type === "response");
-  const toolNodes = nodes.filter((n: any) => n.type === "tool"); // UPDATED: Was "skill"
-  const mcpNodes = nodes.filter((n: any) => n.type === "mcp_node"); // NEW: Explicit MCP support
+  const toolNodes = nodes.filter((n: any) => n.type === "tool");
+  const mcpNodes = nodes.filter((n: any) => n.type === "mcp_node");
   const interruptNodes = nodes.filter((n: any) => n.type === "interrupt");
 
   if (!triggerNode) throw new Error("Manifest is missing a trigger node.");
 
-  // ==========================================
-  // 1. BUILD THE GRAPH
-  // ==========================================
+  const getLabel = (id: string) => {
+    if (id === START) return "START";
+    if (id === END) return "END";
+    return nodes.find((n: any) => n.id === id)?.data?.label || id;
+  };
 
   const channels: any = {
     __final_payload__: {
@@ -79,22 +98,21 @@ export async function executeAgentManifest(
 
   // Add Custom LLM Tool Nodes
   for (const node of toolNodes) {
-    const tool = manifest.resolved_skills[node.data.toolId]; // UPDATED: Use toolId
+    const tool = manifest.resolved_skills[node.data.toolId];
     if (!tool) continue;
 
     workflow.addNode(node.id, async (state: any) => {
       if (state.__error__) return {};
+      reporter?.onNodeStart?.(getLabel(node.id));
 
       const localInputs: any = {};
       const inMap = node.data.input_mapping || {};
       for (const localKey of Object.keys(tool.input_schema || {})) {
         const mapping = inMap[localKey];
-
         if (Array.isArray(mapping)) {
           const aggregated = mapping
             .map((globalKey) => state[globalKey])
             .filter((val) => val !== undefined && val !== null);
-
           localInputs[localKey] = aggregated.reduce(
             (acc, val) => acc.concat(Array.isArray(val) ? val : [val]),
             [],
@@ -139,6 +157,20 @@ export async function executeAgentManifest(
         const globalKey = outMap[localKey] || localKey;
         stateUpdates[globalKey] = outputData[localKey];
       }
+
+      reporter?.onNodeEnd?.(getLabel(node.id), stateUpdates, undefined, {
+        ...state,
+        ...stateUpdates,
+      });
+
+      const outgoingEdges = edges.filter((e: any) => e.source === node.id);
+      if (outgoingEdges.length === 1 && !outgoingEdges[0].data?.label?.trim()) {
+        reporter?.onEdgeTraversal?.(
+          getLabel(node.id),
+          getLabel(outgoingEdges[0].target),
+        );
+      }
+
       return stateUpdates;
     });
   }
@@ -152,12 +184,12 @@ export async function executeAgentManifest(
 
     workflow.addNode(node.id, async (state: any) => {
       if (state.__error__) return {};
+      reporter?.onNodeStart?.(getLabel(node.id));
 
       const stateUpdates: Record<string, any> = {};
       const localInputs: Record<string, any> = {};
       const inMap = node.data.input_mapping || {};
 
-      // Map global state variables to MCP arguments
       for (const [inputKey, mapping] of Object.entries(inMap)) {
         if (Array.isArray(mapping)) {
           const aggregated = mapping
@@ -175,20 +207,34 @@ export async function executeAgentManifest(
         }
       }
 
+      reporter?.onToolStart?.(toolName, localInputs);
       const client = new McpClient(serverConfig);
 
       try {
         const rawResult = await client.callTool(toolName, localInputs);
+        reporter?.onToolEnd?.(toolName, rawResult);
+
         const outputTarget = (
           node.data.output_mapping as Record<string, string>
         )?.[`mcp_response`];
-
         if (outputTarget) {
           stateUpdates[outputTarget] = rawResult;
         }
       } catch (err: any) {
         stateUpdates["__error__"] =
           `MCP Tool '${toolName}' execution failed: ${err.message}`;
+      }
+
+      reporter?.onNodeEnd?.(getLabel(node.id), stateUpdates, undefined, {
+        ...state,
+        ...stateUpdates,
+      });
+      const outgoingEdges = edges.filter((e: any) => e.source === node.id);
+      if (outgoingEdges.length === 1 && !outgoingEdges[0].data?.label?.trim()) {
+        reporter?.onEdgeTraversal?.(
+          getLabel(node.id),
+          getLabel(outgoingEdges[0].target),
+        );
       }
 
       return stateUpdates;
@@ -199,12 +245,29 @@ export async function executeAgentManifest(
   for (const intNode of interruptNodes) {
     workflow.addNode(intNode.id, async (state: any) => {
       if (state.__error__) return {};
+      reporter?.onNodeStart?.(getLabel(intNode.id));
+
       const feedback = state.__human_feedback__ || "";
       const stateUpdates: any = {};
       const outMap = intNode.data.output_mapping || {};
       if (outMap["human_input"]) {
         stateUpdates[outMap["human_input"]] = feedback;
       }
+
+      reporter?.onNodeEnd?.(
+        getLabel(intNode.id),
+        stateUpdates,
+        `Human responded with: ${feedback}`,
+        { ...state, ...stateUpdates },
+      );
+      const outgoingEdges = edges.filter((e: any) => e.source === intNode.id);
+      if (outgoingEdges.length === 1 && !outgoingEdges[0].data?.label?.trim()) {
+        reporter?.onEdgeTraversal?.(
+          getLabel(intNode.id),
+          getLabel(outgoingEdges[0].target),
+        );
+      }
+
       return stateUpdates;
     });
   }
@@ -212,6 +275,8 @@ export async function executeAgentManifest(
   // Add Response Nodes
   for (const resNode of responseNodes) {
     workflow.addNode(resNode.id, async (state: any) => {
+      reporter?.onNodeStart?.(getLabel(resNode.id));
+
       const responsePayload: any = {};
       const extMap = resNode.data.extraction_mapping || {};
       for (const payloadKey of Object.keys(
@@ -239,9 +304,23 @@ export async function executeAgentManifest(
             .replace(/^```json/, "")
             .replace(/```$/, "")
             .trim();
-        return { __final_payload__: JSON.parse(cleanStr) };
+
+        const finalParsed = JSON.parse(cleanStr);
+        reporter?.onNodeEnd?.(
+          getLabel(resNode.id),
+          { __final_payload__: finalParsed },
+          "Formatted final response",
+          { ...state, __final_payload__: finalParsed },
+        );
+        return { __final_payload__: finalParsed };
       }
 
+      reporter?.onNodeEnd?.(
+        getLabel(resNode.id),
+        { __final_payload__: responsePayload },
+        "Returned raw final response",
+        { ...state, __final_payload__: responsePayload },
+      );
       return { __final_payload__: responsePayload };
     });
     workflow.addEdge(resNode.id, END);
@@ -269,7 +348,14 @@ export async function executeAgentManifest(
           if (state.__error__) return END;
           for (const edge of outgoingEdges) {
             const condition = edge.data?.label?.trim();
-            if (!condition) return edge.target; // Default fallback
+            if (!condition) {
+              reporter?.onEdgeTraversal?.(
+                getLabel(sourceId),
+                getLabel(edge.target),
+                "Default Fallback",
+              );
+              return edge.target;
+            }
 
             const prompt = PromptTemplate.fromTemplate(
               manifest.engine_prompts.edge_router,
@@ -291,7 +377,16 @@ export async function executeAgentManifest(
                 .replace(/```$/, "")
                 .trim();
 
-            if (JSON.parse(cleanStr).is_true) return edge.target;
+            const result = JSON.parse(cleanStr);
+            if (result.is_true) {
+              reporter?.onEdgeTraversal?.(
+                getLabel(sourceId),
+                getLabel(edge.target),
+                condition,
+                result.reasoning,
+              );
+              return edge.target;
+            }
           }
           return END;
         },
@@ -328,18 +423,18 @@ export async function executeAgentManifest(
     interruptBefore: interruptNodes.map((n: any) => n.id),
   });
 
-  const executionConfig = { configurable: { thread_id: threadId } };
+  const executionConfig = {
+    configurable: { thread_id: threadId },
+    callbacks: [], // Prevent bleeding streams to the parent Orchestrator
+  };
   let finalState: any;
-
-  // ==========================================
-  // 2. EXECUTION LOGIC (Start vs Resume)
-  // ==========================================
 
   if (resumeData) {
     await app.updateState(executionConfig, { __human_feedback__: resumeData });
     finalState = await app.invoke(null, executionConfig);
   } else {
-    // 1. Extract input using the LLM
+    reporter?.onNodeStart?.(getLabel(triggerNode.id));
+
     const extractionPrompt = PromptTemplate.fromTemplate(
       manifest.engine_prompts.trigger_extractor,
     );
@@ -364,7 +459,6 @@ export async function executeAgentManifest(
       console.error("Extraction failed, using raw input.");
     }
 
-    // 2. Map input to initial state
     const initialState: any = {};
     const initMap = triggerNode.data.initialization_mapping || {};
     for (const [payloadKey, stateKey] of Object.entries(initMap)) {
@@ -373,12 +467,26 @@ export async function executeAgentManifest(
       }
     }
 
+    reporter?.onNodeEnd?.(
+      getLabel(triggerNode.id),
+      initialState,
+      "Extracted input",
+      initialState,
+    );
+    const triggerOutEdges = edgesBySource[START] || [];
+    if (
+      triggerOutEdges.length === 1 &&
+      !triggerOutEdges[0].data?.label?.trim()
+    ) {
+      reporter?.onEdgeTraversal?.(
+        getLabel(triggerNode.id),
+        getLabel(triggerOutEdges[0].target),
+      );
+    }
+
     finalState = await app.invoke(initialState, executionConfig);
   }
 
-  // ==========================================
-  // 3. CHECK FOR INTERRUPT
-  // ==========================================
   const threadState = await app.getState(executionConfig);
   const isInterrupted = threadState.next && threadState.next.length > 0;
 
@@ -390,16 +498,9 @@ export async function executeAgentManifest(
     };
   }
 
-  // 4. HANDLE SYSTEM ERROR
   if (finalState.__error__) {
-    return {
-      status: "completed",
-      result: { error: finalState.__error__ },
-    };
+    return { status: "completed", result: { error: finalState.__error__ } };
   }
 
-  return {
-    status: "completed",
-    result: finalState.__final_payload__,
-  };
+  return { status: "completed", result: finalState.__final_payload__ };
 }

@@ -93,6 +93,7 @@ export interface OrchestrationConfig {
 
 export interface SkillConfig {
   id: string;
+  name: string;
   version: string;
   description: string;
   model: ModelConfig;
@@ -120,10 +121,12 @@ export interface AgentConfig {
   skills: string[];
   status: "active" | "inactive";
   system_prompt?: string;
+  sub_agents?: string[];
 }
 
 export const DEFAULT_SKILL_CONFIG: SkillConfig = {
   id: "",
+  name: "",
   version: "1.0.0",
   description: "",
   model: {
