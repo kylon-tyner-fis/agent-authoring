@@ -6,34 +6,31 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET() {
   try {
-    const { id } = await params;
     const { data, error } = await supabase
-      .from("skills")
+      .from("tools") // <-- Updated table
       .select("*")
-      .eq("id", id)
-      .single();
+      .order("name", { ascending: true });
 
     if (error) throw error;
-    return NextResponse.json({ skill: data });
+    return NextResponse.json({ tools: data }); // <-- Updated key
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: Request) {
   try {
-    const { id } = await params;
-    const { error } = await supabase.from("skills").delete().eq("id", id); // UPDATED
+    const tool = await req.json();
+    const { data, error } = await supabase
+      .from("tools") // <-- Updated table
+      .upsert([tool], { onConflict: "id" })
+      .select()
+      .single();
+
     if (error) throw error;
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, tool: data }); // <-- Updated key
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

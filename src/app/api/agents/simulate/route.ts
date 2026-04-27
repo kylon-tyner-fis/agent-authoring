@@ -1,22 +1,16 @@
 import { NextResponse } from "next/server";
-import { compileAndRunAgent } from "@/src/lib/runtime/authoring-runtime";
 import { createClient } from "@supabase/supabase-js";
+import { runExecutiveAgent } from "@/src/lib/runtime/agent-runtime";
 
 export async function POST(req: Request) {
   try {
-    // Extract thread_id and resume_value
-    const { config, input, thread_id, resume_value } = await req.json();
+    const { agentConfig, input, thread_id } = await req.json();
 
-    if (!config) {
+    if (!agentConfig) {
       return NextResponse.json(
-        { error: "Missing Agent Configuration" },
+        { error: "Missing Agent Config" },
         { status: 400 },
       );
-    }
-
-    if (process.env.LANGCHAIN_API_KEY) {
-      process.env.LANGCHAIN_TRACING_V2 = "true";
-      process.env.LANGCHAIN_PROJECT = config.agent_id || "Agent_Studio_Project";
     }
 
     const supabase = createClient(
@@ -24,110 +18,55 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    // ACTION A1: Fetch both skills and mcp_servers concurrently
-    const [skillsRes, serversRes] = await Promise.all([
-      supabase.from("skills").select("*"),
-      supabase.from("mcp_servers").select("*"),
-    ]);
+    // Fetch the actual Skills assigned to this Agent
+    const { data: assignedSkills, error } = await supabase
+      .from("skills")
+      .select("*")
+      .in("id", agentConfig.skills || []);
 
-    if (skillsRes.error) {
-      throw new Error(
-        `Failed to fetch skills dependencies: ${skillsRes.error.message}`,
-      );
-    }
-    if (serversRes.error) {
-      throw new Error(
-        `Failed to fetch MCP server dependencies: ${serversRes.error.message}`,
-      );
+    if (error) {
+      throw new Error(`Failed to load assigned skills: ${error.message}`);
     }
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         const reporter = {
-          onNodeStart: (nodeId: string) => {
+          onMessageChunk: (chunk: string) => {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "node_start", node: nodeId })}\n\n`,
+                `data: ${JSON.stringify({ type: "chunk", chunk })}\n\n`,
               ),
             );
           },
-          onNodeEnd: (
-            nodeId: string,
-            stateUpdates: any,
-            reasoning?: string,
-            fullState?: any,
-          ) => {
+          onSkillStart: (skillName: string, args: Record<string, any>) => {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "node_end", node: nodeId, stateUpdates, reasoning, fullState })}\n\n`,
+                `data: ${JSON.stringify({ type: "skill_start", skillName, args })}\n\n`,
               ),
             );
           },
-          onEdgeTraversal: (
-            sourceId: string,
-            targetId: string,
-            condition?: string,
-            reasoning?: string,
-          ) => {
+          onSkillEnd: (skillName: string, result: any) => {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({
-                  type: "edge_traversal",
-                  source: sourceId,
-                  target: targetId,
-                  condition,
-                  reasoning,
-                })}\n\n`,
-              ),
-            );
-          },
-          // ACTION A3: Map new reporter methods to SSE data chunks
-          onToolStart: (toolName: string, args: Record<string, any>) => {
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ type: "tool_start", toolName, args })}\n\n`,
-              ),
-            );
-          },
-          onToolEnd: (toolName: string, result: any) => {
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ type: "tool_end", toolName, result })}\n\n`,
+                `data: ${JSON.stringify({ type: "skill_end", skillName, result })}\n\n`,
               ),
             );
           },
         };
 
         try {
-          const result = await compileAndRunAgent(
-            config,
-            skillsRes.data || [],
-            serversRes.data || [], // Pass the hydrated servers to the compiler
+          await runExecutiveAgent(
+            agentConfig,
+            assignedSkills || [],
             input,
-            reporter,
             thread_id,
-            resume_value,
+            reporter,
           );
 
-          // Handle Interrupted State
-          if (result.__interrupted__) {
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({
-                  type: "interrupt",
-                  node: result.__active_node__,
-                  state: result,
-                })}\n\n`,
-              ),
-            );
-          } else {
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ type: "final", result })}\n\n`,
-              ),
-            );
-          }
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "final" })}\n\n`),
+          );
           controller.close();
         } catch (e: any) {
           controller.enqueue(
@@ -148,7 +87,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Execution Error:", error);
+    console.error("Agent Simulation Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

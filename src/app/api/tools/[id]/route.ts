@@ -13,13 +13,13 @@ export async function GET(
   try {
     const { id } = await params;
     const { data, error } = await supabase
-      .from("skills")
+      .from("tools")
       .select("*")
       .eq("id", id)
-      .single();
+      .single(); // <-- Updated table
 
     if (error) throw error;
-    return NextResponse.json({ skill: data });
+    return NextResponse.json({ tool: data }); // <-- Updated key
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -31,7 +31,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { error } = await supabase.from("skills").delete().eq("id", id); // UPDATED
+    const { error } = await supabase.from("tools").delete().eq("id", id); // <-- Updated table
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {

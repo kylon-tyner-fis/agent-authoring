@@ -34,8 +34,11 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
+  Database,
+  Server,
+  Loader2,
 } from "lucide-react";
-import { SkillConfig } from "@/src/lib/types/constants";
+import { ToolConfig, MCPServerConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "../../shared/json-tools/SchemaViewer";
@@ -43,12 +46,14 @@ import { ShiftEdge } from "../canvas/edges/ShiftEdge";
 import { ResponseNode } from "../canvas/nodes/ResponseNode";
 import { TriggerNode } from "../canvas/nodes/TriggerNode";
 import { WorkflowNode } from "../canvas/nodes/WorkflowNode";
+import { MCPNode } from "../canvas/nodes/MCPNode"; // NEW
 
 const nodeTypes = {
-  skill: WorkflowNode,
+  tool: WorkflowNode,
   interrupt: WorkflowNode,
   trigger: TriggerNode,
   response: ResponseNode,
+  mcp_node: MCPNode, // NEW
 };
 const edgeTypes = { shiftEdge: ShiftEdge };
 
@@ -62,7 +67,8 @@ export interface OrchestrationCanvasRef {
 export interface OrchestrationCanvasProps {
   initialData?: any;
   globalStateSchema?: Record<string, string>;
-  availableSkills?: SkillConfig[];
+  availableTools?: ToolConfig[];
+  availableServers?: MCPServerConfig[]; // NEW
   activeNodeId?: string | null;
 }
 
@@ -72,7 +78,6 @@ const flattenSchemaKeys = (schema: any, prefix = ""): string[] => {
   for (const [key, value] of Object.entries(schema)) {
     const currentPath = prefix ? `${prefix}.${key}` : key;
     keys.push(currentPath);
-    // Recurse if the value is a nested object (and not an array)
     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
       keys = keys.concat(flattenSchemaKeys(value, currentPath));
     }
@@ -139,7 +144,8 @@ const CanvasEditor = forwardRef<
 >((props, ref) => {
   const startingNodes = props.initialData?.nodes || [];
   const startingEdges = props.initialData?.edges || [];
-  const skillsList = props.availableSkills || [];
+  const toolsList = props.availableTools || [];
+  const serversList = props.availableServers || [];
 
   const [nodes, setNodes, onNodesChange] = useNodesState(startingNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(startingEdges);
@@ -156,6 +162,10 @@ const CanvasEditor = forwardRef<
 
   const [inspectorSchema, setInspectorSchema] = useState<SchemaNode[]>([]);
   const [lastLoadedNodeId, setLastLoadedNodeId] = useState<string | null>(null);
+
+  // NEW: MCP Server Tools State
+  const [mcpToolsCache, setMcpToolsCache] = useState<Record<string, any[]>>({});
+  const [isLoadingMcp, setIsLoadingMcp] = useState(false);
 
   const { x, y, zoom } = useViewport();
   const { addToast } = useToast();
@@ -188,12 +198,31 @@ const CanvasEditor = forwardRef<
         setInspectorSchema(parseSchema(node.data.expected_payload || {}));
       } else if (node?.type === "response") {
         setInspectorSchema(parseSchema(node.data.response_payload || {}));
+      } else if (node?.type === "mcp_node" && node.data.serverId) {
+        // Fetch MCP tools for the inspector dynamically
+        const serverId = node.data.serverId as string;
+        if (!mcpToolsCache[serverId]) {
+          setIsLoadingMcp(true);
+          // Assuming your mock API handles listing
+          fetch(`/api/mcp-mock/tools/list?serverId=${serverId}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.tools) {
+                setMcpToolsCache((prev) => ({
+                  ...prev,
+                  [serverId]: data.tools,
+                }));
+              }
+            })
+            .catch((err) => console.error("Failed to load MCP tools", err))
+            .finally(() => setIsLoadingMcp(false));
+        }
       } else {
         setInspectorSchema([]);
       }
       setLastLoadedNodeId(selectedNodeId);
     }
-  }, [selectedNodeId, lastLoadedNodeId, nodes]);
+  }, [selectedNodeId, lastLoadedNodeId, nodes, mcpToolsCache]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -269,10 +298,10 @@ const CanvasEditor = forwardRef<
   const onDragStart = (
     event: React.DragEvent,
     nodeType: string,
-    skillId?: string,
+    itemId?: string,
   ) => {
     event.dataTransfer.setData("application/reactflow", nodeType);
-    if (skillId) event.dataTransfer.setData("application/skillId", skillId);
+    if (itemId) event.dataTransfer.setData("application/itemId", itemId);
     event.dataTransfer.effectAllowed = "move";
   };
 
@@ -302,13 +331,12 @@ const CanvasEditor = forwardRef<
       event.preventDefault();
       setDragPreview(null);
       const type = event.dataTransfer.getData("application/reactflow");
-      const skillId = event.dataTransfer.getData("application/skillId");
+      const itemId = event.dataTransfer.getData("application/itemId");
 
       if (!type) return;
 
-      // FIX: Moved the validation outside of the setNodes state updater to prevent double-firing toasts in Strict Mode
       if (type === "trigger" && nodes.some((n) => n.type === "trigger")) {
-        addToast("You can only have one Trigger node per Agent.", "error");
+        addToast("You can only have one Trigger node per Skill.", "error");
         return;
       }
 
@@ -321,13 +349,24 @@ const CanvasEditor = forwardRef<
 
       let newNodeData: any = { label: `new_${type}` };
 
-      if (type === "skill" && skillId) {
-        const skill = skillsList.find((s) => s.id === skillId);
-        if (skill) {
+      if (type === "tool" && itemId) {
+        const tool = toolsList.find((t) => t.id === itemId);
+        if (tool) {
           newNodeData = {
-            label: skill.name,
-            skillId: skill.id,
-            description: skill.description,
+            label: tool.name,
+            toolId: tool.id,
+            description: tool.description,
+            input_mapping: {},
+            output_mapping: {},
+          };
+        }
+      } else if (type === "mcp_node" && itemId) {
+        const server = serversList.find((s) => s.id === itemId);
+        if (server) {
+          newNodeData = {
+            label: server.name,
+            serverId: server.id,
+            toolName: "",
             input_mapping: {},
             output_mapping: {},
           };
@@ -355,8 +394,8 @@ const CanvasEditor = forwardRef<
 
       setNodes((nds) => nds.concat(newNode));
     },
-    [screenToFlowPosition, setNodes, addToast, nodes, skillsList],
-  ); // <-- Added 'nodes' to dependencies
+    [screenToFlowPosition, setNodes, addToast, nodes, toolsList, serversList],
+  );
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
@@ -376,7 +415,6 @@ const CanvasEditor = forwardRef<
     (changes: any[]) => {
       onNodesChange(changes);
       changes.forEach((change) => {
-        // If a node is removed via keyboard (Backspace/Delete), clear it from the inspector
         if (change.type === "remove" && change.id === selectedNodeId) {
           setSelectedNodeId(null);
         }
@@ -407,7 +445,6 @@ const CanvasEditor = forwardRef<
     if (!selectedNodeId || !selectedNode) return;
 
     if (selectedNode.type === "trigger") {
-      // Clean up orphaned initialization mappings
       const currentMapping =
         (selectedNode.data.initialization_mapping as Record<string, string>) ||
         {};
@@ -434,7 +471,6 @@ const CanvasEditor = forwardRef<
         ),
       );
     } else if (selectedNode.type === "response") {
-      // Clean up orphaned extraction mappings
       const currentMapping =
         (selectedNode.data.extraction_mapping as Record<string, string>) || {};
       const cleanMapping = { ...currentMapping };
@@ -474,15 +510,30 @@ const CanvasEditor = forwardRef<
   };
 
   const stateKeys = flattenSchemaKeys(props.globalStateSchema);
-  const activeSkill =
-    selectedNode?.type === "skill"
-      ? skillsList.find((s) => s.id === selectedNode.data.skillId)
+  const activeTool =
+    selectedNode?.type === "tool"
+      ? toolsList.find((t) => t.id === selectedNode.data.toolId)
       : null;
+
+  // Get active MCP tool context
+  const activeServerId =
+    selectedNode?.type === "mcp_node"
+      ? (selectedNode.data.serverId as string)
+      : null;
+  const availableMcpTools = activeServerId
+    ? mcpToolsCache[activeServerId] || []
+    : [];
+  const selectedMcpToolName =
+    selectedNode?.type === "mcp_node"
+      ? (selectedNode.data.toolName as string)
+      : null;
+  const selectedMcpToolDef = availableMcpTools.find(
+    (t) => t.name === selectedMcpToolName,
+  );
 
   return (
     <div className="flex h-full w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-inner relative">
       <div className="flex-1 h-full relative border-r border-slate-200 overflow-hidden bg-slate-50">
-        {/* DRAG TOOLBAR */}
         <div
           className={`absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 transition-all ${isPaletteOpen ? "w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar" : "w-auto"}`}
         >
@@ -490,12 +541,11 @@ const CanvasEditor = forwardRef<
             <p
               className={`text-[10px] font-bold text-slate-400 uppercase tracking-wider`}
             >
-              {isPaletteOpen ? "Skill Palette" : "Node Palette"}
+              {isPaletteOpen ? "Tool Palette" : "Node Palette"}
             </p>
             <button
               onClick={() => setIsPaletteOpen(!isPaletteOpen)}
               className="p-1 rounded transition-colors text-slate-400 hover:bg-slate-100"
-              title={isPaletteOpen ? "Minimize Palette" : "Expand Palette"}
             >
               {isPaletteOpen ? (
                 <ChevronUp className="w-3 h-3" />
@@ -507,22 +557,57 @@ const CanvasEditor = forwardRef<
 
           {isPaletteOpen && (
             <div className="space-y-1.5 animate-in fade-in duration-200">
-              {skillsList.map((skill) => (
+              {/* LLM Tools */}
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
+                LLM Actions
+              </p>
+              {toolsList.map((tool) => (
                 <div
-                  key={skill.id}
+                  key={tool.id}
                   className="p-2 border border-blue-200 bg-white text-blue-700 rounded cursor-grab flex flex-col gap-1 hover:bg-blue-50 transition-colors shadow-sm"
-                  onDragStart={(e) => onDragStart(e, "skill", skill.id)}
+                  onDragStart={(e) => onDragStart(e, "tool", tool.id)}
                   draggable
                 >
                   <div className="flex items-center gap-2">
                     <Code2 className="w-3.5 h-3.5 shrink-0" />
                     <span className="text-xs font-semibold truncate">
-                      {skill.name}
+                      {tool.name}
                     </span>
                   </div>
                 </div>
               ))}
+              {toolsList.length === 0 && (
+                <p className="text-xs text-slate-400 px-1 italic">
+                  No tools found.
+                </p>
+              )}
 
+              {/* MCP Servers */}
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
+                External APIs (MCP)
+              </p>
+              {serversList.map((server) => (
+                <div
+                  key={server.id}
+                  className="p-2 border border-teal-200 bg-white text-teal-700 rounded cursor-grab flex flex-col gap-1 hover:bg-teal-50 transition-colors shadow-sm"
+                  onDragStart={(e) => onDragStart(e, "mcp_node", server.id)}
+                  draggable
+                >
+                  <div className="flex items-center gap-2">
+                    <Database className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs font-semibold truncate">
+                      {server.name}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {serversList.length === 0 && (
+                <p className="text-xs text-slate-400 px-1 italic">
+                  No servers found.
+                </p>
+              )}
+
+              {/* API Contract & Control */}
               <div className="mt-4 pt-2 border-t border-slate-200">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
                   API Contract
@@ -617,7 +702,6 @@ const CanvasEditor = forwardRef<
         </ReactFlow>
       </div>
 
-      {/* INSPECTOR PANE */}
       {(selectedNode || selectedEdge) && (
         <div className="w-[340px] h-full bg-white flex flex-col shrink-0 border-l border-slate-200">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
@@ -653,8 +737,154 @@ const CanvasEditor = forwardRef<
                     />
                   </div>
 
-                  {/* SKILL INSPECTOR */}
-                  {selectedNode.type === "skill" && activeSkill && (
+                  {/* MCP NODE INSPECTOR */}
+                  {selectedNode.type === "mcp_node" && (
+                    <>
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Select External Action
+                        </label>
+                        {isLoadingMcp ? (
+                          <div className="flex items-center gap-2 text-sm text-slate-500">
+                            <Loader2 className="w-4 h-4 animate-spin" />{" "}
+                            Fetching Server Tools...
+                          </div>
+                        ) : availableMcpTools.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic">
+                            No tools found on this server.
+                          </p>
+                        ) : (
+                          <select
+                            value={(selectedNode.data.toolName as string) || ""}
+                            onChange={(e) => {
+                              handleNodeChange("toolName", e.target.value);
+                              handleNodeChange("input_mapping", {}); // reset mappings
+                            }}
+                            className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-teal-500 bg-white"
+                          >
+                            <option value="">-- Choose an action --</option>
+                            {availableMcpTools.map((t) => (
+                              <option key={t.name} value={t.name}>
+                                {t.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {selectedMcpToolDef && (
+                          <p className="text-[10px] text-slate-500 leading-tight bg-slate-50 p-2 rounded border border-slate-100">
+                            {selectedMcpToolDef.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {selectedMcpToolDef && (
+                        <>
+                          <div className="pt-4 border-t border-slate-100 space-y-3">
+                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                              <ArrowRightLeft className="w-4 h-4" />
+                              <h3 className="text-xs font-bold uppercase tracking-wider">
+                                Input Mapping
+                              </h3>
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                              Map state variables to the external API's
+                              arguments.
+                            </p>
+
+                            {Object.keys(
+                              selectedMcpToolDef.inputSchema?.properties || {},
+                            ).map((inputKey) => {
+                              const currentVal =
+                                (
+                                  selectedNode.data.input_mapping as Record<
+                                    string,
+                                    string
+                                  >
+                                )?.[inputKey] || "";
+                              return (
+                                <div
+                                  key={inputKey}
+                                  className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                                >
+                                  <span className="text-xs font-mono font-semibold text-slate-700">
+                                    {inputKey}
+                                  </span>
+                                  <select
+                                    value={currentVal}
+                                    onChange={(e) =>
+                                      handleMappingChange(
+                                        "input_mapping",
+                                        inputKey,
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                                  >
+                                    <option value="">
+                                      -- Select State Variable --
+                                    </option>
+                                    {stateKeys.map((k) => (
+                                      <option key={k} value={k}>
+                                        {k}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="pt-4 border-t border-slate-100 space-y-3">
+                            <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                              <ArrowRightLeft className="w-4 h-4" />
+                              <h3 className="text-xs font-bold uppercase tracking-wider">
+                                Output Mapping
+                              </h3>
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                              Save the raw JSON response to state.
+                            </p>
+
+                            <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-xs font-mono font-semibold text-slate-700">
+                                mcp_response
+                              </span>
+                              <select
+                                value={
+                                  (
+                                    selectedNode.data.output_mapping as Record<
+                                      string,
+                                      string
+                                    >
+                                  )?.[`mcp_response`] || ""
+                                }
+                                onChange={(e) =>
+                                  handleMappingChange(
+                                    "output_mapping",
+                                    "mcp_response",
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                              >
+                                <option value="">
+                                  -- Select Target State --
+                                </option>
+                                {stateKeys.map((k) => (
+                                  <option key={k} value={k}>
+                                    {k}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  {/* LLM TOOL INSPECTOR */}
+                  {selectedNode.type === "tool" && activeTool && (
                     <>
                       <div className="pt-4 border-t border-slate-100 space-y-3">
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -662,7 +892,7 @@ const CanvasEditor = forwardRef<
                         </label>
                         <p className="text-[10px] text-slate-500 leading-tight mb-1">
                           Add extra context or rules that only apply to this
-                          specific step in the workflow.
+                          specific step.
                         </p>
                         <textarea
                           placeholder="e.g. Only return bullet points for this step..."
@@ -687,25 +917,16 @@ const CanvasEditor = forwardRef<
                             Input Mapping
                           </h3>
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          Map the Agent's global state to the inputs expected by{" "}
-                          <strong className="font-mono">
-                            {activeSkill.name}
-                          </strong>
-                          .
-                        </p>
 
-                        {Object.keys(activeSkill.input_schema).map(
+                        {Object.keys(activeTool.input_schema).map(
                           (inputKey) => {
-                            // Safely determine the type hint, as it might be an object or array instead of a string
-                            const rawHint = activeSkill.input_schema[inputKey];
+                            const rawHint = activeTool.input_schema[inputKey];
                             const typeHint =
                               typeof rawHint === "string"
                                 ? rawHint.toLowerCase()
                                 : Array.isArray(rawHint)
                                   ? "array<object>"
                                   : "object";
-
                             const isArrayType =
                               typeHint.includes("array") ||
                               typeHint.includes("[]");
@@ -729,7 +950,6 @@ const CanvasEditor = forwardRef<
                                     {typeHint}
                                   </span>
                                 </div>
-
                                 {isArrayType ? (
                                   <div className="space-y-1.5 mt-1">
                                     {(Array.isArray(currentVal)
@@ -834,11 +1054,6 @@ const CanvasEditor = forwardRef<
                             );
                           },
                         )}
-                        {Object.keys(activeSkill.input_schema).length === 0 && (
-                          <div className="text-xs text-slate-400 italic">
-                            This skill expects no inputs.
-                          </div>
-                        )}
                       </div>
 
                       <div className="pt-4 border-t border-slate-100 space-y-3">
@@ -848,12 +1063,8 @@ const CanvasEditor = forwardRef<
                             Output Mapping
                           </h3>
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          Map the data returned by this skill back into the
-                          Agent's state.
-                        </p>
 
-                        {Object.keys(activeSkill.output_schema).map(
+                        {Object.keys(activeTool.output_schema).map(
                           (outputKey) => {
                             const currentVal =
                               (
@@ -894,27 +1105,16 @@ const CanvasEditor = forwardRef<
                             );
                           },
                         )}
-                        {Object.keys(activeSkill.output_schema).length ===
-                          0 && (
-                          <div className="text-xs text-slate-400 italic">
-                            This skill returns no outputs.
-                          </div>
-                        )}
                       </div>
                     </>
                   )}
 
-                  {/* TRIGGER INSPECTOR */}
                   {selectedNode.type === "trigger" && (
                     <>
                       <div className="pt-4 border-t border-slate-100 space-y-3">
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                           Node-Specific Instructions
                         </label>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-1">
-                          Add extra context or rules for extracting the user's
-                          input.
-                        </p>
                         <textarea
                           placeholder="e.g. If the user doesn't specify a language, default to Spanish..."
                           value={
@@ -937,10 +1137,6 @@ const CanvasEditor = forwardRef<
                             Expected Payload
                           </h3>
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          Define the JSON schema the external caller must
-                          provide to start this agent.
-                        </p>
                         <SchemaViewer
                           title="Expected Payload"
                           nodes={inspectorSchema}
@@ -956,10 +1152,6 @@ const CanvasEditor = forwardRef<
                             Initialization Mapping
                           </h3>
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          Map the incoming payload fields to the Agent's global
-                          state.
-                        </p>
 
                         {Object.keys(
                           selectedNode.data.expected_payload || {},
@@ -1003,27 +1195,16 @@ const CanvasEditor = forwardRef<
                             </div>
                           );
                         })}
-                        {Object.keys(selectedNode.data.expected_payload || {})
-                          .length === 0 && (
-                          <div className="text-xs text-slate-400 italic">
-                            No payload fields defined yet.
-                          </div>
-                        )}
                       </div>
                     </>
                   )}
 
-                  {/* RESPONSE INSPECTOR */}
                   {selectedNode.type === "response" && (
                     <>
                       <div className="pt-4 border-t border-slate-100 space-y-3">
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                           Node-Specific Instructions
                         </label>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-1">
-                          Add extra context or rules for formatting the final
-                          output.
-                        </p>
                         <textarea
                           placeholder="e.g. Summarize the output in 3 concise bullet points..."
                           value={
@@ -1047,10 +1228,6 @@ const CanvasEditor = forwardRef<
                             Response Payload
                           </h3>
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          Define the JSON schema this agent will return to the
-                          caller.
-                        </p>
                         <SchemaViewer
                           title="Response Payload"
                           nodes={inspectorSchema}
@@ -1066,10 +1243,6 @@ const CanvasEditor = forwardRef<
                             Extraction Mapping
                           </h3>
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          Select which variables from the global state should be
-                          returned.
-                        </p>
 
                         {Object.keys(
                           selectedNode.data.response_payload || {},
@@ -1112,17 +1285,10 @@ const CanvasEditor = forwardRef<
                             </div>
                           );
                         })}
-                        {Object.keys(selectedNode.data.response_payload || {})
-                          .length === 0 && (
-                          <div className="text-xs text-slate-400 italic">
-                            No response fields defined yet.
-                          </div>
-                        )}
                       </div>
                     </>
                   )}
 
-                  {/* INTERRUPT INSPECTOR */}
                   {selectedNode.type === "interrupt" && (
                     <>
                       <div className="pt-4 border-t border-slate-100 space-y-3">
@@ -1132,11 +1298,6 @@ const CanvasEditor = forwardRef<
                             Output Mapping
                           </h3>
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          Map the human's input to a global state variable to
-                          use it later in the workflow.
-                        </p>
-
                         <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
                           <span className="text-xs font-mono font-semibold text-slate-700">
                             human_input

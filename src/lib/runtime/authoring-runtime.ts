@@ -1,14 +1,12 @@
-// lib/compiler.ts
 import { StateGraph, START, END } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { HumanMessage, ToolMessage } from "@langchain/core/messages"; // IMPORTED CORE MESSAGES
-import { AgentConfig, SkillConfig, MCPServerConfig } from "../types/constants";
+import { HumanMessage } from "@langchain/core/messages";
+import { SkillConfig, ToolConfig, MCPServerConfig } from "../types/constants";
 import { Pool } from "pg";
 import { McpClient } from "../api-clients/mcp-client";
 
-// ACTION A2: Extend ExecutionReporter
 export interface ExecutionReporter {
   onNodeStart?: (nodeId: string) => void;
   onNodeEnd?: (
@@ -27,7 +25,6 @@ export interface ExecutionReporter {
   onToolEnd?: (toolName: string, result: any) => void;
 }
 
-// 1. Initialize Postgres Pool and Checkpointer
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 10,
@@ -42,10 +39,9 @@ async function ensureDbSetup() {
   }
 }
 
-// ACTION B1: Update signature to accept servers
 export async function compileAndRunAgent(
-  config: AgentConfig,
-  skills: SkillConfig[],
+  config: SkillConfig,
+  tools: ToolConfig[],
   servers: MCPServerConfig[],
   userInput: string,
   reporter?: ExecutionReporter,
@@ -76,7 +72,6 @@ export async function compileAndRunAgent(
   if (reporter?.onNodeStart && !resumeValue)
     reporter.onNodeStart(triggerNode.id);
 
-  // 1. SMART INPUT EXTRACTION
   let parsedInput: any = {};
   try {
     parsedInput = JSON.parse(userInput);
@@ -137,7 +132,6 @@ export async function compileAndRunAgent(
     }
   }
 
-  // 2. PRE-FLIGHT VALIDATION: Check for Missing Required Fields
   const expectedPayload = triggerNode.data.expected_payload || {};
   const missingKeys: string[] = [];
 
@@ -171,7 +165,6 @@ export async function compileAndRunAgent(
     }
   }
 
-  // 3. INITIALIZE STATE
   const initialState: Record<string, any> = {};
   const initMap = triggerNode.data.initialization_mapping || {};
 
@@ -191,7 +184,6 @@ export async function compileAndRunAgent(
     );
   }
 
-  // 4. DEFINE STATEGRAPH CHANNELS
   const channels: Record<string, any> = {
     __final_payload__: {
       value: (prev: any, next: any) => (next !== undefined ? next : prev),
@@ -224,13 +216,14 @@ export async function compileAndRunAgent(
   });
 
   const workflow = new StateGraph<any>({ channels });
-  const skillNodes = nodes.filter((n: any) => n.type === "skill");
+  const toolNodes = nodes.filter((n: any) => n.type === "tool");
+  const mcpNodes = nodes.filter((n: any) => n.type === "mcp_node"); // NEW
   const interruptNodes = nodes.filter((n: any) => n.type === "interrupt");
 
-  // 5. ADD SKILL NODES (With Tool Binding & Execution Loop)
-  for (const node of skillNodes) {
-    const skill = skills.find((s) => s.id === node.data.skillId);
-    if (!skill) continue;
+  // 1. LLM TOOL NODES
+  for (const node of toolNodes) {
+    const tool = tools.find((s) => s.id === node.data.toolId);
+    if (!tool) continue;
 
     workflow.addNode(node.id, async (state: any) => {
       if (state.__error__) return {};
@@ -239,11 +232,10 @@ export async function compileAndRunAgent(
 
       const localInputs: Record<string, any> = {};
       const inMap = node.data.input_mapping || {};
-      for (const localKey of Object.keys(skill.input_schema || {})) {
+      for (const localKey of Object.keys(tool.input_schema || {})) {
         const mapping = inMap[localKey];
 
         if (Array.isArray(mapping)) {
-          // Collect all mapped states, drop nulls/undefined, and flatten the results
           const aggregated = mapping
             .map((globalKey) => state[globalKey])
             .filter((val) => val !== undefined && val !== null);
@@ -270,51 +262,17 @@ export async function compileAndRunAgent(
             modelKwargs: { response_format: { type: "json_object" } },
           });
 
-          // ACTION B3: Aggregate McpClients
-          const mcpDependencies = skill.mcp_dependencies || [];
-          const requiredServers = servers.filter((s) =>
-            mcpDependencies.includes(s.id),
-          );
-          const mcpClients = requiredServers.map((s) => new McpClient(s));
-
-          // ACTION B4: Fetch and map tools
-          const openAiTools: any[] = [];
-          const toolNameToClient = new Map<string, McpClient>();
-
-          for (const client of mcpClients) {
-            try {
-              const { tools } = await client.listTools();
-              for (const tool of tools) {
-                openAiTools.push({
-                  type: "function",
-                  function: {
-                    name: tool.name,
-                    description: tool.description,
-                    parameters: tool.inputSchema,
-                  },
-                });
-                toolNameToClient.set(tool.name, client);
-              }
-            } catch (err) {
-              console.error(`[DEBUG] Failed to list tools for server`, err);
-            }
-          }
-
-          // Bind tools to the model if any exist
-          const modelWithTools =
-            openAiTools.length > 0 ? llm.bindTools(openAiTools) : llm;
-
-          const schemaString = JSON.stringify(skill.output_schema || {});
+          const schemaString = JSON.stringify(tool.output_schema || {});
           const inputsString = JSON.stringify(localInputs, null, 2);
 
           const nodeInstructions = node.data.custom_instructions?.trim()
             ? `\n--- STEP-SPECIFIC INSTRUCTIONS ---\n${node.data.custom_instructions}\n`
             : "";
 
-          const systemInstruction = `\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. If you have tools available, use them to gather required information.\n3. Return your final response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.`;
+          const systemInstruction = `\n\n{__persona__}{__node_instructions__}\n--- SYSTEM INSTRUCTIONS ---\n1. Task Inputs:\n{__inputsString__}\n\n2. Return your final response as a valid JSON object matching this exact schema: {__schema__}. Return ONLY raw JSON.`;
 
           const prompt = PromptTemplate.fromTemplate(
-            skill.prompt_template + systemInstruction,
+            tool.prompt_template + systemInstruction,
           );
           const formatted = await prompt.format({
             ...localInputs,
@@ -324,85 +282,27 @@ export async function compileAndRunAgent(
             __inputsString__: inputsString,
           });
 
-          // ACTION B5: The Multi-turn Execution Loop
-          const messages: any[] = [new HumanMessage(formatted)];
-          let maxTurns = 5;
+          const response = await llm.invoke([new HumanMessage(formatted)]);
 
-          while (maxTurns > 0) {
-            maxTurns--;
-            const response = await modelWithTools.invoke(messages);
-            messages.push(response);
+          try {
+            let cleanStr = response.content.toString().trim();
+            if (cleanStr.startsWith("```json"))
+              cleanStr = cleanStr
+                .replace(/^```json/, "")
+                .replace(/```$/, "")
+                .trim();
 
-            // If the model decides to call a tool
-            if (response.tool_calls && response.tool_calls.length > 0) {
-              for (const toolCall of response.tool_calls) {
-                // ACTION B6: Fire start event
-                if (reporter?.onToolStart)
-                  reporter.onToolStart(toolCall.name, toolCall.args);
-
-                const client = toolNameToClient.get(toolCall.name);
-                let rawResult = null;
-                let toolResultStr = "";
-
-                if (client) {
-                  try {
-                    rawResult = await client.callTool(
-                      toolCall.name,
-                      toolCall.args,
-                    );
-                    toolResultStr =
-                      typeof rawResult === "string"
-                        ? rawResult
-                        : JSON.stringify(rawResult);
-                  } catch (err: any) {
-                    toolResultStr = `Error calling tool: ${err.message}`;
-                  }
-                } else {
-                  toolResultStr = `Error: Tool ${toolCall.name} not found on attached servers.`;
-                }
-
-                // ACTION B6: Fire end event
-                if (reporter?.onToolEnd)
-                  reporter.onToolEnd(toolCall.name, rawResult || toolResultStr);
-
-                // Push tool result back to the LLM
-                messages.push(
-                  new ToolMessage({
-                    content: toolResultStr,
-                    tool_call_id: toolCall.id ?? "",
-                    name: toolCall.name,
-                  }),
-                );
-              }
-            } else {
-              // Final answer generation
-              try {
-                let cleanStr = response.content.toString().trim();
-                if (cleanStr.startsWith("```json"))
-                  cleanStr = cleanStr
-                    .replace(/^```json/, "")
-                    .replace(/```$/, "")
-                    .trim();
-
-                const parsedResponse = JSON.parse(cleanStr);
-                for (const key of Object.keys(skill.output_schema || {})) {
-                  outputData[key] = parsedResponse[key];
-                }
-              } catch (parseErr) {
-                stateUpdates["__error__"] =
-                  `Skill '${skill.name}' failed to generate a valid JSON structure.`;
-              }
-              break;
+            const parsedResponse = JSON.parse(cleanStr);
+            for (const key of Object.keys(tool.output_schema || {})) {
+              outputData[key] = parsedResponse[key];
             }
-          }
-
-          if (maxTurns === 0) {
+          } catch (parseErr) {
             stateUpdates["__error__"] =
-              `Skill '${skill.name}' exceeded maximum tool iterations.`;
+              `Tool '${tool.name}' failed to generate a valid JSON structure.`;
           }
         } catch (e: any) {
           stateUpdates["__error__"] =
-            `Skill '${skill.name}' encountered an execution error: ${e.message}`;
+            `Tool '${tool.name}' encountered an execution error: ${e.message}`;
         }
       }
 
@@ -433,7 +333,83 @@ export async function compileAndRunAgent(
     });
   }
 
-  // 6. ADD INTERRUPT NODES
+  // 2. NEW: MCP NODES (Direct Execution)
+  for (const node of mcpNodes) {
+    const serverConfig = servers.find((s) => s.id === node.data.serverId);
+    const toolName = node.data.toolName;
+
+    if (!serverConfig || !toolName) continue;
+
+    workflow.addNode(node.id, async (state: any) => {
+      if (state.__error__) return {};
+      if (reporter?.onNodeStart) reporter.onNodeStart(node.id);
+
+      const stateUpdates: Record<string, any> = {};
+      const localInputs: Record<string, any> = {};
+      const inMap = node.data.input_mapping || {};
+
+      // Map inputs
+      for (const [inputKey, mapping] of Object.entries(inMap)) {
+        if (Array.isArray(mapping)) {
+          const aggregated = mapping
+            .map((globalKey) => state[globalKey])
+            .filter((val) => val !== undefined && val !== null);
+          localInputs[inputKey] = aggregated.reduce(
+            (acc, val) => acc.concat(Array.isArray(val) ? val : [val]),
+            [],
+          );
+        } else {
+          localInputs[inputKey] =
+            state[mapping as string] !== undefined
+              ? state[mapping as string]
+              : "";
+        }
+      }
+
+      if (reporter?.onToolStart) reporter.onToolStart(toolName, localInputs);
+
+      // Execute directly
+      const client = new McpClient(serverConfig);
+      let rawResult = null;
+
+      try {
+        rawResult = await client.callTool(toolName, localInputs);
+        const outputTarget = (
+          node.data.output_mapping as Record<string, string>
+        )?.[`mcp_response`];
+
+        if (outputTarget) {
+          stateUpdates[outputTarget] = rawResult;
+        }
+      } catch (err: any) {
+        stateUpdates["__error__"] =
+          `MCP Tool '${toolName}' execution failed: ${err.message}`;
+      }
+
+      if (reporter?.onToolEnd) reporter.onToolEnd(toolName, rawResult);
+
+      if (reporter?.onNodeEnd)
+        reporter.onNodeEnd(node.id, stateUpdates, undefined, {
+          ...state,
+          ...stateUpdates,
+        });
+
+      if (!stateUpdates.__error__) {
+        const outgoingEdges = edges.filter((e: any) => e.source === node.id);
+        if (
+          outgoingEdges.length === 1 &&
+          !outgoingEdges[0].data?.label?.trim()
+        ) {
+          if (reporter?.onEdgeTraversal)
+            reporter.onEdgeTraversal(node.id, outgoingEdges[0].target);
+        }
+      }
+
+      return stateUpdates;
+    });
+  }
+
+  // 3. INTERRUPT NODES
   for (const intNode of interruptNodes) {
     workflow.addNode(intNode.id, async (state: any) => {
       if (state.__error__) return {};
@@ -467,7 +443,7 @@ export async function compileAndRunAgent(
     });
   }
 
-  // 7. ADD RESPONSE NODES
+  // 4. RESPONSE NODES
   for (const resNode of responseNodes) {
     workflow.addNode(resNode.id, async (state: any) => {
       if (reporter?.onNodeStart) reporter.onNodeStart(resNode.id);
@@ -558,7 +534,7 @@ export async function compileAndRunAgent(
     workflow.addEdge(resNode.id, END);
   }
 
-  // 8. ADVANCED EDGE ROUTING
+  // 5. ROUTING
   const edgesBySource: Record<string, any[]> = {};
   for (const edge of edges) {
     const sourceNode = nodes.find((n: any) => n.id === edge.source);
@@ -699,22 +675,23 @@ export async function compileAndRunAgent(
     return src?.type === "trigger";
   });
 
-  if (!hasStartEdge && skillNodes.length > 0) {
+  const executionNodes = [...toolNodes, ...mcpNodes];
+
+  if (!hasStartEdge && executionNodes.length > 0) {
     workflow.addConditionalEdges(
       START,
-      (state: any) => (state.__error__ ? END : skillNodes[0].id),
-      [skillNodes[0].id, END],
+      (state: any) => (state.__error__ ? END : executionNodes[0].id),
+      [executionNodes[0].id, END],
     );
     if (responseNodes.length > 0) {
       workflow.addConditionalEdges(
-        skillNodes[skillNodes.length - 1].id,
+        executionNodes[executionNodes.length - 1].id,
         (state: any) => (state.__error__ ? END : responseNodes[0].id),
         [responseNodes[0].id, END],
       );
     }
   }
 
-  // 9. COMPILE WITH CHECKPOINTER & INTERRUPTS
   const app = workflow.compile({
     checkpointer,
     interruptBefore: interruptNodes.map((n: any) => n.id),
@@ -722,7 +699,6 @@ export async function compileAndRunAgent(
 
   const executionConfig = { configurable: { thread_id: threadId } };
 
-  // 10. RUN OR RESUME
   let finalState;
 
   if (resumeValue) {
@@ -734,7 +710,6 @@ export async function compileAndRunAgent(
     finalState = await app.invoke(initialState, executionConfig);
   }
 
-  // 11. CHECK FOR INTERRUPT STATE
   const threadState = await app.getState(executionConfig);
   const isInterrupted = threadState.next && threadState.next.length > 0;
 
@@ -749,7 +724,6 @@ export async function compileAndRunAgent(
     };
   }
 
-  // 12. HANDLE GENERIC ERROR OVERRIDE
   if (finalState.__error__) {
     const errorPayload = { error: finalState.__error__ };
 
@@ -758,7 +732,7 @@ export async function compileAndRunAgent(
       reporter.onNodeEnd(
         "System Error Handler",
         errorPayload,
-        `Graph execution was aborted early due to a system or skill error.`,
+        `Graph execution was aborted early due to a system or tool error.`,
         { ...finalState, ...errorPayload },
       );
 
@@ -778,44 +752,36 @@ export async function compileAndRunAgent(
 }
 
 export function generateManifest(
-  config: AgentConfig,
-  allSkills: SkillConfig[],
+  config: SkillConfig,
+  allTools: ToolConfig[],
   allServers: MCPServerConfig[],
 ) {
   const nodes = config.orchestration?.nodes || [];
-  const usedSkillIds = new Set<string>();
+  const usedToolIds = new Set<string>();
 
   nodes.forEach((n: any) => {
-    if (n.type === "skill" && n.data?.skillId) {
-      usedSkillIds.add(n.data.skillId);
+    if (n.type === "tool" && n.data?.toolId) {
+      usedToolIds.add(n.data.toolId);
     }
   });
 
-  const resolvedSkills = allSkills
-    .filter((skill) => usedSkillIds.has(skill.id))
+  const resolvedTools = allTools
+    .filter((tool) => usedToolIds.has(tool.id))
     .reduce(
-      (acc, skill) => {
-        acc[skill.id] = {
-          name: skill.name,
-          prompt_template: skill.prompt_template,
-          input_schema: skill.input_schema,
-          output_schema: skill.output_schema,
-          mcp_dependencies: skill.mcp_dependencies,
+      (acc, tool) => {
+        acc[tool.id] = {
+          name: tool.name,
+          prompt_template: tool.prompt_template,
+          input_schema: tool.input_schema,
+          output_schema: tool.output_schema,
         };
         return acc;
       },
       {} as Record<string, any>,
     );
 
-  const requiredServerIds = new Set<string>(config.mcp_servers || []);
-  allSkills.forEach((skill) => {
-    if (usedSkillIds.has(skill.id) && skill.mcp_dependencies) {
-      skill.mcp_dependencies.forEach((dep) => requiredServerIds.add(dep));
-    }
-  });
-
   const resolvedServers = allServers
-    .filter((server) => requiredServerIds.has(server.id))
+    .filter((server) => (config.mcp_servers || []).includes(server.id))
     .reduce(
       (acc, server) => {
         acc[server.id] = {
@@ -830,7 +796,7 @@ export function generateManifest(
 
   const manifest = {
     metadata: {
-      agent_id: config.agent_id,
+      skill_id: config.id,
       version: config.version,
       description: config.description,
     },
@@ -852,7 +818,7 @@ export function generateManifest(
       response_formatter:
         "{__persona__}\n--- NODE-SPECIFIC INSTRUCTIONS ---\n{__response_instructions__}\n\n--- SYSTEM INSTRUCTIONS ---\nYou are the final response formatter for an AI workflow.\nTake the raw extracted data below and format, summarize, or modify it exactly according to the node-specific instructions above.\n\nRaw Extracted Data:\n{__raw_data__}\n\nReturn ONLY a valid JSON object matching this exact schema: {__schema__}",
     },
-    resolved_skills: resolvedSkills,
+    resolved_skills: resolvedTools,
     resolved_mcp_servers: resolvedServers,
     graph_topology: {
       nodes: config.orchestration?.nodes || [],

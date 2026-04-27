@@ -107,22 +107,6 @@ export const SchemaEditor = ({
                   Optional (?)
                 </button>
               )}
-
-              {!hasChildren && (
-                <button
-                  onClick={() =>
-                    updateNode(node.id, { isNullable: !node.isNullable })
-                  }
-                  className={`px-3 py-2.5 text-xs font-bold rounded-lg border transition-colors ${
-                    node.isNullable
-                      ? "bg-amber-100 text-amber-700 border-amber-300 shadow-inner"
-                      : "bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100"
-                  }`}
-                  title="Toggle Nullable (?)"
-                >
-                  Optional (?)
-                </button>
-              )}
               <button
                 onClick={() => removeNode(node.id)}
                 className="p-2.5 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"

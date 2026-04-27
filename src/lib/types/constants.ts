@@ -1,6 +1,5 @@
 // lib/constants.ts
 
-// --- TYPES ---
 export type FieldType =
   | "string"
   | "number"
@@ -21,18 +20,16 @@ export interface ModelConfig {
   max_tokens: number;
 }
 
-// NEW: Skill Definition
-export interface SkillConfig {
+// UPDATED: Removed mcp_dependencies
+export interface ToolConfig {
   id: string;
   name: string;
   description: string;
   prompt_template: string;
   input_schema: Record<string, string>;
   output_schema: Record<string, string>;
-  mcp_dependencies: string[];
 }
 
-// NEW: MCP Server Definition
 export interface MCPServerConfig {
   id: string;
   name: string;
@@ -41,10 +38,12 @@ export interface MCPServerConfig {
   status: "active" | "inactive" | "error";
 }
 
-// UPDATED: GraphNode now maps state rather than holding prompts directly
 export interface GraphNode {
-  type: string; // e.g., "skill", "subgraph", "interrupt"
+  type: string;
   skill_id?: string;
+  toolId?: string;
+  serverId?: string; // NEW: For MCP nodes
+  toolName?: string; // NEW: The specific action on the MCP server
   input_mapping?: Record<string, string | string[]>;
   output_mapping?: Record<string, string>;
   custom_instructions?: string;
@@ -92,14 +91,12 @@ export interface OrchestrationConfig {
   };
 }
 
-// UPDATED: AgentConfig now links to MCP servers, removes raw 'skills' array,
-// and includes compiled_manifest for standalone execution.
-export interface AgentConfig {
-  agent_id: string;
+export interface SkillConfig {
+  id: string;
   version: string;
   description: string;
   model: ModelConfig;
-  mcp_servers: string[]; // Linked MCP Server IDs
+  mcp_servers: string[];
   system_prompt: string;
   state_schema: Record<string, string>;
   custom_types?: Record<string, Record<string, string>>;
@@ -108,7 +105,7 @@ export interface AgentConfig {
   persistence?: PersistenceConfig;
   interrupts?: Record<string, InterruptConfig>;
   orchestration?: OrchestrationConfig;
-  compiled_manifest?: any; // NEW: Standalone execution manifest
+  compiled_manifest?: any;
 }
 
 export interface Message {
@@ -116,8 +113,16 @@ export interface Message {
   content: string;
 }
 
-export const DEFAULT_AGENT_CONFIG: AgentConfig = {
-  agent_id: "",
+export interface AgentConfig {
+  id: string;
+  name: string;
+  description: string;
+  skills: string[];
+  status: "active" | "inactive";
+}
+
+export const DEFAULT_SKILL_CONFIG: SkillConfig = {
+  id: "",
   version: "1.0.0",
   description: "",
   model: {
@@ -128,9 +133,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   },
   mcp_servers: [],
   system_prompt: "",
-  state_schema: {
-    messages: "array<any>",
-  },
+  state_schema: {},
   custom_types: {},
   graph: {
     nodes: {},

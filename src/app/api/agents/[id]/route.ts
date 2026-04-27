@@ -11,11 +11,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params; // 4. Await the params
+    const { id } = await params;
     const { data, error } = await supabase
       .from("agents")
       .select("*")
-      .eq("agent_id", id)
+      .eq("id", id)
       .single();
 
     if (error) throw error;
@@ -30,8 +30,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params; // 4. Await the params
-    const { error } = await supabase.from("agents").delete().eq("agent_id", id);
+    const { id } = await params;
+    const { error } = await supabase.from("agents").delete().eq("id", id);
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {

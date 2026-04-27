@@ -1,9 +1,10 @@
-// lib/engine.ts
+// lib/runtime/manifest-executor.ts
 import { StateGraph, START, END } from "@langchain/langgraph";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { Pool } from "pg";
+import { McpClient } from "../api-clients/mcp-client"; // NEW: Import the MCP Client
 
 // 1. Initialize Postgres Pool and Checkpointer for Serverless persistence
 const pool = new Pool({
@@ -40,9 +41,11 @@ export async function executeAgentManifest(
 
   const nodes = manifest.graph_topology.nodes;
   const edges = manifest.graph_topology.edges;
+
   const triggerNode = nodes.find((n: any) => n.type === "trigger");
   const responseNodes = nodes.filter((n: any) => n.type === "response");
-  const skillNodes = nodes.filter((n: any) => n.type === "skill");
+  const toolNodes = nodes.filter((n: any) => n.type === "tool"); // UPDATED: Was "skill"
+  const mcpNodes = nodes.filter((n: any) => n.type === "mcp_node"); // NEW: Explicit MCP support
   const interruptNodes = nodes.filter((n: any) => n.type === "interrupt");
 
   if (!triggerNode) throw new Error("Manifest is missing a trigger node.");
@@ -74,17 +77,17 @@ export async function executeAgentManifest(
 
   const workflow = new StateGraph<any>({ channels });
 
-  // Add Skill Nodes
-  for (const node of skillNodes) {
-    const skill = manifest.resolved_skills[node.data.skillId];
-    if (!skill) continue;
+  // Add Custom LLM Tool Nodes
+  for (const node of toolNodes) {
+    const tool = manifest.resolved_skills[node.data.toolId]; // UPDATED: Use toolId
+    if (!tool) continue;
 
     workflow.addNode(node.id, async (state: any) => {
       if (state.__error__) return {};
 
       const localInputs: any = {};
       const inMap = node.data.input_mapping || {};
-      for (const localKey of Object.keys(skill.input_schema || {})) {
+      for (const localKey of Object.keys(tool.input_schema || {})) {
         const mapping = inMap[localKey];
 
         if (Array.isArray(mapping)) {
@@ -104,13 +107,13 @@ export async function executeAgentManifest(
       }
 
       const prompt = PromptTemplate.fromTemplate(
-        skill.prompt_template + manifest.engine_prompts.skill_system_wrapper,
+        tool.prompt_template + manifest.engine_prompts.skill_system_wrapper,
       );
       const formatted = await prompt.format({
         ...localInputs,
         __persona__: globalPersona,
         __node_instructions__: node.data.custom_instructions || "",
-        __schema__: JSON.stringify(skill.output_schema || {}),
+        __schema__: JSON.stringify(tool.output_schema || {}),
         __inputsString__: JSON.stringify(localInputs, null, 2),
       });
 
@@ -128,7 +131,7 @@ export async function executeAgentManifest(
         outputData = JSON.parse(cleanStr);
       } catch (e: any) {
         stateUpdates["__error__"] =
-          `Skill ${skill.name} failed to return valid JSON.`;
+          `Tool ${tool.name} failed to return valid JSON.`;
       }
 
       const outMap = node.data.output_mapping || {};
@@ -140,9 +143,62 @@ export async function executeAgentManifest(
     });
   }
 
+  // Add MCP Nodes (Direct Execution)
+  for (const node of mcpNodes) {
+    const serverConfig = manifest.resolved_mcp_servers[node.data.serverId];
+    const toolName = node.data.toolName;
+
+    if (!serverConfig || !toolName) continue;
+
+    workflow.addNode(node.id, async (state: any) => {
+      if (state.__error__) return {};
+
+      const stateUpdates: Record<string, any> = {};
+      const localInputs: Record<string, any> = {};
+      const inMap = node.data.input_mapping || {};
+
+      // Map global state variables to MCP arguments
+      for (const [inputKey, mapping] of Object.entries(inMap)) {
+        if (Array.isArray(mapping)) {
+          const aggregated = mapping
+            .map((globalKey) => state[globalKey])
+            .filter((val) => val !== undefined && val !== null);
+          localInputs[inputKey] = aggregated.reduce(
+            (acc, val) => acc.concat(Array.isArray(val) ? val : [val]),
+            [],
+          );
+        } else {
+          localInputs[inputKey] =
+            state[mapping as string] !== undefined
+              ? state[mapping as string]
+              : "";
+        }
+      }
+
+      const client = new McpClient(serverConfig);
+
+      try {
+        const rawResult = await client.callTool(toolName, localInputs);
+        const outputTarget = (
+          node.data.output_mapping as Record<string, string>
+        )?.[`mcp_response`];
+
+        if (outputTarget) {
+          stateUpdates[outputTarget] = rawResult;
+        }
+      } catch (err: any) {
+        stateUpdates["__error__"] =
+          `MCP Tool '${toolName}' execution failed: ${err.message}`;
+      }
+
+      return stateUpdates;
+    });
+  }
+
   // Add Interrupt Nodes
   for (const intNode of interruptNodes) {
     workflow.addNode(intNode.id, async (state: any) => {
+      if (state.__error__) return {};
       const feedback = state.__human_feedback__ || "";
       const stateUpdates: any = {};
       const outMap = intNode.data.output_mapping || {};
@@ -246,6 +302,27 @@ export async function executeAgentManifest(
     }
   }
 
+  const executionNodes = [...toolNodes, ...mcpNodes];
+  const hasStartEdge = edges.some((e: any) => {
+    const src = nodes.find((n: any) => n.id === e.source);
+    return src?.type === "trigger";
+  });
+
+  if (!hasStartEdge && executionNodes.length > 0) {
+    workflow.addConditionalEdges(
+      START,
+      (state: any) => (state.__error__ ? END : executionNodes[0].id),
+      [executionNodes[0].id, END],
+    );
+    if (responseNodes.length > 0) {
+      workflow.addConditionalEdges(
+        executionNodes[executionNodes.length - 1].id,
+        (state: any) => (state.__error__ ? END : responseNodes[0].id),
+        [responseNodes[0].id, END],
+      );
+    }
+  }
+
   const app = workflow.compile({
     checkpointer,
     interruptBefore: interruptNodes.map((n: any) => n.id),
@@ -313,10 +390,16 @@ export async function executeAgentManifest(
     };
   }
 
+  // 4. HANDLE SYSTEM ERROR
+  if (finalState.__error__) {
+    return {
+      status: "completed",
+      result: { error: finalState.__error__ },
+    };
+  }
+
   return {
     status: "completed",
-    result: finalState.__error__
-      ? { error: finalState.__error__ }
-      : finalState.__final_payload__,
+    result: finalState.__final_payload__,
   };
 }

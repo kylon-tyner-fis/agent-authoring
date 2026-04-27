@@ -2,36 +2,36 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Plus, Trash2, Loader2 } from "lucide-react";
-import { AgentConfig } from "@/src/lib/types/constants";
+import { Wrench, Plus, Trash2, Code2, Loader2 } from "lucide-react";
+import { ToolConfig } from "@/src/lib/types/constants";
 
-export default function AgentsDashboard() {
+export default function ToolsDashboard() {
   const router = useRouter();
-  const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const [tools, setTools] = useState<ToolConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAgents = async () => {
+    const fetchTools = async () => {
       try {
-        const res = await fetch("/api/agents");
+        const res = await fetch("/api/tools");
         const data = await res.json();
-        if (data.agents) setAgents(data.agents);
+        if (data.tools) setTools(data.tools);
       } catch (error) {
-        console.error("Failed to fetch agents", error);
+        console.error("Failed to fetch tools", error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchAgents();
+    fetchTools();
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm(`Delete agent?`)) return;
+    if (!confirm(`Delete tool ${id}?`)) return;
     try {
-      await fetch(`/api/agents/${id}`, { method: "DELETE" });
-      setAgents(agents.filter((a) => a.id !== id));
+      await fetch(`/api/tools/${id}`, { method: "DELETE" });
+      setTools(tools.filter((t) => t.id !== id));
     } catch (error) {
-      console.error("Failed to delete agent", error);
+      console.error("Failed to delete tool", error);
     }
   };
 
@@ -41,18 +41,18 @@ export default function AgentsDashboard() {
         <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Bot className="w-6 h-6 text-emerald-600" /> Agents
+              <Wrench className="w-6 h-6 text-indigo-600" /> Tool Library
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              Autonomous executive systems that reason, plan, and dynamically
-              delegate tasks to your Skills.
+              Fundamental, single-purpose building blocks. Integrations, prompt
+              templates, and actions that perform discrete tasks.
             </p>
           </div>
           <button
-            onClick={() => router.push("/agents/new")}
-            className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
+            onClick={() => router.push("/tools/new")}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-indigo-700 transition-colors shadow-sm"
           >
-            <Plus className="w-5 h-5" /> Create Agent
+            <Plus className="w-5 h-5" /> Create Tool
           </button>
         </div>
 
@@ -61,43 +61,38 @@ export default function AgentsDashboard() {
             <div className="flex justify-center items-center p-12 text-slate-400 bg-white rounded-xl border border-slate-200">
               <Loader2 className="w-8 h-8 animate-spin" />
             </div>
-          ) : agents.length === 0 ? (
+          ) : tools.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-xl border border-slate-200">
-              <p className="text-slate-900 font-bold">No agents found</p>
+              <p className="text-slate-900 font-bold">No tools found</p>
             </div>
           ) : (
-            agents.map((agent) => (
+            tools.map((tool) => (
               <div
-                key={agent.id}
+                key={tool.id}
                 className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group"
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
-                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-emerald-50 border-emerald-200">
-                    <Bot className="w-5 h-5 text-emerald-600" />
+                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-indigo-50 border-indigo-200">
+                    <Code2 className="w-5 h-5 text-indigo-600" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">
-                      <span className="truncate">{agent.name}</span>
-                      <span
-                        className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${agent.status === "active" ? "bg-green-50 text-green-600 border-green-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}
-                      >
-                        {agent.status}
-                      </span>
+                    <h3 className="font-bold text-slate-900 text-lg truncate">
+                      {tool.name}
                     </h3>
                     <p className="text-sm text-slate-500 mt-1 line-clamp-1">
-                      {agent.description}
+                      {tool.description}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <button
-                    onClick={() => router.push(`/agents/${agent.id}`)}
+                    onClick={() => router.push(`/tools/${tool.id}`)}
                     className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
                   >
-                    Edit Agent
+                    Edit Tool
                   </button>
                   <button
-                    onClick={() => handleDelete(agent.id)}
+                    onClick={() => handleDelete(tool.id)}
                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />
