@@ -22,6 +22,7 @@ export default function AgentEditorPage({
     description: "",
     skills: [],
     status: "active",
+    system_prompt: "",
   });
 
   const [availableSkills, setAvailableSkills] = useState<SkillConfig[]>([]);
@@ -154,6 +155,23 @@ export default function AgentEditorPage({
                       setAgent({ ...agent, description: e.target.value })
                     }
                     className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-semibold text-gray-600 flex justify-between">
+                    <span>Agent Prompt / Role</span>
+                    <span className="text-gray-400 font-normal">
+                      Base Persona & Instructions
+                    </span>
+                  </label>
+                  <textarea
+                    rows={8}
+                    value={agent.system_prompt || ""}
+                    onChange={(e) =>
+                      setAgent({ ...agent, system_prompt: e.target.value })
+                    }
+                    className="w-full p-3 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 min-h-[150px] bg-slate-50 text-slate-900"
+                    placeholder="e.g. You are a Goals, Outcomes, and Objectives agent for technical education..."
                   />
                 </div>
                 <div className="space-y-1.5">

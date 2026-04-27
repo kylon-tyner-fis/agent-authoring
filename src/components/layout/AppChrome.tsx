@@ -9,7 +9,6 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const activeSection = resolvePrimarySection(pathname);
 
-  // Detail page detection
   const isDetailPage = pathname.match(/^\/(skills|agents|mcp-servers)\/.+$/);
   const backHref = isDetailPage ? `/${isDetailPage[1]}` : null;
 
@@ -21,12 +20,14 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-50">
-      <header className="shrink-0 sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    // 1. Force the wrapper to exactly screen height and trap scrolling
+    <div className="h-screen overflow-hidden flex flex-col bg-slate-50">
+      {/* 2. Apply the exact h-header class. Removed 'py-3' from nav to ensure vertical centering works perfectly */}
+      <header className="h-16 shrink-0 sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur flex items-center">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
           <nav
             aria-label="Primary"
-            className="flex items-center gap-2 py-3 overflow-x-auto"
+            className="flex items-center gap-2 overflow-x-auto"
           >
             {isDetailPage && backHref && (
               <>
@@ -61,7 +62,10 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
+      {/* 3. Apply the exact h-content class. This area handles all vertical scrolling. */}
+      <main className="h-[calc(100vh-4rem)] flex flex-col overflow-y-auto">
+        {children}
+      </main>
     </div>
   );
 }

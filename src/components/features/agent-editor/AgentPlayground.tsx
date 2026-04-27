@@ -1,19 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import {
-  Send,
-  Bot,
-  AlertCircle,
-  X,
-  Network,
-  Loader2,
-  CheckCircle2,
-} from "lucide-react";
+import { Send, Bot, AlertCircle, X, Loader2, CheckCircle2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { AgentConfig, Message } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
-import { RecursiveJsonViewer } from "../../shared/json-tools/RecursiveJsonViewer";
 
 type HistoryEvent =
   | { type: "message"; content: string }
@@ -97,8 +88,6 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                 const lastItem = newHistory[lastIndex];
 
                 if (lastItem.type === "message") {
-                  // FIX: Create a new object rather than mutating the old one!
-                  // This prevents React Strict Mode from double-appending the chunk.
                   newHistory[lastIndex] = {
                     ...lastItem,
                     content: lastItem.content + event.chunk,
@@ -114,7 +103,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                   skillName: event.skillName,
                   args: event.args,
                 },
-                { type: "message", content: "" }, // Prepare for next text chunk
+                { type: "message", content: "" },
               ]);
             } else if (event.type === "skill_end") {
               setHistory((prev) => [
@@ -124,7 +113,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                   skillName: event.skillName,
                   result: event.result,
                 },
-                { type: "message", content: "" }, // Prepare for next text chunk
+                { type: "message", content: "" },
               ]);
             } else if (event.type === "error") {
               throw new Error(event.error);
@@ -199,11 +188,11 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                   className={`p-4 rounded-xl max-w-[85%] w-full shadow-sm ${isUser ? "bg-emerald-600 text-white" : "bg-white border border-gray-200"}`}
                 >
                   {isUser ? (
-                    <p className="text-sm m-0 leading-relaxed">
+                    <p className="text-sm m-0 leading-relaxed whitespace-pre-wrap">
                       {cleanContent}
                     </p>
                   ) : (
-                    <div className="prose prose-sm max-w-none prose-p:leading-relaxed">
+                    <div className="prose prose-slate prose-sm max-w-none">
                       <ReactMarkdown>{cleanContent}</ReactMarkdown>
                     </div>
                   )}
@@ -214,7 +203,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1.5 ml-11 my-2 animate-in fade-in w-[85%]"
+                className="flex flex-col gap-1.5 ml-11 animate-in fade-in w-[85%]"
               >
                 <div className="flex items-center gap-2 text-[11px] text-blue-600 font-mono">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -227,7 +216,9 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                   <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
                     Parameters
                   </span>
-                  <RecursiveJsonViewer data={item.args} />
+                  <pre className="text-xs bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto font-mono text-slate-700">
+                    {JSON.stringify(item.args, null, 2)}
+                  </pre>
                 </div>
               </div>
             );
@@ -235,7 +226,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1.5 ml-11 my-2 animate-in fade-in w-[85%]"
+                className="flex flex-col gap-1.5 ml-11 animate-in fade-in w-[85%]"
               >
                 <div className="flex items-center gap-2 text-[11px] text-emerald-600 font-mono">
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -248,7 +239,9 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                   <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
                     Workflow Output
                   </span>
-                  <RecursiveJsonViewer data={item.result} />
+                  <pre className="text-xs bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto font-mono text-slate-700">
+                    {JSON.stringify(item.result, null, 2)}
+                  </pre>
                 </div>
               </div>
             );

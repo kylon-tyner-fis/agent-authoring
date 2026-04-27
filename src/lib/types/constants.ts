@@ -119,6 +119,7 @@ export interface AgentConfig {
   description: string;
   skills: string[];
   status: "active" | "inactive";
+  system_prompt?: string;
 }
 
 export const DEFAULT_SKILL_CONFIG: SkillConfig = {

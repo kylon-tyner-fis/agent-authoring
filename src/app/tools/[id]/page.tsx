@@ -158,7 +158,7 @@ export default function ToolEditorPage({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 p-8">
         <div className="max-w-5xl mx-auto space-y-8">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">

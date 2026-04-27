@@ -97,9 +97,18 @@ export async function runExecutiveAgent(
     temperature: 0.2, // Low temperature for reliable routing
   });
 
+  const customPersona = agentConfig.system_prompt?.trim()
+    ? `\n--- AGENT ROLE & CUSTOM INSTRUCTIONS ---\n${agentConfig.system_prompt}\n`
+    : "";
+
   const systemMessage = `
     You are an autonomous executive AI agent named "${agentConfig.name}".
     Description: ${agentConfig.description}
+
+    Do not attempt to respond to any user queries that do not directly relate to YOUR JOB or YOUR SKILLS.
+
+    YOUR JOB:
+    ${customPersona}
     
     You have access to specialized Skills (workflows). Your job is to reason about the user's request, determine which Skills need to be executed to accomplish the goal, and call them with the correct parameters. 
     
