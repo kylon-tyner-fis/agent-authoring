@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { compileAndRunAgent } from "@/src/lib/runtime/authoring-runtime";
+import { compileAndRunAgent } from "@/src/lib/runtime/manifest-compiler";
 import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: Request) {

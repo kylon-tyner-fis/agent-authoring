@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { executeAgentManifest } from "@/src/lib/runtime/manifest-executor";
+import { executeAgentManifest } from "@/src/lib/runtime/skill-executor";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

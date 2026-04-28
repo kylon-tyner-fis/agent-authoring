@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { runExecutiveAgent } from "@/src/lib/runtime/agent-runtime";
+import { runExecutiveAgent } from "@/src/lib/runtime/agent-executor";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
