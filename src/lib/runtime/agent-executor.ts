@@ -1,23 +1,23 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createDeepAgent } from "deepagents";
 import { DynamicStructuredTool } from "@langchain/core/tools";
-import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
-import { Pool } from "pg";
-import { uuidv4, z } from "zod";
+import { z } from "zod";
 import { AgentConfig, SkillConfig } from "../types/constants";
-import { executeAgentManifest } from "./manifest-executor";
+import { executeAgentManifest } from "./skill-executor";
+import { checkpointer, ensureDbSetup } from "../db/checkpointer";
+import { mapSchemaToZod } from "../utils/schema-mapper";
 
 export interface AgentExecutionReporter {
   onMessageChunk?: (chunk: string) => void;
-  onSkillStart?: (skillName: string, args: Record<string, any>) => void;
-  onSkillEnd?: (skillName: string, result: any) => void;
+  onSkillStart?: (skillName: string, args: Record<string, unknown>) => void;
+  onSkillEnd?: (skillName: string, result: unknown) => void;
   onSkillNodeStart?: (skillName: string, nodeName: string) => void;
   onSkillNodeEnd?: (
     skillName: string,
     nodeName: string,
-    stateUpdates: any,
+    stateUpdates: Record<string, unknown>,
     reasoning?: string,
-    fullState?: any,
+    fullState?: Record<string, unknown>,
   ) => void;
   onSkillEdgeTraversal?: (
     skillName: string,
@@ -29,42 +29,13 @@ export interface AgentExecutionReporter {
   onSkillToolStart?: (
     skillName: string,
     toolName: string,
-    args: Record<string, any>,
+    args: Record<string, unknown>,
   ) => void;
-  onSkillToolEnd?: (skillName: string, toolName: string, result: any) => void;
-}
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 10,
-});
-const checkpointer = new PostgresSaver(pool);
-
-let isDbSetup = false;
-async function ensureDbSetup() {
-  if (!isDbSetup) {
-    await checkpointer.setup();
-    isDbSetup = true;
-  }
-}
-
-function mapSchemaToZod(customSchema: Record<string, any>) {
-  const shape: any = {};
-  for (const [key, typeHint] of Object.entries(customSchema)) {
-    const isOptional = String(typeHint).endsWith("?");
-    const cleanType = String(typeHint).replace("?", "").toLowerCase();
-
-    let zType;
-    if (cleanType === "number") zType = z.number();
-    else if (cleanType === "boolean") zType = z.boolean();
-    else if (cleanType.includes("array")) zType = z.array(z.any());
-    else if (cleanType === "object" || cleanType === "dict")
-      zType = z.record(z.string(), z.any());
-    else zType = z.string();
-
-    shape[key] = isOptional ? zType.optional() : zType;
-  }
-  return z.object(shape);
+  onSkillToolEnd?: (
+    skillName: string,
+    toolName: string,
+    result: unknown,
+  ) => void;
 }
 
 export async function runExecutiveAgent(
@@ -80,6 +51,12 @@ export async function runExecutiveAgent(
   );
   await ensureDbSetup();
 
+  // FIX #2: Instantiate LLM exactly once and share it
+  const sharedLlm = new ChatOpenAI({
+    modelName: "gpt-4o",
+    temperature: 0.2,
+  });
+
   const buildToolsForAgent = (skillIds: string[]) => {
     return allSkills
       .filter((s) => skillIds.includes(s.id))
@@ -93,12 +70,13 @@ export async function runExecutiveAgent(
         return new DynamicStructuredTool({
           name: skill.id.replace(/[^a-zA-Z0-9_-]/g, "_"),
           description: skill.description || `Execute the ${skill.id} workflow.`,
-          schema: mapSchemaToZod(expectedPayload),
-          func: async (input) => {
+          // FIX #3: Shared Zod Schema Mapper
+          schema: mapSchemaToZod(expectedPayload) as z.ZodObject<any, any>,
+          func: async (input: Record<string, unknown>) => {
             if (reporter?.onSkillStart)
               reporter.onSkillStart(skill.name || skill.id, input);
 
-            const uniqueExecutionId = uuidv4();
+            const uniqueExecutionId = crypto.randomUUID();
 
             const result = await executeAgentManifest(
               manifest,
@@ -152,61 +130,63 @@ export async function runExecutiveAgent(
 
   const parentTools = buildToolsForAgent(agentConfig.skills || []);
 
-  const subAgentTools = assignedSubAgents.map((subAgent) => {
-    return new DynamicStructuredTool({
-      name: subAgent.name.replace(/[^a-zA-Z0-9_-]/g, "_"),
-      description: `Delegate a complex task to ${subAgent.name}. Description: ${subAgent.description}`,
-      schema: z.object({
-        request: z
-          .string()
-          .describe(
-            "The detailed task, goal, or question to give to this sub-agent.",
-          ),
-      }),
-      func: async (input) => {
-        if (reporter?.onSkillStart) reporter.onSkillStart(subAgent.name, input);
+  // FIX #4: Instantiate Sub-Agents OUTSIDE the tool callback execution path
+  const subAgentInstances = assignedSubAgents.map((subAgent) => {
+    const subTools = buildToolsForAgent(subAgent.skills || []);
+    const subCustomPersona = subAgent.system_prompt?.trim()
+      ? `\n--- AGENT ROLE & CUSTOM INSTRUCTIONS ---\n${subAgent.system_prompt}\n`
+      : "";
 
-        const subTools = buildToolsForAgent(subAgent.skills || []);
-        const subLlm = new ChatOpenAI({
-          modelName: "gpt-4o",
-          temperature: 0.2,
-        });
-
-        const subCustomPersona = subAgent.system_prompt?.trim()
-          ? `\n--- AGENT ROLE & CUSTOM INSTRUCTIONS ---\n${subAgent.system_prompt}\n`
-          : "";
-
-        const subAgentInstance = createDeepAgent({
-          model: subLlm,
-          tools: subTools,
-          systemPrompt: `You are an autonomous sub-agent named "${subAgent.name}".\nDescription: ${subAgent.description}${subCustomPersona}`,
-          checkpointer: checkpointer,
-        });
-
-        const result = await subAgentInstance.invoke(
-          { messages: [["user", input.request]] },
-          {
-            configurable: { thread_id: `${threadId}_sub_${subAgent.id}` },
-            callbacks: [], // Prevent bleeding streams
-          },
-        );
-
-        const finalMessage =
-          result.messages[result.messages.length - 1].content;
-
-        if (reporter?.onSkillEnd)
-          reporter.onSkillEnd(subAgent.name, { response: finalMessage });
-        return finalMessage;
-      },
+    const compiledSubAgent = createDeepAgent({
+      model: sharedLlm,
+      tools: subTools,
+      systemPrompt: `You are an autonomous sub-agent named "${subAgent.name}".\nDescription: ${subAgent.description}${subCustomPersona}`,
+      checkpointer: checkpointer,
     });
+
+    return { subAgentConfig: subAgent, compiledSubAgent };
   });
+
+  const subAgentTools = subAgentInstances.map(
+    ({ subAgentConfig, compiledSubAgent }) => {
+      return new DynamicStructuredTool({
+        name: subAgentConfig.name.replace(/[^a-zA-Z0-9_-]/g, "_"),
+        description: `Delegate a complex task to ${subAgentConfig.name}. Description: ${subAgentConfig.description}`,
+        schema: z.object({
+          request: z
+            .string()
+            .describe(
+              "The detailed task, goal, or question to give to this sub-agent.",
+            ),
+        }),
+        func: async (input: { request: string }) => {
+          if (reporter?.onSkillStart)
+            reporter.onSkillStart(subAgentConfig.name, input);
+
+          const result = await compiledSubAgent.invoke(
+            { messages: [["user", input.request]] },
+            {
+              configurable: {
+                thread_id: `${threadId}_sub_${subAgentConfig.id}`,
+              },
+              callbacks: [], // Prevent bleeding streams to parent Orchestrator
+            },
+          );
+
+          const finalMessage =
+            result.messages[result.messages.length - 1].content;
+          if (reporter?.onSkillEnd)
+            reporter.onSkillEnd(subAgentConfig.name, {
+              response: finalMessage,
+            });
+
+          return finalMessage as string;
+        },
+      });
+    },
+  );
 
   const allParentTools = [...parentTools, ...subAgentTools];
-
-  const llm = new ChatOpenAI({
-    modelName: "gpt-4o",
-    temperature: 0.2,
-  });
 
   const customPersona = agentConfig.system_prompt?.trim()
     ? `\n--- AGENT ROLE & CUSTOM INSTRUCTIONS ---\n${agentConfig.system_prompt}\n`
@@ -229,7 +209,7 @@ export async function runExecutiveAgent(
   `;
 
   const agent = createDeepAgent({
-    model: llm,
+    model: sharedLlm,
     tools: allParentTools,
     systemPrompt: systemMessage,
     checkpointer: checkpointer,

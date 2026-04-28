@@ -5,7 +5,7 @@ import {
   ToolConfig,
   MCPServerConfig,
 } from "@/src/lib/types/constants";
-import { generateManifest } from "@/src/lib/runtime/authoring-runtime";
+import { generateManifest } from "@/src/lib/runtime/manifest-compiler";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
