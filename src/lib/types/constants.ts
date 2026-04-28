@@ -35,6 +35,7 @@ export interface MCPServerConfig {
   name: string;
   url: string;
   auth_type: "none" | "api_key" | "bearer";
+  auth_token?: string;
   status: "active" | "inactive" | "error";
 }
 

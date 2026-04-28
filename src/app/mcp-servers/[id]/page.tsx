@@ -202,6 +202,29 @@ export default function MCPServerEditorPage({
                     </div>
                   ))}
                 </div>
+                {server.auth_type !== "none" && (
+                  <div className="space-y-1.5 animate-in fade-in duration-200">
+                    <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5" />
+                      {server.auth_type === "bearer"
+                        ? "Bearer Token"
+                        : "API Key"}
+                    </label>
+                    <input
+                      type="password" // Use password type to hide the token in the UI
+                      value={server.auth_token || ""}
+                      onChange={(e) =>
+                        setServer({ ...server, auth_token: e.target.value })
+                      }
+                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 font-mono text-slate-900"
+                      placeholder={
+                        server.auth_type === "bearer"
+                          ? "access_..."
+                          : "your-api-key"
+                      }
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

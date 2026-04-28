@@ -61,7 +61,7 @@ export type ResolvedSkillConfig = Pick<
 
 export type ResolvedServerConfig = Pick<
   MCPServerConfig,
-  "name" | "url" | "auth_type"
+  "name" | "url" | "auth_type" | "auth_token"
 >;
 
 /**

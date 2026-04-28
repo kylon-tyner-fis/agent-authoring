@@ -5,6 +5,7 @@ import {
   ManifestEdge,
   ManifestExecutionReporter,
   ManifestNode,
+  ResolvedServerConfig,
 } from "./types";
 
 /**
@@ -29,8 +30,6 @@ type ResolvedSkillConfig = Pick<
   ToolConfig,
   "name" | "prompt_template" | "input_schema" | "output_schema"
 >;
-
-type ResolvedServerConfig = Pick<MCPServerConfig, "name" | "url" | "auth_type">;
 
 /**
  * Helper function to resolve and format only the tools and servers
@@ -74,6 +73,7 @@ function resolveDependencies(
           name: server.name,
           url: server.url,
           auth_type: server.auth_type,
+          auth_token: server.auth_token,
         };
         return acc;
       },
