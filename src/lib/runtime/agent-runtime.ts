@@ -3,7 +3,7 @@ import { createDeepAgent } from "deepagents";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { Pool } from "pg";
-import { z } from "zod";
+import { uuidv4, z } from "zod";
 import { AgentConfig, SkillConfig } from "../types/constants";
 import { executeAgentManifest } from "./manifest-executor";
 
@@ -98,10 +98,12 @@ export async function runExecutiveAgent(
             if (reporter?.onSkillStart)
               reporter.onSkillStart(skill.name || skill.id, input);
 
+            const uniqueExecutionId = uuidv4();
+
             const result = await executeAgentManifest(
               manifest,
               JSON.stringify(input),
-              `${threadId}_${skill.id}`,
+              `${threadId}_${skill.id}_${uniqueExecutionId}`,
               undefined,
               {
                 onNodeStart: (nodeName) =>
