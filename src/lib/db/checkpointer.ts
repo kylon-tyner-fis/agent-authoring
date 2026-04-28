@@ -5,6 +5,7 @@ import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 const globalForDb = globalThis as unknown as {
   pool: Pool | undefined;
   checkpointer: PostgresSaver | undefined;
+  isDbSetup: boolean | undefined;
 };
 
 export const pool =
@@ -21,10 +22,10 @@ if (process.env.NODE_ENV !== "production") {
   globalForDb.checkpointer = checkpointer;
 }
 
-let isDbSetup = false;
 export async function ensureDbSetup() {
-  if (!isDbSetup) {
+  // Use the global variable here to prevent Next.js HMR memory leaks
+  if (!globalForDb.isDbSetup) {
     await checkpointer.setup();
-    isDbSetup = true;
+    globalForDb.isDbSetup = true;
   }
 }

@@ -1,13 +1,40 @@
-// lib/mcp-client.ts
-
 import { MCPServerConfig } from "../types/constants";
+
+/**
+ * A strict type representing any valid JSON value.
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/**
+ * A standard Result type for predictable error handling.
+ * Forces the consumer to check `.success` before accessing `.data`.
+ */
+export type Result<T, E = string> =
+  | { success: true; data: T }
+  | { success: false; error: E };
 
 export interface McpToolCall {
   method: "tools/call";
   params: {
     name: string;
-    arguments: Record<string, any>;
+    arguments: Record<string, JsonValue>;
   };
+}
+
+// Strict interfaces for expected JSON-RPC shapes
+interface McpErrorResponse {
+  error?: { message?: string };
+}
+
+interface McpRpcResponse {
+  error?: { message: string };
+  result?: { content: JsonValue };
 }
 
 export class McpClient {
@@ -19,58 +46,101 @@ export class McpClient {
 
   /**
    * Executes a tool on the remote (or local mock) MCP server.
+   * Uses the Result pattern to safely encapsulate network or API errors.
    */
-  async callTool(toolName: string, args: Record<string, any>) {
+  async callTool(
+    toolName: string,
+    args: Record<string, JsonValue>,
+  ): Promise<Result<JsonValue, string>> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
-    // Apply auth if required by the configuration
     if (this.config.auth_type === "api_key") {
-      headers["X-API-Key"] = "your_api_key_here"; // To be replaced with real secret management later
+      headers["X-API-Key"] = "your_api_key_here";
     } else if (this.config.auth_type === "bearer") {
       headers["Authorization"] = "Bearer your_token_here";
     }
 
-    const response = await fetch(`${this.config.url}/tools/call`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: crypto.randomUUID(),
-        method: "tools/call",
-        params: { name: toolName, arguments: args },
-      }),
-    });
+    try {
+      const response = await fetch(`${this.config.url}/tools/call`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: crypto.randomUUID(),
+          method: "tools/call",
+          params: { name: toolName, arguments: args },
+        }),
+      });
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(
-        `MCP Error ${response.status}: ${errData?.error?.message || response.statusText}`,
-      );
+      // Safely handle HTTP errors with strict response typing
+      if (!response.ok) {
+        const errData = (await response
+          .json()
+          .catch(() => ({}))) as McpErrorResponse;
+        const msg = errData?.error?.message || response.statusText;
+        return {
+          success: false,
+          error: `MCP Error ${response.status}: ${msg}`,
+        };
+      }
+
+      const data = (await response.json()) as McpRpcResponse;
+
+      // Safely handle JSON-RPC protocol errors
+      if (data.error) {
+        return {
+          success: false,
+          error: `MCP JSON-RPC Error: ${data.error.message}`,
+        };
+      }
+
+      // Safely handle missing result objects
+      if (!data.result) {
+        return {
+          success: false,
+          error: "MCP Error: Invalid JSON-RPC response format (missing result)",
+        };
+      }
+
+      return { success: true, data: data.result.content };
+    } catch (err) {
+      // Safely handle catastrophic network failures (e.g. DNS resolution failed)
+      // `err` is implicitly unknown in strict TS, we safely narrow it here
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        error: `Network/Execution failed: ${errorMessage}`,
+      };
     }
-
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(`MCP JSON-RPC Error: ${data.error.message}`);
-    }
-
-    return data.result.content;
   }
 
   /**
    * Fetches available tools from the server.
    */
-  async listTools() {
-    const response = await fetch(`${this.config.url}/tools/list`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
+  async listTools(): Promise<Result<JsonValue, string>> {
+    try {
+      const response = await fetch(`${this.config.url}/tools/list`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
 
-    if (!response.ok) {
-      throw new Error(`Failed to list tools: ${response.status}`);
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Failed to list tools: ${response.status}`,
+        };
+      }
+
+      const data = (await response.json()) as JsonValue;
+      return { success: true, data };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        error: `Failed to connect to server: ${errorMessage}`,
+      };
     }
-
-    return response.json();
   }
 }
