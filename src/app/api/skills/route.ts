@@ -38,6 +38,7 @@ export async function POST(req: Request) {
         [
           {
             id: config.id,
+            name: config.name,
             version: config.version,
             description: config.description,
             provider: config.model.provider,
@@ -73,7 +74,9 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from("skills")
-      .select("id, version, description, provider, model_name, updated_at")
+      .select(
+        "id, name, version, description, provider, model_name, updated_at",
+      )
       .order("updated_at", { ascending: false });
 
     if (error) throw error;

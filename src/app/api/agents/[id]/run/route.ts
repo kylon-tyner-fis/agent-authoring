@@ -46,11 +46,23 @@ export async function POST(
       );
     }
 
-    // 2. Fetch the Skills assigned to this Agent
+    // NEW: Fetch assigned Sub-Agents
+    const { data: assignedSubAgents } = await supabase
+      .from("agents")
+      .select("*")
+      .in("id", agentConfig.sub_agents || []);
+
+    // NEW: Gather ALL skill IDs needed (Parent Agent + Sub-Agents)
+    const allRequiredSkillIds = new Set<string>(agentConfig.skills || []);
+    (assignedSubAgents || []).forEach((sub) => {
+      (sub.skills || []).forEach((sId: string) => allRequiredSkillIds.add(sId));
+    });
+
+    // 2. Fetch the Skills assigned to this Agent and its Sub-Agents
     const { data: assignedSkills, error: skillsError } = await supabase
       .from("skills")
       .select("*")
-      .in("id", agentConfig.skills || []);
+      .in("id", Array.from(allRequiredSkillIds));
 
     if (skillsError) {
       throw new Error(`Failed to load assigned skills: ${skillsError.message}`);
@@ -91,6 +103,7 @@ export async function POST(
           await runExecutiveAgent(
             agentConfig,
             assignedSkills || [],
+            assignedSubAgents || [], // FIXED: Added the 3rd parameter here!
             input,
             threadId,
             reporter,

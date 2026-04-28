@@ -16,6 +16,7 @@ import {
   Play,
   Database,
   Info,
+  ShieldAlert,
 } from "lucide-react";
 import {
   SkillConfig,
@@ -349,13 +350,16 @@ export const ConfigPanel = ({
               <div className="grid grid-cols-12 gap-4">
                 <div className="space-y-1.5 col-span-9">
                   <label className="text-xs font-semibold text-gray-600">
-                    Skill ID
+                    Skill Name
                   </label>
                   <input
                     type="text"
-                    value={config.id || "Generated on save"}
-                    disabled
-                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono cursor-not-allowed"
+                    value={config.name || ""}
+                    onChange={(e) =>
+                      setConfig({ ...config, name: e.target.value })
+                    }
+                    placeholder="e.g. Generate Content"
+                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
                   />
                 </div>
                 <div className="space-y-1.5 col-span-3">
@@ -391,13 +395,14 @@ export const ConfigPanel = ({
 
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <User className="w-4 h-4 text-blue-500" /> Persona
+                <ShieldAlert className="w-4 h-4 text-blue-500" /> Global
+                Workflow Rules
               </h2>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 flex justify-between">
-                  <span>System Prompt</span>
+                  <span>System Instructions</span>
                   <span className="text-gray-400 font-normal">
-                    Base Persona Instructions
+                    Rules applied to ALL nodes in this graph.
                   </span>
                 </label>
                 <textarea

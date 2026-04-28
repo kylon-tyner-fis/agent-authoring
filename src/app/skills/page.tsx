@@ -6,6 +6,7 @@ import { Bot, Plus, Trash2, Loader2, Cpu, Clock, Network } from "lucide-react";
 
 interface SkillListItem {
   id: string;
+  name: string;
   version: string;
   description: string;
   model_name: string;
@@ -89,7 +90,7 @@ export default function SkillsDashboard() {
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">
-                      <span className="truncate">{skill.id}</span>
+                      <span className="truncate">{skill.name}</span>
                       <span className="text-sm bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono border border-slate-200">
                         v{skill.version}
                       </span>
