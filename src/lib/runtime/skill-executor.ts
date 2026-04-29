@@ -292,6 +292,10 @@ export async function executeAgentManifest(
     temperature: manifest.engine.model.temperature || 0.7,
   });
 
+  console.log(
+    `[SKILL EXECUTOR DEBUG] Model "${manifest.engine.model.model_name}"`,
+  );
+
   const globalPersona = manifest.engine.system_prompt
     ? `\n--- GLOBAL INSTRUCTIONS ---\n${manifest.engine.system_prompt}\n`
     : "";
