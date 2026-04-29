@@ -18,6 +18,16 @@ export function createMcpNode(node: ManifestNode, context: NodeContext) {
   const serverConfig = manifest.resolved_mcp_servers[serverId];
 
   return async (state: GraphState): Promise<GraphState> => {
+    // --- ADD THESE LOGS ---
+    console.log(`[NODE DEBUG] Executing Node: ${node.id}`);
+    console.log(`[NODE DEBUG] Server ID: ${serverId}`);
+    console.log(`[NODE DEBUG] Config Found: ${!!serverConfig}`);
+    if (serverConfig) {
+      console.log(`[NODE DEBUG] Config URL: ${serverConfig.url}`);
+      console.log(`[NODE DEBUG] Auth Type: ${serverConfig.auth_type}`);
+      console.log(`[NODE DEBUG] Secret: ${serverConfig.auth_token}`);
+    }
+
     if (state.__error__) return {};
     if (!serverConfig || !toolName) {
       console.warn(

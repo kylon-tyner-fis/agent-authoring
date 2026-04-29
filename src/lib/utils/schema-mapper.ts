@@ -8,7 +8,21 @@ export function mapSchemaToZod(
   }
 
   const shape: Record<string, z.ZodTypeAny> = {};
+
   for (const [key, typeHint] of Object.entries(customSchema)) {
+    // 1. Handle nested Arrays of Objects
+    if (Array.isArray(typeHint)) {
+      shape[key] = z.array(mapSchemaToZod(typeHint[0]));
+      continue;
+    }
+
+    // 2. Handle nested Objects
+    if (typeof typeHint === "object" && typeHint !== null) {
+      shape[key] = mapSchemaToZod(typeHint);
+      continue;
+    }
+
+    // 3. Handle Primitives
     const isOptional = String(typeHint).endsWith("?");
     const cleanType = String(typeHint).replace("?", "").toLowerCase();
 
@@ -23,7 +37,7 @@ export function mapSchemaToZod(
       zType = z.record(z.string(), z.any());
     else zType = z.string();
 
-    shape[key] = isOptional ? zType.optional() : zType;
+    shape[key] = isOptional ? zType.nullable() : zType;
   }
 
   return z.object(shape);

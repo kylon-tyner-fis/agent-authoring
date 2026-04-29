@@ -47,6 +47,7 @@ import { ResponseNode } from "../canvas/nodes/ResponseNode";
 import { TriggerNode } from "../canvas/nodes/TriggerNode";
 import { WorkflowNode } from "../canvas/nodes/WorkflowNode";
 import { MCPNode } from "../canvas/nodes/MCPNode"; // NEW
+import { McpClient } from "@/src/lib/api-clients/mcp-client";
 
 const nodeTypes = {
   tool: WorkflowNode,
@@ -199,30 +200,50 @@ const CanvasEditor = forwardRef<
       } else if (node?.type === "response") {
         setInspectorSchema(parseSchema(node.data.response_payload || {}));
       } else if (node?.type === "mcp_node" && node.data.serverId) {
+        console.log(`[ORCHESTRATION DEBUG] Found MCP Node ${node.data}`);
         // Fetch MCP tools for the inspector dynamically
         const serverId = node.data.serverId as string;
         if (!mcpToolsCache[serverId]) {
           setIsLoadingMcp(true);
           // Assuming your mock API handles listing
-          fetch(`/api/mcp-mock/tools/list?serverId=${serverId}`)
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.tools) {
-                setMcpToolsCache((prev) => ({
-                  ...prev,
-                  [serverId]: data.tools,
-                }));
-              }
-            })
-            .catch((err) => console.error("Failed to load MCP tools", err))
-            .finally(() => setIsLoadingMcp(false));
+          const serverConfig = serversList.find((s) => s.id === serverId);
+          if (serverConfig) {
+            const client = new McpClient(serverConfig);
+            client
+              .listTools()
+              .then((result) => {
+                if (result.success) {
+                  setMcpToolsCache((prev) => ({
+                    ...prev,
+                    [serverId]: result.data as any[],
+                  }));
+                } else {
+                  addToast(
+                    `Failed to load server tools: ${result.error}`,
+                    "error",
+                  );
+                }
+              })
+              .catch((err) => {
+                console.error("Failed to load MCP tools", err);
+                addToast("Connection to MCP server failed.", "error");
+              })
+              .finally(() => setIsLoadingMcp(false));
+          }
         }
       } else {
         setInspectorSchema([]);
       }
       setLastLoadedNodeId(selectedNodeId);
     }
-  }, [selectedNodeId, lastLoadedNodeId, nodes, mcpToolsCache]);
+  }, [
+    selectedNodeId,
+    lastLoadedNodeId,
+    nodes,
+    mcpToolsCache,
+    addToast,
+    serversList,
+  ]);
 
   const onConnect = useCallback(
     (params: Connection) => {
