@@ -17,6 +17,8 @@ import {
   Database,
   Info,
   ShieldAlert,
+  Check,
+  Copy,
 } from "lucide-react";
 import {
   SkillConfig,
@@ -60,6 +62,7 @@ export const ConfigPanel = ({
   const [activeTab, setActiveTab] = useState<Tab>("identity");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const canvasRef = useRef<OrchestrationCanvasRef>(null);
   const { addToast } = useToast();
@@ -157,6 +160,68 @@ export const ConfigPanel = ({
   const handleOpenPlayground = () => {
     syncCanvasToConfig();
     onOpenPlayground();
+  };
+
+  const handleCopyConfig = async () => {
+    let latestCanvasData = null;
+    if (activeTab === "orchestration" && canvasRef.current) {
+      latestCanvasData = canvasRef.current.getCanvasData();
+    } else {
+      latestCanvasData = config.orchestration;
+    }
+
+    const rawNodes = latestCanvasData?.nodes || [];
+    const rawEdges = latestCanvasData?.edges || [];
+
+    // Strip visual positioning and internal React Flow state from nodes
+    const semanticNodes = rawNodes.map((n: any) => {
+      const { active, ...cleanData } = n.data || {};
+
+      // Resolve IDs to human-readable names for the snapshot
+      let actionName;
+      if (n.type === "tool" && cleanData.toolId) {
+        actionName = availableTools.find(
+          (t) => t.id === cleanData.toolId,
+        )?.name;
+      } else if (n.type === "mcp_node" && cleanData.serverId) {
+        actionName = availableServers.find(
+          (s) => s.id === cleanData.serverId,
+        )?.name;
+      }
+
+      return {
+        id: n.id,
+        type: n.type,
+        actionName,
+        ...cleanData,
+      };
+    });
+
+    // Strip internal React Flow state from edges
+    const semanticEdges = rawEdges.map((e: any) => ({
+      source: e.source,
+      target: e.target,
+      condition: e.data?.label || undefined,
+    }));
+
+    const snapshot = {
+      ...config,
+      graph: {
+        nodes: semanticNodes,
+        edges: semanticEdges,
+      },
+    };
+
+    delete snapshot.orchestration;
+    delete snapshot.compiled_manifest;
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy to clipboard", err);
+    }
   };
 
   const handleSaveSkill = async () => {
@@ -284,6 +349,18 @@ export const ConfigPanel = ({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleCopyConfig}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+          >
+            {isCopied ? (
+              <Check className="w-4 h-4 text-indigo-600" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
+            {isCopied ? "Copied!" : "Copy Config"}
+          </button>
+
           <button
             onClick={handleOpenPlayground}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200"

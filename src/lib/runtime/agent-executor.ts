@@ -160,7 +160,6 @@ function buildSubAgentTools(
   reporter?: AgentExecutionReporter,
 ): DynamicStructuredTool[] {
   return assignedSubAgents.map((subAgentConfig) => {
-    // Recursively build the tools this specific sub-agent has access to
     const subTools = buildSkillTools(
       subAgentConfig.skills || [],
       allSkills,
@@ -172,7 +171,17 @@ function buildSubAgentTools(
       ? `\n--- AGENT ROLE & CUSTOM INSTRUCTIONS ---\n${subAgentConfig.system_prompt}\n`
       : "";
 
-    // Compile the sub-agent standalone
+    // NEW: Extract the names of the skills assigned to this sub-agent
+    const assignedSkillNames = allSkills
+      .filter((s) => (subAgentConfig.skills || []).includes(s.id))
+      .map((s) => s.name)
+      .join(", ");
+
+    // NEW: Inject those capabilities into the tool description
+    const enhancedDescription = assignedSkillNames
+      ? `Delegate a complex task to ${subAgentConfig.name}. Description: ${subAgentConfig.description} It has access to the following skills/tools: [${assignedSkillNames}].`
+      : `Delegate a complex task to ${subAgentConfig.name}. Description: ${subAgentConfig.description}`;
+
     const compiledSubAgent = createDeepAgent({
       model: sharedLlm,
       tools: subTools,
@@ -180,13 +189,12 @@ function buildSubAgentTools(
       checkpointer: checkpointer,
     });
 
-    // Return a tool that the parent agent can call to invoke the compiled sub-agent
     return new DynamicStructuredTool({
       name: generateSafeToolName(
         subAgentConfig.name || "Agent",
         subAgentConfig.id,
       ),
-      description: `Delegate a complex task to ${subAgentConfig.name}. Description: ${subAgentConfig.description}`,
+      description: enhancedDescription, // <-- Use enhanced description here
       schema: z.object({
         request: z
           .string()

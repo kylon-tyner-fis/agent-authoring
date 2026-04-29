@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Wrench, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Wrench, Loader2, Check, Copy } from "lucide-react";
 import { ToolConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { SchemaNode } from "@/src/components/shared/json-tools/SchemaEditor";
@@ -80,6 +80,24 @@ export default function ToolEditorPage({
   const [inputNodes, setInputNodes] = useState<SchemaNode[]>([]);
   const [outputNodes, setOutputNodes] = useState<SchemaNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyConfig = async () => {
+    const snapshot = {
+      name: tool.name,
+      description: tool.description,
+      prompt_template: tool.prompt_template,
+      input_schema: compileSchema(inputNodes),
+      output_schema: compileSchema(outputNodes),
+    };
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy to clipboard", err);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -150,12 +168,25 @@ export default function ToolEditorPage({
         >
           <ArrowLeft className="w-4 h-4" /> Back to Library
         </button>
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
-        >
-          <Save className="w-4 h-4" /> Save Tool
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCopyConfig}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+          >
+            {isCopied ? (
+              <Check className="w-4 h-4 text-indigo-600" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
+            {isCopied ? "Copied!" : "Copy Config"}
+          </button>
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+          >
+            <Save className="w-4 h-4" /> Save Tool
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 p-8">

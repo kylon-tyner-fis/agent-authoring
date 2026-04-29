@@ -10,6 +10,8 @@ import {
   Key,
   Activity,
   Loader2,
+  Check,
+  Copy,
 } from "lucide-react";
 import { MCPServerConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
@@ -32,6 +34,24 @@ export default function MCPServerEditorPage({
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyConfig = async () => {
+    const snapshot = {
+      name: server.name,
+      url: server.url,
+      auth_type: server.auth_type,
+      status: server.status,
+      // Intentionally omitting auth_token for safety
+    };
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy to clipboard", err);
+    }
+  };
 
   useEffect(() => {
     const fetchServer = async () => {
@@ -91,18 +111,31 @@ export default function MCPServerEditorPage({
         >
           <ArrowLeft className="w-4 h-4" /> Back to Servers
         </button>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
-        >
-          {isSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          Save Server Config
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCopyConfig}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+          >
+            {isCopied ? (
+              <Check className="w-4 h-4 text-teal-600" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
+            {isCopied ? "Copied!" : "Copy Config"}
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Save Server Config
+          </button>
+        </div>
       </div>
 
       {/* Editor Body remains unchanged from your previous version, just bound to state */}
