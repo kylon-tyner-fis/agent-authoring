@@ -9,6 +9,7 @@ import {
   ChevronRight,
   PlusCircle,
   Network,
+  Layers,
 } from "lucide-react";
 
 export default function GlobalDashboard() {
@@ -16,9 +17,19 @@ export default function GlobalDashboard() {
 
   const sections = [
     {
+      title: "Orchestrators",
+      description:
+        "Top-level executive systems that manage and delegate tasks to specialized Agents to achieve open-ended goals.",
+      icon: <Layers className="w-6 h-6 text-purple-600" />,
+      path: "/orchestrators",
+      count: "0 Active",
+      color: "purple",
+      action: () => router.push("/orchestrators"),
+    },
+    {
       title: "Agents",
       description:
-        "Autonomous executive systems that reason, plan, and delegate tasks to specific Skills to achieve open-ended goals.",
+        "Autonomous systems that reason, plan, and delegate tasks to specific Skills.",
       icon: <Bot className="w-6 h-6 text-emerald-600" />,
       path: "/agents",
       count: "0 Active",
@@ -66,7 +77,6 @@ export default function GlobalDashboard() {
           </p>
         </header>
 
-        {/* NAVIGATION CARDS */}
         <div className="grid grid-cols-1 gap-4">
           {sections.map((s) => (
             <button
@@ -92,16 +102,6 @@ export default function GlobalDashboard() {
               </div>
             </button>
           ))}
-        </div>
-
-        {/* QUICK ACTION */}
-        <div className="pt-4">
-          <button
-            onClick={() => router.push("/agents/new")}
-            className="flex items-center gap-2 text-blue-600 font-bold hover:underline transition-all"
-          >
-            <PlusCircle className="w-5 h-5" /> Create new agent workflow
-          </button>
         </div>
       </div>
     </main>

@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { runExecutiveAgent } from "@/src/lib/runtime/agent-executor";
+import { AgentConfig } from "@/src/lib/types/constants";
 
 export async function POST(req: Request) {
   try {
-    const { config, agentConfig, input, thread_id } = await req.json();
-    const targetConfig = config || agentConfig;
+    const { config, input, thread_id } = await req.json();
 
-    if (!targetConfig) {
+    if (!config) {
       return NextResponse.json(
-        { error: "Missing Agent Config" },
+        { error: "Missing Orchestrator Config" },
         { status: 400 },
       );
     }
@@ -19,7 +19,23 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    const allRequiredSkillIds = new Set(targetConfig.skills || []);
+    // Fetch assigned Agents
+    const { data: assignedAgents, error: agentsError } = await supabase
+      .from("agents")
+      .select("*")
+      .in("id", config.agents || []);
+
+    if (agentsError) {
+      throw new Error(`Failed to load assigned agents: ${agentsError.message}`);
+    }
+
+    // Gather ALL skill IDs needed by the sub-agents
+    const allRequiredSkillIds = new Set<string>();
+    (assignedAgents || []).forEach((agent) => {
+      (agent.skills || []).forEach((sId: string) =>
+        allRequiredSkillIds.add(sId),
+      );
+    });
 
     const { data: allSkills, error: skillsError } = await supabase
       .from("skills")
@@ -30,9 +46,20 @@ export async function POST(req: Request) {
       throw new Error(`Failed to load assigned skills: ${skillsError.message}`);
     }
 
+    // Map orchestrator to AgentConfig format to reuse the runner
+    const orchestratorAsAgent: AgentConfig = {
+      id: config.id,
+      name: config.name,
+      description: config.description,
+      skills: [],
+      status: config.status,
+      system_prompt: config.system_prompt,
+    };
+
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
+        // FULL REPORTER: Now tracks all inner skill logic, nodes, and MCP/LLM tools
         const reporter = {
           onMessageChunk: (chunk: string) =>
             controller.enqueue(
@@ -102,9 +129,9 @@ export async function POST(req: Request) {
 
         try {
           await runExecutiveAgent(
-            targetConfig,
+            orchestratorAsAgent,
             allSkills || [],
-            [], // No sub-agents permitted
+            assignedAgents || [],
             input,
             thread_id,
             reporter,
@@ -133,7 +160,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Agent Simulation Error:", error);
+    console.error("Orchestrator Simulation Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

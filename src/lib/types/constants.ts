@@ -1,5 +1,3 @@
-// lib/constants.ts
-
 export type FieldType =
   | "string"
   | "number"
@@ -20,7 +18,6 @@ export interface ModelConfig {
   max_tokens: number;
 }
 
-// UPDATED: Removed mcp_dependencies
 export interface ToolConfig {
   id: string;
   name: string;
@@ -43,8 +40,8 @@ export interface GraphNode {
   type: string;
   skill_id?: string;
   toolId?: string;
-  serverId?: string; // NEW: For MCP nodes
-  toolName?: string; // NEW: The specific action on the MCP server
+  serverId?: string;
+  toolName?: string;
   input_mapping?: Record<string, string | string[]>;
   output_mapping?: Record<string, string>;
   custom_instructions?: string;
@@ -122,7 +119,15 @@ export interface AgentConfig {
   skills: string[];
   status: "active" | "inactive";
   system_prompt?: string;
-  sub_agents?: string[];
+}
+
+export interface OrchestratorConfig {
+  id: string;
+  name: string;
+  description: string;
+  agents: string[];
+  status: "active" | "inactive";
+  system_prompt?: string;
 }
 
 export const DEFAULT_SKILL_CONFIG: SkillConfig = {

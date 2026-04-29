@@ -58,6 +58,7 @@ export async function POST(
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
+        // FULL REPORTER INSTALLED HERE AS WELL
         const reporter = {
           onMessageChunk: (chunk: string) =>
             controller.enqueue(
@@ -75,6 +76,52 @@ export async function POST(
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({ type: "skill_end", skillName, result })}\n\n`,
+              ),
+            ),
+          onSkillNodeStart: (skillName: string, nodeId: string) =>
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "skill_node_start", skillName, nodeId })}\n\n`,
+              ),
+            ),
+          onSkillNodeEnd: (
+            skillName: string,
+            nodeId: string,
+            updates: any,
+            reasoning?: string,
+            fullState?: any,
+          ) =>
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "skill_node_end", skillName, nodeId, updates, reasoning, fullState })}\n\n`,
+              ),
+            ),
+          onSkillEdgeTraversal: (
+            skillName: string,
+            source: string,
+            target: string,
+            condition?: string,
+            reasoning?: string,
+          ) =>
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "skill_edge_traversal", skillName, source, target, condition, reasoning })}\n\n`,
+              ),
+            ),
+          onSkillToolStart: (
+            skillName: string,
+            toolName: string,
+            args: Record<string, any>,
+          ) =>
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "skill_tool_start", skillName, toolName, args })}\n\n`,
+              ),
+            ),
+          onSkillToolEnd: (skillName: string, toolName: string, result: any) =>
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "skill_tool_end", skillName, toolName, result })}\n\n`,
               ),
             ),
         };
