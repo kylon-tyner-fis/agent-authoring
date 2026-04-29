@@ -2,7 +2,16 @@
 
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Bot, Network, Loader2, Play } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Bot,
+  Network,
+  Loader2,
+  Play,
+  Check,
+  Copy,
+} from "lucide-react";
 import { AgentConfig, SkillConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
@@ -30,6 +39,37 @@ export default function AgentEditorPage({
   const [isSaving, setIsSaving] = useState(false);
   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
   const [availableAgents, setAvailableAgents] = useState<AgentConfig[]>([]);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyConfig = async () => {
+    try {
+      // Build a comprehensive snapshot replacing IDs with their full objects
+      const snapshot = {
+        ...agent,
+        skills: agent.skills.map(
+          (skillId) => availableSkills.find((s) => s.id === skillId) || skillId,
+        ),
+        sub_agents: (agent.sub_agents || []).map((subAgentId) => {
+          const subAgent = availableAgents.find((a) => a.id === subAgentId);
+          if (!subAgent) return subAgentId;
+
+          return {
+            ...subAgent,
+            skills: (subAgent.skills || []).map(
+              (skillId) =>
+                availableSkills.find((s) => s.id === skillId) || skillId,
+            ),
+          };
+        }),
+      };
+
+      await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy to clipboard", err);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -112,6 +152,18 @@ export default function AgentEditorPage({
           <ArrowLeft className="w-4 h-4" /> Back to Agents
         </button>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleCopyConfig}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+          >
+            {isCopied ? (
+              <Check className="w-4 h-4 text-emerald-600" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
+            {isCopied ? "Copied!" : "Copy Config"}
+          </button>
+
           <button
             onClick={() => setIsPlaygroundOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200"

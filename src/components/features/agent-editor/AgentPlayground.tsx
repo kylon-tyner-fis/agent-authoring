@@ -13,6 +13,8 @@ import {
   ArrowRight,
   GitBranch,
   Brain,
+  Check,
+  Copy,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { AgentConfig } from "@/src/lib/types/constants";
@@ -121,6 +123,47 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [threadId] = useState(() => uuidv4());
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyTrace = async () => {
+    let trace = "## Agent Execution Trace\n\n";
+
+    history.forEach((h) => {
+      if (h.type === "message") {
+        trace += `${h.content}\n\n`;
+      } else if (h.type === "skill_start") {
+        trace += `**Executing Skill/Sub-Agent:** ${h.skillName}\n`;
+        trace += `Arguments:\n\`\`\`json\n${JSON.stringify(h.args, null, 2)}\n\`\`\`\n\n`;
+      } else if (h.type === "skill_end") {
+        trace += `**Skill/Sub-Agent Completed:** ${h.skillName}\n`;
+        trace += `Result:\n\`\`\`json\n${JSON.stringify(h.result, null, 2)}\n\`\`\`\n\n`;
+      } else if (h.type === "skill_node_start") {
+        trace += `**Node Started:** ${h.nodeId} (in ${h.skillName})\n\n`;
+      } else if (h.type === "skill_node_end") {
+        trace += `**Node Completed:** ${h.nodeId} (in ${h.skillName})\n`;
+        trace += `State Updates:\n\`\`\`json\n${JSON.stringify(h.updates, null, 2)}\n\`\`\`\n\n`;
+      } else if (h.type === "skill_edge_traversal") {
+        trace += `**Edge Traversal:** ${h.source} -> ${h.target}\n`;
+        if (h.condition) trace += `Condition: "${h.condition}"\n`;
+        if (h.reasoning) trace += `Reasoning: ${h.reasoning}\n`;
+        trace += `\n`;
+      } else if (h.type === "skill_tool_start") {
+        trace += `**Tool Started:** ${h.toolName}\n`;
+        trace += `Arguments:\n\`\`\`json\n${JSON.stringify(h.args, null, 2)}\n\`\`\`\n\n`;
+      } else if (h.type === "skill_tool_end") {
+        trace += `**Tool Completed:** ${h.toolName}\n`;
+        trace += `Result:\n\`\`\`json\n${JSON.stringify(h.result, null, 2)}\n\`\`\`\n\n`;
+      }
+    });
+
+    try {
+      await navigator.clipboard.writeText(trace);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy trace", err);
+    }
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -285,12 +328,25 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Bot className="w-5 h-5 text-emerald-600" /> Agent Executive Sandbox
         </h2>
-        <button
-          onClick={onClose}
-          className="p-2 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCopyTrace}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
+          >
+            {isCopied ? (
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+            {isCopied ? "Copied" : "Copy Trace"}
+          </button>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {error && (
