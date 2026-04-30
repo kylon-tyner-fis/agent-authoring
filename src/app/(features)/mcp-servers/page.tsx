@@ -85,10 +85,10 @@ export default function MCPServersDashboard() {
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
                   <div
-                    className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center border ${server.status === "active" ? "bg-cyan-50 border-cyan-200" : "bg-red-50 border-red-200"}`}
+                    className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center border ${server.status === "Active" ? "bg-cyan-50 border-cyan-200" : "bg-red-50 border-red-200"}`}
                   >
                     <Activity
-                      className={`w-5 h-5 ${server.status === "active" ? "text-cyan-500" : "text-red-500"}`}
+                      className={`w-5 h-5 ${server.status === "Active" ? "text-cyan-500" : "text-red-500"}`}
                     />
                   </div>
                   <div className="min-w-0">

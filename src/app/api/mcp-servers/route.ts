@@ -19,15 +19,15 @@ export async function GET() {
     const serversWithHealth = await Promise.all(
       data.map(async (server) => {
         // Only run a check if it hasn't been purposefully disabled and a URL exists
-        if (server.status !== "inactive" && server.health_url) {
+        if (server.status !== "Inactive" && server.health_url) {
           try {
             const res = await fetch(server.health_url, {
               method: "GET",
               signal: AbortSignal.timeout(3000), // Enforce 3 second max timeout
             });
-            server.status = res.ok ? "active" : "error";
+            server.status = res.ok ? "Active" : "Error";
           } catch (err) {
-            server.status = "error";
+            server.status = "Error";
           }
         }
         return server;

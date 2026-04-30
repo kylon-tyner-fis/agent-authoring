@@ -22,7 +22,7 @@ export default function MCPServerEditorPage({
     url: "",
     health_url: "",
     auth_type: "none",
-    status: "active",
+    status: "Active",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -141,20 +141,14 @@ export default function MCPServerEditorPage({
                   <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
                     <Activity className="w-3.5 h-3.5" /> Status
                   </label>
-                  <select
+                  <input
                     value={server.status}
-                    onChange={(e) =>
-                      setServer({
-                        ...server,
-                        status: e.target.value as MCPServerConfig["status"],
-                      })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 bg-white cursor-pointer text-slate-900"
-                  >
-                    <option value="active">🟢 Active</option>
-                    <option value="inactive">⚪ Inactive</option>
-                    <option value="error">🔴 Error / Offline</option>
-                  </select>
+                    disabled
+                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none bg-slate-50 cursor-not-allowed text-slate-500"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Status is updated dynamically via health checks.
+                  </p>
                 </div>
               </div>
             </div>

@@ -18,7 +18,6 @@ export default function GlobalDashboard() {
   const router = useRouter();
   const { currentProject } = useProject();
 
-  // 1. Dynamic Data Integration: State to hold our fetched counts
   const [counts, setCounts] = useState({
     orchestrators: 0,
     agents: 0,
@@ -27,8 +26,8 @@ export default function GlobalDashboard() {
     mcpServers: 0,
   });
 
-  // State to hold the health of our external integrations
   const [mcpHealth, setMcpHealth] = useState({ total: 0, offline: 0 });
+  const [offlineServers, setOfflineServers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -42,17 +41,21 @@ export default function GlobalDashboard() {
 
     const fetchDashboardData = async () => {
       try {
+        // 1. Force the browser to skip the cache and get fresh data
+        const fetchOpts = { cache: "no-store" as RequestCache };
+
         const [orchRes, agentsRes, skillsRes, toolsRes, mcpRes] =
           await Promise.all([
-            fetch(`/api/orchestrators?projectId=${currentProject.id}`).then(
+            fetch(
+              `/api/orchestrators?projectId=${currentProject.id}`,
+              fetchOpts,
+            ).then((res) => res.json()),
+            fetch(`/api/agents?projectId=${currentProject.id}`, fetchOpts).then(
               (res) => res.json(),
             ),
-            fetch(`/api/agents?projectId=${currentProject.id}`).then((res) =>
-              res.json(),
-            ),
-            fetch("/api/skills").then((res) => res.json()),
-            fetch("/api/tools").then((res) => res.json()),
-            fetch("/api/mcp-servers").then((res) => res.json()),
+            fetch("/api/skills", fetchOpts).then((res) => res.json()),
+            fetch("/api/tools", fetchOpts).then((res) => res.json()),
+            fetch("/api/mcp-servers", fetchOpts).then((res) => res.json()),
           ]);
 
         setCounts({
@@ -63,13 +66,13 @@ export default function GlobalDashboard() {
           mcpServers: mcpRes.servers?.length || 0,
         });
 
-        // 3. System Status Overview: Calculate how many servers are not active
         const servers = mcpRes.servers || [];
-        const offlineServers = servers.filter(
-          (s: any) => s.status !== "active",
-        ).length;
 
-        setMcpHealth({ total: servers.length, offline: offlineServers });
+        // 2. FIXED TYPO: "active" must be lowercase!
+        const offline = servers.filter((s: any) => s.status !== "Active");
+
+        setMcpHealth({ total: servers.length, offline: offline.length });
+        setOfflineServers(offline);
       } catch (error) {
         console.error("Failed to fetch dashboard data", error);
       } finally {
@@ -77,7 +80,14 @@ export default function GlobalDashboard() {
       }
     };
 
+    // Run immediately on mount
     fetchDashboardData();
+
+    // 3. Set up active polling to re-run the fetch every 15 seconds
+    const pollInterval = setInterval(fetchDashboardData, 15000);
+
+    // Cleanup the interval when we leave the dashboard
+    return () => clearInterval(pollInterval);
   }, [currentProject, hasMounted]);
 
   const sections = [
@@ -154,7 +164,6 @@ export default function GlobalDashboard() {
 
   return (
     <main className="min-h-screen bg-slate-50 p-10">
-      {/* Increased max-w to accommodate the new 3-column grid */}
       <div className="max-w-7xl mx-auto space-y-8">
         <header>
           <h1 className="text-3xl font-bold text-slate-900">Command Center</h1>
@@ -163,19 +172,32 @@ export default function GlobalDashboard() {
           </p>
         </header>
 
-        {/* 3. System Status Overview Banner */}
-        <div className="flex items-center gap-4 p-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-start gap-4 p-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
           {!isLoading && mcpHealth.offline > 0 ? (
             <>
               <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center shrink-0">
                 <AlertCircle className="w-6 h-6 text-red-500" />
               </div>
-              <div>
-                <h3 className="font-bold text-slate-900">System Warning</h3>
+              <div className="flex-1">
+                <h3 className="font-bold text-slate-900 mt-1.5">
+                  System Warning
+                </h3>
                 <p className="text-sm text-slate-500 mt-0.5">
                   {mcpHealth.offline} of {mcpHealth.total} MCP Servers are
                   offline or reporting errors. Some skills may fail to execute.
                 </p>
+                {offlineServers.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {offlineServers.map((s) => (
+                      <span
+                        key={s.id}
+                        className="inline-flex items-center text-xs font-semibold text-red-700 bg-red-50 px-2.5 py-1 rounded-md border border-red-200"
+                      >
+                        {s.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           ) : (
@@ -184,7 +206,7 @@ export default function GlobalDashboard() {
                 <Activity className="w-6 h-6 text-emerald-500" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900">
+                <h3 className="font-bold text-slate-900 mt-1.5">
                   {isLoading
                     ? "Checking systems..."
                     : "All Systems Operational"}
@@ -197,7 +219,6 @@ export default function GlobalDashboard() {
           )}
         </div>
 
-        {/* 2. Responsive Grid Layout: Changed from grid-cols-1 to md:grid-cols-2 lg:grid-cols-3 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sections.map((s) => (
             <button
