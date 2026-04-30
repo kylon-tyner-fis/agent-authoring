@@ -585,7 +585,7 @@ const CanvasEditor = forwardRef<
               {toolsList.map((tool) => (
                 <div
                   key={tool.id}
-                  className="p-2 border border-blue-200 bg-white text-blue-700 rounded cursor-grab flex flex-col gap-1 hover:bg-blue-50 transition-colors shadow-sm"
+                  className="p-2 border border-amber-200 bg-white text-amber-700 rounded cursor-grab flex flex-col gap-1 hover:bg-amber-50 transition-colors shadow-sm"
                   onDragStart={(e) => onDragStart(e, "tool", tool.id)}
                   draggable
                 >
@@ -610,7 +610,7 @@ const CanvasEditor = forwardRef<
               {serversList.map((server) => (
                 <div
                   key={server.id}
-                  className="p-2 border border-teal-200 bg-white text-teal-700 rounded cursor-grab flex flex-col gap-1 hover:bg-teal-50 transition-colors shadow-sm"
+                  className="p-2 border border-cyan-200 bg-white text-cyan-700 rounded cursor-grab flex flex-col gap-1 hover:bg-cyan-50 transition-colors shadow-sm"
                   onDragStart={(e) => onDragStart(e, "mcp_node", server.id)}
                   draggable
                 >
@@ -634,7 +634,7 @@ const CanvasEditor = forwardRef<
                   API Contract
                 </p>
                 <div
-                  className="p-2 border border-emerald-200 bg-white text-emerald-700 rounded cursor-grab flex items-center gap-2 hover:bg-emerald-50 transition-colors shadow-sm mb-1.5"
+                  className="p-2 border border-sky-200 bg-white text-sky-700 rounded cursor-grab flex items-center gap-2 hover:bg-sky-50 transition-colors shadow-sm mb-1.5"
                   onDragStart={(e) => onDragStart(e, "trigger")}
                   draggable
                 >
@@ -754,7 +754,7 @@ const CanvasEditor = forwardRef<
                       onChange={(e) =>
                         handleNodeChange("label", e.target.value)
                       }
-                      className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 font-mono text-slate-900"
+                      className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-sky-500 font-mono text-slate-900"
                     />
                   </div>
 
@@ -781,7 +781,7 @@ const CanvasEditor = forwardRef<
                               handleNodeChange("toolName", e.target.value);
                               handleNodeChange("input_mapping", {}); // reset mappings
                             }}
-                            className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-teal-500 bg-white"
+                            className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-cyan-500 bg-white"
                           >
                             <option value="">-- Choose an action --</option>
                             {availableMcpTools.map((t) => (
@@ -801,7 +801,7 @@ const CanvasEditor = forwardRef<
                       {selectedMcpToolDef && (
                         <>
                           <div className="pt-4 border-t border-slate-100 space-y-3">
-                            <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                            <div className="flex items-center gap-2 text-cyan-700 mb-2">
                               <ArrowRightLeft className="w-4 h-4" />
                               <h3 className="text-xs font-bold uppercase tracking-wider">
                                 Input Mapping
@@ -839,7 +839,7 @@ const CanvasEditor = forwardRef<
                                         e.target.value,
                                       )
                                     }
-                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-cyan-500 bg-white"
                                   >
                                     <option value="">
                                       -- Select State Variable --
@@ -856,7 +856,7 @@ const CanvasEditor = forwardRef<
                           </div>
 
                           <div className="pt-4 border-t border-slate-100 space-y-3">
-                            <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                            <div className="flex items-center gap-2 text-cyan-700 mb-2">
                               <ArrowRightLeft className="w-4 h-4" />
                               <h3 className="text-xs font-bold uppercase tracking-wider">
                                 Output Mapping
@@ -886,7 +886,7 @@ const CanvasEditor = forwardRef<
                                     e.target.value,
                                   )
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-cyan-500 bg-white"
                               >
                                 <option value="">
                                   -- Select Target State --
@@ -927,12 +927,12 @@ const CanvasEditor = forwardRef<
                               e.target.value,
                             )
                           }
-                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 text-slate-900 min-h-[100px] bg-slate-50"
+                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-amber-500 text-slate-900 min-h-[100px] bg-slate-50"
                         />
                       </div>
 
                       <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                        <div className="flex items-center gap-2 text-amber-700 mb-2">
                           <ArrowRightLeft className="w-4 h-4" />
                           <h3 className="text-xs font-bold uppercase tracking-wider">
                             Input Mapping
@@ -1000,7 +1000,7 @@ const CanvasEditor = forwardRef<
                                               newArr,
                                             );
                                           }}
-                                          className="flex-1 p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white text-slate-900"
+                                          className="flex-1 p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-amber-500 bg-white text-slate-900"
                                         >
                                           <option value="">
                                             -- Select State Variable --
@@ -1043,7 +1043,7 @@ const CanvasEditor = forwardRef<
                                           newArr,
                                         );
                                       }}
-                                      className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 py-1"
+                                      className="text-[10px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 py-1"
                                     >
                                       <Plus className="w-3 h-3" /> Add mapped
                                       variable
@@ -1059,7 +1059,7 @@ const CanvasEditor = forwardRef<
                                         e.target.value,
                                       )
                                     }
-                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-amber-500 bg-white"
                                   >
                                     <option value="">
                                       -- Select State Variable --
@@ -1078,7 +1078,7 @@ const CanvasEditor = forwardRef<
                       </div>
 
                       <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                        <div className="flex items-center gap-2 text-amber-700 mb-2">
                           <ArrowRightLeft className="w-4 h-4" />
                           <h3 className="text-xs font-bold uppercase tracking-wider">
                             Output Mapping
@@ -1111,7 +1111,7 @@ const CanvasEditor = forwardRef<
                                       e.target.value,
                                     )
                                   }
-                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-amber-500 bg-white"
                                 >
                                   <option value="">
                                     -- Select Target State --
@@ -1148,11 +1148,11 @@ const CanvasEditor = forwardRef<
                               e.target.value,
                             )
                           }
-                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-emerald-500 text-slate-900 min-h-[100px] bg-slate-50"
+                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-sky-500 text-slate-900 min-h-[100px] bg-slate-50"
                         />
                       </div>
                       <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                        <div className="flex items-center gap-2 text-sky-700 mb-2">
                           <Zap className="w-4 h-4" />
                           <h3 className="text-xs font-bold uppercase tracking-wider">
                             Expected Payload
@@ -1167,7 +1167,7 @@ const CanvasEditor = forwardRef<
                       </div>
 
                       <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                        <div className="flex items-center gap-2 text-sky-700 mb-2">
                           <ArrowRightLeft className="w-4 h-4" />
                           <h3 className="text-xs font-bold uppercase tracking-wider">
                             Initialization Mapping
@@ -1202,7 +1202,7 @@ const CanvasEditor = forwardRef<
                                     e.target.value,
                                   )
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white"
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-sky-500 bg-white"
                               >
                                 <option value="">
                                   -- Select State Variable --
@@ -1258,7 +1258,7 @@ const CanvasEditor = forwardRef<
                       </div>
 
                       <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                        <div className="flex items-center gap-2 text-purple-600 mb-2">
                           <ArrowRightLeft className="w-4 h-4" />
                           <h3 className="text-xs font-bold uppercase tracking-wider">
                             Extraction Mapping
@@ -1292,7 +1292,7 @@ const CanvasEditor = forwardRef<
                                     e.target.value,
                                   )
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500 bg-white text-slate-900"
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-purple-500 bg-white text-slate-900"
                               >
                                 <option value="">
                                   -- Select State Variable --

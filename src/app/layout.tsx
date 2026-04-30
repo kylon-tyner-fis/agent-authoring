@@ -17,6 +17,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LangGraph Agent Studio",
   description: "Visual authoring tool for LangGraph agents",
+  icons: {
+    icon:
+      process.env.NODE_ENV === "development" ? "/icon-dev.svg" : "/icon.svg",
+  },
 };
 
 export default function RootLayout({

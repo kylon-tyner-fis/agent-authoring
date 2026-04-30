@@ -47,11 +47,11 @@ export default function MCPServersDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Server className="w-6 h-6 text-teal-600" /> MCP Servers
+              <Server className="w-6 h-6 text-cyan-700" /> MCP Servers
             </h1>
             <p className="text-slate-500 text-sm mt-1">
               Connect external tools, databases, and APIs to your agents.
@@ -59,7 +59,7 @@ export default function MCPServersDashboard() {
           </div>
           <button
             onClick={() => router.push("/mcp-servers/new")}
-            className="flex items-center gap-2 bg-teal-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-teal-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-cyan-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-cyan-700 transition-colors shadow-sm"
           >
             <Plus className="w-5 h-5" /> Add Server
           </button>
@@ -85,10 +85,10 @@ export default function MCPServersDashboard() {
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
                   <div
-                    className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center border ${server.status === "active" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}
+                    className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center border ${server.status === "active" ? "bg-cyan-50 border-cyan-200" : "bg-red-50 border-red-200"}`}
                   >
                     <Activity
-                      className={`w-5 h-5 ${server.status === "active" ? "text-emerald-500" : "text-red-500"}`}
+                      className={`w-5 h-5 ${server.status === "active" ? "text-cyan-500" : "text-red-500"}`}
                     />
                   </div>
                   <div className="min-w-0">

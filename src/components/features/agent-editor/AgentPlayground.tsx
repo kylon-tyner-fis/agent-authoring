@@ -21,7 +21,7 @@ import { AgentConfig, OrchestratorConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { RecursiveJsonViewer } from "../../shared/json-tools/RecursiveJsonViewer";
 
-const MarkdownComponents = {
+const getMarkdownComponents = (linkClassName: string) => ({
   p: ({ node, ...props }: any) => (
     <p
       className="mb-4 leading-relaxed text-sm text-slate-700 last:mb-0"
@@ -54,7 +54,7 @@ const MarkdownComponents = {
     <strong className="font-bold text-slate-900" {...props} />
   ),
   a: ({ node, ...props }: any) => (
-    <a className="text-emerald-600 hover:underline font-medium" {...props} />
+    <a className={`${linkClassName} hover:underline font-medium`} {...props} />
   ),
   blockquote: ({ node, ...props }: any) => (
     <blockquote
@@ -79,7 +79,7 @@ const MarkdownComponents = {
       </pre>
     );
   },
-};
+});
 
 type HistoryEvent =
   | { type: "message"; content: string }
@@ -112,12 +112,35 @@ type HistoryEvent =
 interface AgentPlaygroundProps {
   config: AgentConfig | OrchestratorConfig;
   apiEndpoint?: string;
+  accent?: "agent" | "orchestrator";
   onClose: () => void;
 }
+
+const accentClasses = {
+  agent: {
+    link: "text-emerald-600",
+    iconBg: "bg-emerald-100",
+    iconText: "text-emerald-600",
+    messageBg: "bg-emerald-600",
+    spinner: "text-emerald-500",
+    focusRing: "focus:ring-emerald-500",
+    button: "bg-emerald-600 hover:bg-emerald-700",
+  },
+  orchestrator: {
+    link: "text-sky-600",
+    iconBg: "bg-sky-100",
+    iconText: "text-sky-600",
+    messageBg: "bg-sky-600",
+    spinner: "text-sky-500",
+    focusRing: "focus:ring-sky-500",
+    button: "bg-sky-600 hover:bg-sky-700",
+  },
+};
 
 export const AgentPlayground = ({
   config,
   apiEndpoint,
+  accent = "agent",
   onClose,
 }: AgentPlaygroundProps) => {
   const [input, setInput] = useState("");
@@ -127,6 +150,8 @@ export const AgentPlayground = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [threadId] = useState(() => uuidv4());
   const [isCopied, setIsCopied] = useState(false);
+  const theme = accentClasses[accent];
+  const markdownComponents = getMarkdownComponents(theme.link);
 
   const handleCopyTrace = async () => {
     let trace = "## Execution Trace\n\n";
@@ -328,7 +353,7 @@ export const AgentPlayground = ({
     <div className="w-full flex flex-col h-full bg-gray-50 relative border-l border-gray-200">
       <div className="border-b border-gray-200 bg-white shrink-0 shadow-sm z-10 p-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Bot className="w-5 h-5 text-emerald-600" /> Sandbox
+          <Bot className={`w-5 h-5 ${theme.iconText}`} /> Sandbox
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -336,7 +361,7 @@ export const AgentPlayground = ({
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
           >
             {isCopied ? (
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <Check className={`w-3.5 h-3.5 ${theme.iconText}`} />
             ) : (
               <Copy className="w-3.5 h-3.5" />
             )}
@@ -385,12 +410,14 @@ export const AgentPlayground = ({
                 className={`flex gap-3 w-full ${isUser ? "justify-end" : "justify-start"}`}
               >
                 {!isUser && (
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-sm bg-emerald-100">
-                    <Bot className="w-4 h-4 text-emerald-600" />
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-sm ${theme.iconBg}`}
+                  >
+                    <Bot className={`w-4 h-4 ${theme.iconText}`} />
                   </div>
                 )}
                 <div
-                  className={`p-4 rounded-xl max-w-[85%] w-full shadow-sm ${isUser ? "bg-emerald-600 text-white" : "bg-white border border-gray-200"}`}
+                  className={`p-4 rounded-xl max-w-[85%] w-full shadow-sm ${isUser ? `${theme.messageBg} text-white` : "bg-white border border-gray-200"}`}
                 >
                   {isUser ? (
                     <p className="text-sm m-0 leading-relaxed whitespace-pre-wrap">
@@ -398,7 +425,7 @@ export const AgentPlayground = ({
                     </p>
                   ) : (
                     <div className="w-full">
-                      <ReactMarkdown components={MarkdownComponents}>
+                      <ReactMarkdown components={markdownComponents}>
                         {cleanContent}
                       </ReactMarkdown>
                     </div>
@@ -416,14 +443,14 @@ export const AgentPlayground = ({
                 className="flex flex-col gap-1.5 ml-11 animate-in fade-in w-[85%]"
               >
                 <div
-                  className={`flex items-center gap-2 text-[11px] font-mono ${isSubAgent ? "text-purple-600" : "text-blue-600"}`}
+                  className={`flex items-center gap-2 text-[11px] font-mono ${isSubAgent ? "text-emerald-600" : "text-violet-600"}`}
                 >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>
                     {isSubAgent ? "Delegating task:" : "Executing Workflow:"}
                   </span>
                   <span
-                    className={`font-semibold border px-1.5 py-0.5 rounded ${isSubAgent ? "bg-purple-50 border-purple-200" : "bg-blue-50 border-blue-200"}`}
+                    className={`font-semibold border px-1.5 py-0.5 rounded ${isSubAgent ? "bg-emerald-50 border-emerald-200" : "bg-violet-50 border-violet-200"}`}
                   >
                     {item.skillName}
                   </span>
@@ -455,7 +482,7 @@ export const AgentPlayground = ({
                     <Network className="w-4 h-4 text-slate-500" />
                     <h3 className="font-semibold text-slate-700 m-0 text-[11px] uppercase tracking-wide">
                       Graph Node Completed:{" "}
-                      <span className="text-blue-600 font-bold">
+                      <span className="text-violet-600 font-bold">
                         {item.nodeId}
                       </span>
                     </h3>
@@ -513,17 +540,17 @@ export const AgentPlayground = ({
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1.5 ml-16 my-2 animate-in fade-in w-[75%] border-l-2 border-teal-200 pl-3"
+                className="flex flex-col gap-1.5 ml-16 my-2 animate-in fade-in w-[75%] border-l-2 border-cyan-200 pl-3"
               >
-                <div className="flex items-center gap-2 text-[11px] text-teal-600 font-mono">
+                <div className="flex items-center gap-2 text-[11px] text-cyan-700 font-mono">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Calling Tool / MCP:</span>
-                  <span className="font-semibold bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded">
+                  <span className="font-semibold bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded">
                     {item.toolName}
                   </span>
                 </div>
-                <div className="bg-white border border-teal-100 rounded shadow-sm p-2">
-                  <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider block mb-1">
+                <div className="bg-white border border-cyan-100 rounded shadow-sm p-2">
+                  <span className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider block mb-1">
                     Tool Inputs
                   </span>
                   <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto">
@@ -536,14 +563,14 @@ export const AgentPlayground = ({
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1.5 ml-16 mb-4 animate-in fade-in w-[75%] border-l-2 border-teal-200 pl-3"
+                className="flex flex-col gap-1.5 ml-16 mb-4 animate-in fade-in w-[75%] border-l-2 border-cyan-200 pl-3"
               >
-                <div className="flex items-center gap-2 text-[11px] text-teal-600 font-mono">
+                <div className="flex items-center gap-2 text-[11px] text-cyan-700 font-mono">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Tool / MCP Completed</span>
                 </div>
-                <div className="bg-white border border-teal-100 rounded shadow-sm p-2">
-                  <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider block mb-1">
+                <div className="bg-white border border-cyan-100 rounded shadow-sm p-2">
+                  <span className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider block mb-1">
                     Tool Outputs
                   </span>
                   <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto max-h-60 overflow-y-auto custom-scrollbar">
@@ -587,8 +614,8 @@ export const AgentPlayground = ({
 
         {isSimulating && (
           <div className="flex gap-3 text-gray-400 items-center animate-pulse pl-11 mt-4">
-            <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
-            <span className="text-sm font-semibold text-emerald-500">
+            <Loader2 className={`w-5 h-5 animate-spin ${theme.spinner}`} />
+            <span className={`text-sm font-semibold ${theme.spinner}`}>
               Processing...
             </span>
           </div>
@@ -602,13 +629,13 @@ export const AgentPlayground = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your request..."
-            className="flex-1 p-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-gray-100 shadow-sm transition-all"
+            className={`flex-1 p-3.5 border border-gray-300 rounded-xl focus:ring-2 ${theme.focusRing} outline-none disabled:bg-gray-100 shadow-sm transition-all`}
             disabled={isSimulating}
           />
           <button
             type="submit"
             disabled={isSimulating || !input.trim()}
-            className="bg-emerald-600 text-white p-3.5 rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm"
+            className={`${theme.button} text-white p-3.5 rounded-xl disabled:opacity-50 transition-colors shadow-sm`}
           >
             <Send className="w-5 h-5" />
           </button>

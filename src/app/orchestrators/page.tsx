@@ -37,11 +37,11 @@ export default function OrchestratorsDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Layers className="w-6 h-6 text-purple-600" /> Orchestrators
+              <Layers className="w-6 h-6 text-sky-600" /> Orchestrators
             </h1>
             <p className="text-slate-500 text-sm mt-1">
               Top-level executive systems that manage and delegate tasks to
@@ -50,7 +50,7 @@ export default function OrchestratorsDashboard() {
           </div>
           <button
             onClick={() => router.push("/orchestrators/new")}
-            className="flex items-center gap-2 bg-purple-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-purple-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-sky-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-sky-700 transition-colors shadow-sm"
           >
             <Plus className="w-5 h-5" /> Create Orchestrator
           </button>
@@ -72,8 +72,8 @@ export default function OrchestratorsDashboard() {
                 className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group"
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
-                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-purple-50 border-purple-200">
-                    <Layers className="w-5 h-5 text-purple-600" />
+                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-sky-50 border-sky-200">
+                    <Layers className="w-5 h-5 text-sky-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">
