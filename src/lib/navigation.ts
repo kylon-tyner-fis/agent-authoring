@@ -1,5 +1,6 @@
 export type PrimarySectionKey =
   | "dashboard"
+  | "orchestrators"
   | "agents"
   | "skills"
   | "tools"
@@ -19,6 +20,7 @@ export interface BreadcrumbItem {
 
 export const PRIMARY_NAV: PrimaryNavItem[] = [
   { key: "dashboard", label: "Dashboard", href: "/" },
+  { key: "orchestrators", label: "Orchestrators", href: "/orchestrators" },
   { key: "agents", label: "Agents", href: "/agents" },
   { key: "skills", label: "Skills", href: "/skills" },
   { key: "tools", label: "Tools", href: "/tools" },
@@ -30,6 +32,7 @@ const startsWithSegment = (pathname: string, prefix: string) =>
 
 export const resolvePrimarySection = (pathname: string): PrimarySectionKey => {
   if (pathname === "/") return "dashboard";
+  if (startsWithSegment(pathname, "/orchestrators")) return "orchestrators";
   if (startsWithSegment(pathname, "/agents")) return "agents";
   if (startsWithSegment(pathname, "/skills")) return "skills";
   if (startsWithSegment(pathname, "/tools")) return "tools";

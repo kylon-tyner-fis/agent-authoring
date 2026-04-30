@@ -5,18 +5,18 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Save,
+  Layers,
   Bot,
-  Network,
   Loader2,
   Play,
   Check,
   Copy,
 } from "lucide-react";
-import { AgentConfig, SkillConfig } from "@/src/lib/types/constants";
+import { OrchestratorConfig, AgentConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
 
-export default function AgentEditorPage({
+export default function OrchestratorEditorPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -25,16 +25,16 @@ export default function AgentEditorPage({
   const { id } = use(params);
   const isNew = id === "new";
 
-  const [agent, setAgent] = useState<AgentConfig>({
+  const [orchestrator, setOrchestrator] = useState<OrchestratorConfig>({
     id: "",
     name: "",
     description: "",
-    skills: [],
+    agents: [],
     status: "active",
     system_prompt: "",
   });
 
-  const [availableSkills, setAvailableSkills] = useState<SkillConfig[]>([]);
+  const [availableAgents, setAvailableAgents] = useState<AgentConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
@@ -43,9 +43,9 @@ export default function AgentEditorPage({
   const handleCopyConfig = async () => {
     try {
       const snapshot = {
-        ...agent,
-        skills: agent.skills.map(
-          (skillId) => availableSkills.find((s) => s.id === skillId) || skillId,
+        ...orchestrator,
+        agents: orchestrator.agents.map(
+          (agentId) => availableAgents.find((a) => a.id === agentId) || agentId,
         ),
       };
 
@@ -60,15 +60,15 @@ export default function AgentEditorPage({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const skillsData = await fetch("/api/skills").then((res) => res.json());
+        const agentsData = await fetch("/api/agents").then((res) => res.json());
 
-        if (skillsData.skills) setAvailableSkills(skillsData.skills);
+        if (agentsData.agents) setAvailableAgents(agentsData.agents);
 
         if (!isNew) {
-          const agentData = await fetch(`/api/agents/${id}`).then((res) =>
+          const orchData = await fetch(`/api/orchestrators/${id}`).then((res) =>
             res.json(),
           );
-          if (agentData.agent) setAgent(agentData.agent);
+          if (orchData.orchestrator) setOrchestrator(orchData.orchestrator);
         }
       } catch (error) {
         console.error("Failed to load data:", error);
@@ -81,36 +81,39 @@ export default function AgentEditorPage({
 
   const handleSave = async () => {
     setIsSaving(true);
-    const finalAgent = { ...agent, id: agent.id || uuidv4() };
+    const finalOrchestrator = {
+      ...orchestrator,
+      id: orchestrator.id || uuidv4(),
+    };
 
     try {
-      const res = await fetch("/api/agents", {
+      const res = await fetch("/api/orchestrators", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalAgent),
+        body: JSON.stringify(finalOrchestrator),
       });
 
-      if (res.ok) router.push("/agents");
+      if (res.ok) router.push("/orchestrators");
     } catch (error) {
-      console.error("Error saving agent:", error);
+      console.error("Error saving orchestrator:", error);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const toggleSkill = (skillId: string) => {
-    setAgent((prev) => ({
+  const toggleAgent = (agentId: string) => {
+    setOrchestrator((prev) => ({
       ...prev,
-      skills: prev.skills.includes(skillId)
-        ? prev.skills.filter((id) => id !== skillId)
-        : [...prev.skills, skillId],
+      agents: prev.agents.includes(agentId)
+        ? prev.agents.filter((id) => id !== agentId)
+        : [...prev.agents, agentId],
     }));
   };
 
   if (isLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
       </div>
     );
   }
@@ -119,10 +122,10 @@ export default function AgentEditorPage({
     <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
       <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
         <button
-          onClick={() => router.push("/agents")}
+          onClick={() => router.push("/orchestrators")}
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Agents
+          <ArrowLeft className="w-4 h-4" /> Back to Orchestrators
         </button>
         <div className="flex items-center gap-3">
           <button
@@ -130,7 +133,7 @@ export default function AgentEditorPage({
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
           >
             {isCopied ? (
-              <Check className="w-4 h-4 text-emerald-600" />
+              <Check className="w-4 h-4 text-purple-600" />
             ) : (
               <Copy className="w-4 h-4" />
             )}
@@ -139,22 +142,22 @@ export default function AgentEditorPage({
 
           <button
             onClick={() => setIsPlaygroundOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200"
           >
-            <Play className="w-4 h-4" /> Test Agent
+            <Play className="w-4 h-4" /> Test Orchestrator
           </button>
 
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50"
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Save className="w-4 h-4" />
             )}
-            Save Agent
+            Save Orchestrator
           </button>
         </div>
       </div>
@@ -166,21 +169,22 @@ export default function AgentEditorPage({
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Bot className="w-4 h-4 text-emerald-500" /> General Information
+                <Layers className="w-4 h-4 text-purple-500" /> General
+                Information
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5 col-span-2">
                   <label className="text-xs font-semibold text-gray-600">
-                    Agent Name
+                    Orchestrator Name
                   </label>
                   <input
                     type="text"
-                    value={agent.name}
+                    value={orchestrator.name}
                     onChange={(e) =>
-                      setAgent({ ...agent, name: e.target.value })
+                      setOrchestrator({ ...orchestrator, name: e.target.value })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500"
-                    placeholder="e.g. Sales Assistant"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-purple-500"
+                    placeholder="e.g. Master Content Coordinator"
                   />
                 </div>
                 <div className="space-y-1.5 col-span-2">
@@ -189,28 +193,34 @@ export default function AgentEditorPage({
                   </label>
                   <input
                     type="text"
-                    value={agent.description}
+                    value={orchestrator.description}
                     onChange={(e) =>
-                      setAgent({ ...agent, description: e.target.value })
+                      setOrchestrator({
+                        ...orchestrator,
+                        description: e.target.value,
+                      })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-purple-500"
                   />
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <label className="text-xs font-semibold text-gray-600 flex justify-between">
-                    <span>Agent Prompt / Role</span>
+                    <span>System Prompt</span>
                     <span className="text-gray-400 font-normal">
                       Base Persona & Instructions
                     </span>
                   </label>
                   <textarea
                     rows={8}
-                    value={agent.system_prompt || ""}
+                    value={orchestrator.system_prompt || ""}
                     onChange={(e) =>
-                      setAgent({ ...agent, system_prompt: e.target.value })
+                      setOrchestrator({
+                        ...orchestrator,
+                        system_prompt: e.target.value,
+                      })
                     }
-                    className="w-full p-3 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 min-h-[150px] bg-slate-50 text-slate-900"
-                    placeholder="e.g. You are a Goals, Outcomes, and Objectives agent for technical education..."
+                    className="w-full p-3 text-sm border border-gray-300 rounded-lg outline-none focus:border-purple-500 min-h-[150px] bg-slate-50 text-slate-900"
+                    placeholder="e.g. You are the lead Orchestrator responsible for..."
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -218,14 +228,14 @@ export default function AgentEditorPage({
                     Status
                   </label>
                   <select
-                    value={agent.status}
+                    value={orchestrator.status}
                     onChange={(e) =>
-                      setAgent({
-                        ...agent,
+                      setOrchestrator({
+                        ...orchestrator,
                         status: e.target.value as "active" | "inactive",
                       })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 bg-white"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-purple-500 bg-white"
                   >
                     <option value="active">🟢 Active</option>
                     <option value="inactive">⚪ Inactive</option>
@@ -236,40 +246,38 @@ export default function AgentEditorPage({
 
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Network className="w-4 h-4 text-blue-500" /> Assigned Skills
-                (Workflows)
+                <Bot className="w-4 h-4 text-emerald-500" /> Assigned Agents
               </h2>
               <p className="text-xs text-slate-500">
-                Select the orchestration workflows this agent is allowed to
-                execute.
+                Select the agents this orchestrator can delegate tasks to.
               </p>
 
               <div className="grid grid-cols-2 gap-4 mt-2">
-                {availableSkills.map((skill) => (
+                {availableAgents.map((agent) => (
                   <div
-                    key={skill.id}
-                    onClick={() => toggleSkill(skill.id)}
-                    className={`p-4 border rounded-xl cursor-pointer transition-all ${agent.skills.includes(skill.id) ? "border-blue-500 bg-blue-50/30 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}
+                    key={agent.id}
+                    onClick={() => toggleAgent(agent.id)}
+                    className={`p-4 border rounded-xl cursor-pointer transition-all ${orchestrator.agents.includes(agent.id) ? "border-emerald-500 bg-emerald-50/30 ring-1 ring-emerald-500" : "border-slate-200 hover:border-slate-300"}`}
                   >
                     <div className="flex justify-between items-start mb-1">
                       <span className="font-bold text-sm text-slate-800 truncate">
-                        {skill.name}
+                        {agent.name}
                       </span>
                       <input
                         type="checkbox"
-                        checked={agent.skills.includes(skill.id)}
+                        checked={orchestrator.agents.includes(agent.id)}
                         readOnly
                         className="mt-1"
                       />
                     </div>
                     <span className="text-xs text-slate-500 line-clamp-2">
-                      {skill.description}
+                      {agent.description}
                     </span>
                   </div>
                 ))}
-                {availableSkills.length === 0 && (
+                {availableAgents.length === 0 && (
                   <div className="col-span-2 p-6 text-sm text-slate-400 italic text-center border border-dashed border-slate-300 rounded-xl">
-                    No skills available. Create one in the Skills tab first.
+                    No agents available. Create one in the Agents tab first.
                   </div>
                 )}
               </div>
@@ -280,8 +288,8 @@ export default function AgentEditorPage({
         {isPlaygroundOpen && (
           <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300 border-l border-slate-200">
             <AgentPlayground
-              config={agent}
-              apiEndpoint="/api/agents/simulate"
+              config={orchestrator}
+              apiEndpoint="/api/orchestrators/simulate"
               onClose={() => setIsPlaygroundOpen(false)}
             />
           </div>

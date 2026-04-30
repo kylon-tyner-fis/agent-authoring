@@ -1,16 +1,30 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { runExecutiveAgent } from "@/src/lib/runtime/agent-executor";
+import { AgentConfig } from "@/src/lib/types/constants";
 
-export async function POST(req: Request) {
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    const { config, agentConfig, input, thread_id } = await req.json();
-    const targetConfig = config || agentConfig;
+    const { id } = await params;
+    const { input, threadId } = await req.json();
 
-    if (!targetConfig) {
+    if (!input || !threadId) {
       return NextResponse.json(
-        { error: "Missing Agent Config" },
-        { status: 400 },
+        { error: "Missing input or threadId." },
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -19,7 +33,37 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    const allRequiredSkillIds = new Set(targetConfig.skills || []);
+    // 1. Fetch the Orchestrator
+    const { data: orchConfig, error: orchError } = await supabase
+      .from("orchestrators")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (orchError || !orchConfig) {
+      return NextResponse.json(
+        { error: "Orchestrator not found." },
+        { status: 404, headers: corsHeaders },
+      );
+    }
+
+    // 2. Fetch the assigned Agents
+    const { data: assignedAgents, error: agentsError } = await supabase
+      .from("agents")
+      .select("*")
+      .in("id", orchConfig.agents || []);
+
+    if (agentsError) {
+      throw new Error(`Failed to load assigned agents: ${agentsError.message}`);
+    }
+
+    // 3. Gather ALL skill IDs needed by the sub-agents
+    const allRequiredSkillIds = new Set<string>();
+    (assignedAgents || []).forEach((agent) => {
+      (agent.skills || []).forEach((sId: string) =>
+        allRequiredSkillIds.add(sId),
+      );
+    });
 
     const { data: allSkills, error: skillsError } = await supabase
       .from("skills")
@@ -27,17 +71,28 @@ export async function POST(req: Request) {
       .in("id", Array.from(allRequiredSkillIds));
 
     if (skillsError) {
-      throw new Error(`Failed to load assigned skills: ${skillsError.message}`);
+      throw new Error(`Failed to load skills: ${skillsError.message}`);
     }
+
+    // Map orchestrator to AgentConfig format to reuse the runner
+    const orchestratorAsAgent: AgentConfig = {
+      id: orchConfig.id,
+      name: orchConfig.name,
+      description: orchConfig.description,
+      skills: [], // Orchestrators don't use skills directly
+      status: orchConfig.status,
+      system_prompt: orchConfig.system_prompt,
+    };
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
+        // FULL REPORTER
         const reporter = {
           onMessageChunk: (chunk: string) =>
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "chunk", chunk })}\n\n`,
+                `data: ${JSON.stringify({ type: "message", chunk })}\n\n`,
               ),
             ),
           onSkillStart: (skillName: string, args: Record<string, any>) =>
@@ -102,16 +157,16 @@ export async function POST(req: Request) {
 
         try {
           await runExecutiveAgent(
-            targetConfig,
+            orchestratorAsAgent,
             allSkills || [],
-            [], // No sub-agents permitted
+            assignedAgents || [], // Pass the sub-agents so the orchestrator can use them!
             input,
-            thread_id,
+            threadId,
             reporter,
           );
 
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ type: "final" })}\n\n`),
+            encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`),
           );
           controller.close();
         } catch (e: any) {
@@ -130,10 +185,14 @@ export async function POST(req: Request) {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
+        ...corsHeaders,
       },
     });
   } catch (error: any) {
-    console.error("Agent Simulation Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Execution Error:", error);
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: corsHeaders },
+    );
   }
 }

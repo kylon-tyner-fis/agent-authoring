@@ -17,11 +17,10 @@ import {
   Copy,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { AgentConfig } from "@/src/lib/types/constants";
+import { AgentConfig, OrchestratorConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { RecursiveJsonViewer } from "../../shared/json-tools/RecursiveJsonViewer";
 
-// Explicitly define how every markdown element should be styled
 const MarkdownComponents = {
   p: ({ node, ...props }: any) => (
     <p
@@ -111,31 +110,35 @@ type HistoryEvent =
     };
 
 interface AgentPlaygroundProps {
-  agent: AgentConfig;
+  config: AgentConfig | OrchestratorConfig;
+  apiEndpoint?: string;
   onClose: () => void;
 }
 
-export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
+export const AgentPlayground = ({
+  config,
+  apiEndpoint,
+  onClose,
+}: AgentPlaygroundProps) => {
   const [input, setInput] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [threadId] = useState(() => uuidv4());
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopyTrace = async () => {
-    let trace = "## Agent Execution Trace\n\n";
+    let trace = "## Execution Trace\n\n";
 
     history.forEach((h) => {
       if (h.type === "message") {
         trace += `${h.content}\n\n`;
       } else if (h.type === "skill_start") {
-        trace += `**Executing Skill/Sub-Agent:** ${h.skillName}\n`;
+        trace += `**Executing System:** ${h.skillName}\n`;
         trace += `Arguments:\n\`\`\`json\n${JSON.stringify(h.args, null, 2)}\n\`\`\`\n\n`;
       } else if (h.type === "skill_end") {
-        trace += `**Skill/Sub-Agent Completed:** ${h.skillName}\n`;
+        trace += `**System Completed:** ${h.skillName}\n`;
         trace += `Result:\n\`\`\`json\n${JSON.stringify(h.result, null, 2)}\n\`\`\`\n\n`;
       } else if (h.type === "skill_node_start") {
         trace += `**Node Started:** ${h.nodeId} (in ${h.skillName})\n\n`;
@@ -166,9 +169,8 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
   };
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
   }, [history]);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -186,11 +188,11 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
     setIsSimulating(true);
 
     try {
-      const response = await fetch("/api/agents/simulate", {
+      const response = await fetch(apiEndpoint || "/api/agents/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agentConfig: agent,
+          config,
           input: displayContent,
           thread_id: threadId,
         }),
@@ -326,7 +328,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
     <div className="w-full flex flex-col h-full bg-gray-50 relative border-l border-gray-200">
       <div className="border-b border-gray-200 bg-white shrink-0 shadow-sm z-10 p-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Bot className="w-5 h-5 text-emerald-600" /> Agent Executive Sandbox
+          <Bot className="w-5 h-5 text-emerald-600" /> Sandbox
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -366,7 +368,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
         {history.length === 0 && !isSimulating && (
           <div className="text-center mt-10">
             <p className="text-sm text-gray-500 italic">
-              Chat with the Executive Agent to test its reasoning and routing.
+              Chat with the system to test its reasoning and routing.
             </p>
           </div>
         )}
@@ -408,7 +410,6 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
             const isSubAgent =
               item.args?.request !== undefined &&
               Object.keys(item.args).length === 1;
-
             return (
               <div
                 key={i}
@@ -419,9 +420,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                 >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>
-                    {isSubAgent
-                      ? "Delegating to Sub-Agent:"
-                      : "Executing Workflow Skill:"}
+                    {isSubAgent ? "Delegating task:" : "Executing Workflow:"}
                   </span>
                   <span
                     className={`font-semibold border px-1.5 py-0.5 rounded ${isSubAgent ? "bg-purple-50 border-purple-200" : "bg-blue-50 border-blue-200"}`}
@@ -431,9 +430,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
                 </div>
                 <div className="text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200">
                   <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider text-xs">
-                    {isSubAgent
-                      ? "Agent Instructions / Request"
-                      : "Workflow Parameters"}
+                    {isSubAgent ? "Agent Instructions / Request" : "Parameters"}
                   </span>
                   {isSubAgent ? (
                     <pre className="text-xs bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto font-mono text-slate-700 whitespace-pre-wrap">
@@ -592,7 +589,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
           <div className="flex gap-3 text-gray-400 items-center animate-pulse pl-11 mt-4">
             <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
             <span className="text-sm font-semibold text-emerald-500">
-              Agent Reasoning...
+              Processing...
             </span>
           </div>
         )}
@@ -604,7 +601,7 @@ export const AgentPlayground = ({ agent, onClose }: AgentPlaygroundProps) => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a goal for the agent..."
+            placeholder="Type your request..."
             className="flex-1 p-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-gray-100 shadow-sm transition-all"
             disabled={isSimulating}
           />
