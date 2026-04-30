@@ -3,25 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation"; // <-- Added router
 import {
-  Settings2,
   SlidersHorizontal,
   Share2,
   Braces,
-  Save,
-  CheckCircle2,
-  User,
   Fingerprint,
   Network,
   AlignLeft,
   Cpu,
-  Play,
   Database,
-  Info,
-  ShieldAlert,
-  Check,
-  Copy,
-  ArrowLeft, // <-- Added icon
-  Loader2, // <-- Added for loading state consistency
+  ShieldAlert, // <-- Added for loading state consistency
 } from "lucide-react";
 import {
   SkillConfig,
@@ -36,6 +26,7 @@ import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "../../shared/json-tools/SchemaViewer";
 import { v4 as uuidv4 } from "uuid";
+import { EditorTopPanel } from "../../layout/EditorTopPanel";
 
 interface ConfigPanelProps {
   config: SkillConfig;
@@ -335,55 +326,19 @@ export const ConfigPanel = ({
         <option value="any" />
       </datalist>
 
-      {/* --- STANDARDIZED CONTEXTUAL SUB-HEADER --- */}
-      <div className="px-4 sm:px-6 lg:px-8 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
-        <button
-          onClick={() => router.push("/skills")}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Skills
-        </button>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleCopyConfig}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
-          >
-            {isCopied ? (
-              <Check className="w-4 h-4 text-violet-600" />
-            ) : (
-              <Copy className="w-4 h-4" />
-            )}
-            {isCopied ? "Copied!" : "Copy Config"}
-          </button>
-
-          <button
-            onClick={handleOpenPlayground}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200"
-          >
-            <Play className="w-4 h-4" /> Test Skill
-          </button>
-
-          <button
-            onClick={handleSaveSkill}
-            disabled={isSaving}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              saveSuccess
-                ? "bg-green-100 text-green-700 border border-green-200"
-                : "bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
-            }`}
-          >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : saveSuccess ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {saveSuccess ? "Published" : "Save Skill"}
-          </button>
-        </div>
-      </div>
-      {/* ------------------------------------------- */}
+      <EditorTopPanel
+        backUrl="/skills"
+        backLabel="Back to Skills"
+        onCopy={handleCopyConfig}
+        isCopied={isCopied}
+        onTest={handleOpenPlayground}
+        testLabel="Test Skill"
+        onSave={handleSaveSkill}
+        saveLabel="Save Skill"
+        isSaving={isSaving}
+        saveSuccess={saveSuccess}
+        themeColor="violet"
+      />
 
       <div className="flex px-4 sm:px-6 lg:px-8 pt-2 bg-slate-50 border-b border-gray-200 shrink-0 overflow-x-auto">
         {[

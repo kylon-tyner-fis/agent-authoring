@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PRIMARY_NAV, resolvePrimarySection } from "@/src/lib/navigation";
 import {
-  ArrowLeft,
   Layers,
   Bot,
   Network,
@@ -27,8 +26,8 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   // 2. Dynamically assign the layout wrapper class
   const headerLayoutClass = isDetailPage
-    ? "w-full px-4 sm:px-6 lg:px-8" // Fluid edge-to-edge for Canvases/Editors
-    : "mx-auto max-w-7xl w-full"; // Constrained for Dashboards/Lists
+    ? "max-w-full" // Fluid edge-to-edge
+    : "max-w-7xl"; // Constrained
 
   // Helper to return the correct icon for each nav item
   const getNavIcon = (key: string, isActive: boolean) => {
@@ -56,7 +55,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
       <header className="h-16 shrink-0 sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur flex items-center">
         {/* Changed to justify-between to push utilities to the right */}
         <div
-          className={`flex items-center justify-between gap-5 ${headerLayoutClass}`}
+          className={`mx-auto w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-5 transition-all duration-300 ease-in-out ${headerLayoutClass}`}
         >
           {/* Left Side: Navigation Links */}
           <nav

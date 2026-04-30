@@ -2,19 +2,11 @@
 
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Save,
-  Bot,
-  Network,
-  Loader2,
-  Play,
-  Check,
-  Copy,
-} from "lucide-react";
+import { Bot, Network, Loader2 } from "lucide-react";
 import { AgentConfig, SkillConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
+import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
 
 export default function AgentEditorPage({
   params,
@@ -117,47 +109,18 @@ export default function AgentEditorPage({
 
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
-      <div className="py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10 px-4 sm:px-6 lg:px-8">
-        <button
-          onClick={() => router.push("/agents")}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Agents
-        </button>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleCopyConfig}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
-          >
-            {isCopied ? (
-              <Check className="w-4 h-4 text-emerald-600" />
-            ) : (
-              <Copy className="w-4 h-4" />
-            )}
-            {isCopied ? "Copied!" : "Copy Config"}
-          </button>
-
-          <button
-            onClick={() => setIsPlaygroundOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200"
-          >
-            <Play className="w-4 h-4" /> Test Agent
-          </button>
-
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
-          >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            Save Agent
-          </button>
-        </div>
-      </div>
+      <EditorTopPanel
+        backUrl="/agents"
+        backLabel="Back to Agents"
+        onCopy={handleCopyConfig}
+        isCopied={isCopied}
+        onTest={() => setIsPlaygroundOpen(true)}
+        testLabel="Test Agent"
+        onSave={handleSave}
+        saveLabel="Save Agent"
+        isSaving={isSaving}
+        themeColor="emerald"
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <div

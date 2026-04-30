@@ -2,11 +2,12 @@
 
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Wrench, Loader2, Check, Copy } from "lucide-react";
+import { Wrench, Loader2 } from "lucide-react";
 import { ToolConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { SchemaNode } from "@/src/components/shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "@/src/components/shared/json-tools/SchemaViewer";
+import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
 
 const parseSchema = (schema: Record<string, any>): SchemaNode[] => {
   if (!schema) return [];
@@ -80,6 +81,7 @@ export default function ToolEditorPage({
   const [inputNodes, setInputNodes] = useState<SchemaNode[]>([]);
   const [outputNodes, setOutputNodes] = useState<SchemaNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false); // ADDED: isSaving state
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopyConfig = async () => {
@@ -127,6 +129,7 @@ export default function ToolEditorPage({
   }, [id, isNew]);
 
   const handleSave = async () => {
+    setIsSaving(true); // ADDED: toggle loading to true
     const finalId = tool.id || uuidv4();
 
     const finalTool = {
@@ -148,6 +151,8 @@ export default function ToolEditorPage({
       }
     } catch (error) {
       console.error("Error saving tool:", error);
+    } finally {
+      setIsSaving(false); // ADDED: toggle loading to false
     }
   };
 
@@ -161,33 +166,16 @@ export default function ToolEditorPage({
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
-        <button
-          onClick={() => router.push("/tools")}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Library
-        </button>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleCopyConfig}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
-          >
-            {isCopied ? (
-              <Check className="w-4 h-4 text-amber-700" />
-            ) : (
-              <Copy className="w-4 h-4" />
-            )}
-            {isCopied ? "Copied!" : "Copy Config"}
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors"
-          >
-            <Save className="w-4 h-4" /> Save Tool
-          </button>
-        </div>
-      </div>
+      <EditorTopPanel
+        backUrl="/tools"
+        backLabel="Back to Library"
+        onCopy={handleCopyConfig}
+        isCopied={isCopied}
+        onSave={handleSave}
+        saveLabel="Save Tool"
+        isSaving={isSaving}
+        themeColor="amber"
+      />
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-5xl mx-auto space-y-8">

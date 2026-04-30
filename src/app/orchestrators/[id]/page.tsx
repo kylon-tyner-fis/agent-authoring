@@ -2,19 +2,11 @@
 
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Save,
-  Layers,
-  Bot,
-  Loader2,
-  Play,
-  Check,
-  Copy,
-} from "lucide-react";
+import { Layers, Bot, Loader2 } from "lucide-react";
 import { OrchestratorConfig, AgentConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
+import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
 
 export default function OrchestratorEditorPage({
   params,
@@ -120,47 +112,18 @@ export default function OrchestratorEditorPage({
 
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
-      <div className="px-4 sm:px-6 lg:px-8 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
-        <button
-          onClick={() => router.push("/orchestrators")}
-          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Orchestrators
-        </button>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleCopyConfig}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
-          >
-            {isCopied ? (
-              <Check className="w-4 h-4 text-sky-600" />
-            ) : (
-              <Copy className="w-4 h-4" />
-            )}
-            {isCopied ? "Copied!" : "Copy Config"}
-          </button>
-
-          <button
-            onClick={() => setIsPlaygroundOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200"
-          >
-            <Play className="w-4 h-4" /> Test Orchestrator
-          </button>
-
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-semibold hover:bg-sky-700 transition-colors disabled:opacity-50"
-          >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            Save Orchestrator
-          </button>
-        </div>
-      </div>
+      <EditorTopPanel
+        backUrl="/orchestrators"
+        backLabel="Back to Orchestrators"
+        onCopy={handleCopyConfig}
+        isCopied={isCopied}
+        onTest={() => setIsPlaygroundOpen(true)}
+        testLabel="Test Orchestrator"
+        onSave={handleSave}
+        saveLabel="Save Orchestrator"
+        isSaving={isSaving}
+        themeColor="sky"
+      />
       <div className="flex flex-1 overflow-hidden">
         <div
           className={`flex-1 overflow-y-auto p-8 transition-all duration-300 ${isPlaygroundOpen ? "w-[60%]" : "w-full"}`}
