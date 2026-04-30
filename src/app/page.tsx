@@ -1,13 +1,11 @@
 "use client";
 
-import React from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot,
   Wrench,
   Server,
   ChevronRight,
-  PlusCircle,
   Network,
 } from "lucide-react";
 
@@ -19,10 +17,14 @@ export default function GlobalDashboard() {
       title: "Agents",
       description:
         "Autonomous executive systems that reason, plan, and delegate tasks to specific Skills to achieve open-ended goals.",
+<<<<<<< Updated upstream
       icon: <Bot className="w-6 h-6 text-emerald-600" />,
+=======
+      icon: <Bot className="w-6 h-6 text-green-600" />,
+>>>>>>> Stashed changes
       path: "/agents",
       count: "0 Active",
-      color: "emerald",
+      color: "green",
       action: () => router.push("/agents"),
     },
     {
@@ -39,19 +41,19 @@ export default function GlobalDashboard() {
       title: "Tool Library",
       description:
         "Fundamental, single-purpose building blocks like API integrations, specialized functions, and prompt templates.",
-      icon: <Wrench className="w-6 h-6 text-indigo-600" />,
+      icon: <Wrench className="w-6 h-6 text-red-600" />,
       path: "/tools",
       count: "12 Tools",
-      color: "indigo",
+      color: "red",
       action: () => router.push("/tools"),
     },
     {
       title: "MCP Servers",
       description: "External connectors for databases, search, and APIs.",
-      icon: <Server className="w-6 h-6 text-teal-600" />,
+      icon: <Server className="w-6 h-6 text-orange-600" />,
       path: "/mcp-servers",
       count: "2 Online",
-      color: "teal",
+      color: "orange",
       action: () => router.push("/mcp-servers"),
     },
   ];
@@ -72,7 +74,7 @@ export default function GlobalDashboard() {
             <button
               key={s.title}
               onClick={s.action}
-              className="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md transition-all flex items-center justify-between text-left"
+              className={`group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-${s.color}-400 hover:shadow-md transition-all flex items-center justify-between text-left`}
             >
               <div className="flex items-center gap-6">
                 <div
@@ -87,7 +89,9 @@ export default function GlobalDashboard() {
                   <p className="text-slate-500 text-sm mt-1">{s.description}</p>
                 </div>
               </div>
-              <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
+              <div
+                className={`w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-${s.color}-600 group-hover:text-white transition-all`}
+              >
                 <ChevronRight className="w-5 h-5" />
               </div>
             </button>

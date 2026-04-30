@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PRIMARY_NAV, resolvePrimarySection } from "@/src/lib/navigation";
 import { ArrowLeft } from "lucide-react";
+import Image from "next/image";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
@@ -24,7 +25,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     <div className="h-screen overflow-hidden flex flex-col bg-slate-50">
       {/* 2. Apply the exact h-header class. Removed 'py-3' from nav to ensure vertical centering works perfectly */}
       <header className="h-16 shrink-0 sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur flex items-center">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full flex items-center gap-5">
           <nav
             aria-label="Primary"
             className="flex items-center gap-2 overflow-x-auto"
@@ -48,12 +49,22 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
                   key={item.key}
                   href={item.href}
                   aria-current={isActive ? "page" : undefined}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors whitespace-nowrap ${
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors whitespace-nowrap flex items-center gap-2 ${
                     isActive
                       ? "bg-slate-900 text-white"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   }`}
                 >
+                  {/* Render the logo conditionally INSIDE the Dashboard link */}
+                  {item.key === "dashboard" && (
+                    <Image
+                      src="/logo.svg"
+                      width={24}
+                      height={24}
+                      alt="App Logo"
+                      className="shrink-0"
+                    />
+                  )}
                   {item.label}
                 </Link>
               );
