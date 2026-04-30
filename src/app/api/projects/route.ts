@@ -6,23 +6,15 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const projectId = searchParams.get("projectId");
-
+export async function GET() {
   try {
-    let query = supabase.from("agents").select("*");
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*")
+      .order("name", { ascending: true });
 
-    if (projectId) {
-      query = query.eq("project_id", projectId);
-    }
-
-    const { data, error } = await query.order("created_at", {
-      ascending: false,
-    });
     if (error) throw error;
-
-    return NextResponse.json({ agents: data });
+    return NextResponse.json({ projects: data });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -30,15 +22,15 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const agent = await req.json();
+    const project = await req.json();
     const { data, error } = await supabase
-      .from("agents")
-      .upsert([agent], { onConflict: "id" })
+      .from("projects")
+      .insert([project])
       .select()
       .single();
 
     if (error) throw error;
-    return NextResponse.json({ success: true, agent: data });
+    return NextResponse.json({ success: true, project: data });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

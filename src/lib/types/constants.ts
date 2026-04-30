@@ -112,8 +112,16 @@ export interface Message {
   content: string;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+}
+
 export interface AgentConfig {
   id: string;
+  project_id: string;
   name: string;
   description: string;
   skills: string[];
@@ -123,6 +131,7 @@ export interface AgentConfig {
 
 export interface OrchestratorConfig {
   id: string;
+  project_id: string;
   name: string;
   description: string;
   agents: string[];
