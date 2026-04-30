@@ -19,6 +19,7 @@ export default function AgentEditorPage({
 
   const [agent, setAgent] = useState<AgentConfig>({
     id: "",
+    project_id: "",
     name: "",
     description: "",
     skills: [],

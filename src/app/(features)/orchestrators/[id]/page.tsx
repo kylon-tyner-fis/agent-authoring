@@ -19,6 +19,7 @@ export default function OrchestratorEditorPage({
 
   const [orchestrator, setOrchestrator] = useState<OrchestratorConfig>({
     id: "",
+    project_id: "",
     name: "",
     description: "",
     agents: [],

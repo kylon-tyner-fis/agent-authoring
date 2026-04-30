@@ -77,6 +77,7 @@ export async function POST(
     // Map orchestrator to AgentConfig format to reuse the runner
     const orchestratorAsAgent: AgentConfig = {
       id: orchConfig.id,
+      project_id: orchConfig.project_id,
       name: orchConfig.name,
       description: orchConfig.description,
       skills: [], // Orchestrators don't use skills directly
