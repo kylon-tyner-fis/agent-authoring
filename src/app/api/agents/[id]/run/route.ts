@@ -32,7 +32,6 @@ export async function POST(
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    // 1. Fetch the Agent configuration
     const { data: agentConfig, error: agentError } = await supabase
       .from("agents")
       .select("*")
@@ -46,19 +45,7 @@ export async function POST(
       );
     }
 
-    // NEW: Fetch assigned Sub-Agents
-    const { data: assignedSubAgents } = await supabase
-      .from("agents")
-      .select("*")
-      .in("id", agentConfig.sub_agents || []);
-
-    // NEW: Gather ALL skill IDs needed (Parent Agent + Sub-Agents)
     const allRequiredSkillIds = new Set<string>(agentConfig.skills || []);
-    (assignedSubAgents || []).forEach((sub) => {
-      (sub.skills || []).forEach((sId: string) => allRequiredSkillIds.add(sId));
-    });
-
-    // 2. Fetch the Skills assigned to this Agent and its Sub-Agents
     const { data: assignedSkills, error: skillsError } = await supabase
       .from("skills")
       .select("*")
@@ -68,42 +55,35 @@ export async function POST(
       throw new Error(`Failed to load assigned skills: ${skillsError.message}`);
     }
 
-    // 3. Set up the Server-Sent Events (SSE) Stream for the frontend app
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         const reporter = {
-          // Streams the conversational text (e.g., "I'm generating a quiz for you now...")
-          onMessageChunk: (chunk: string) => {
+          onMessageChunk: (chunk: string) =>
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({ type: "message", chunk })}\n\n`,
               ),
-            );
-          },
-          // Streams the exact moment a Skill starts
-          onSkillStart: (skillName: string, args: Record<string, any>) => {
+            ),
+          onSkillStart: (skillName: string, args: Record<string, any>) =>
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({ type: "skill_start", skillName, args })}\n\n`,
               ),
-            );
-          },
-          // Streams the RAW JSON payload when the skill finishes
-          onSkillEnd: (skillName: string, result: any) => {
+            ),
+          onSkillEnd: (skillName: string, result: any) =>
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({ type: "skill_end", skillName, result })}\n\n`,
               ),
-            );
-          },
+            ),
         };
 
         try {
           await runExecutiveAgent(
             agentConfig,
             assignedSkills || [],
-            assignedSubAgents || [], // FIXED: Added the 3rd parameter here!
+            [], // No sub-agents
             input,
             threadId,
             reporter,
