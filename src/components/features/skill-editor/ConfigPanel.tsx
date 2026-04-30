@@ -337,7 +337,7 @@ export const ConfigPanel = ({
 
       <div className="p-5 border-b border-gray-200 flex items-center justify-between bg-white shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shadow-sm">
             <Settings2 className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -354,7 +354,7 @@ export const ConfigPanel = ({
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
           >
             {isCopied ? (
-              <Check className="w-4 h-4 text-indigo-600" />
+              <Check className="w-4 h-4 text-violet-600" />
             ) : (
               <Copy className="w-4 h-4" />
             )}
@@ -363,7 +363,7 @@ export const ConfigPanel = ({
 
           <button
             onClick={handleOpenPlayground}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-violet-50 text-violet-600 hover:bg-violet-100 border border-violet-200"
           >
             <Play className="w-4 h-4" /> Test Skill
           </button>
@@ -374,7 +374,7 @@ export const ConfigPanel = ({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               saveSuccess
                 ? "bg-green-100 text-green-700 border border-green-200"
-                : "bg-slate-900 text-white hover:bg-slate-800"
+                : "bg-violet-900 text-white hover:bg-violet-800"
             }`}
           >
             {saveSuccess ? (
@@ -402,13 +402,13 @@ export const ConfigPanel = ({
             onClick={() => handleTabChange(tab.id as Tab)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
-                ? "border-blue-600 text-blue-700 bg-blue-50/50 rounded-t-lg"
+                ? "border-violet-600 text-violet-700 bg-violet-50/50 rounded-t-lg"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             <tab.icon
               className={`w-4 h-4 ${
-                activeTab === tab.id ? "text-blue-600" : "text-gray-400"
+                activeTab === tab.id ? "text-violet-600" : "text-gray-400"
               }`}
             />{" "}
             {tab.label}
@@ -472,7 +472,7 @@ export const ConfigPanel = ({
 
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-blue-500" /> Global
+                <ShieldAlert className="w-4 h-4 text-violet-500" /> Global
                 Workflow Rules
               </h2>
               <div className="space-y-1.5">
@@ -727,7 +727,7 @@ export const ConfigPanel = ({
           <div className="space-y-6 h-full flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex flex-col gap-1 shrink-0">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Share2 className="w-4 h-4 text-orange-500" /> Workflow
+                <Share2 className="w-4 h-4 text-sky-500" /> Workflow
                 Configuration
               </h2>
             </div>

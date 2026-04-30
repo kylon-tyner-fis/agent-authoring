@@ -20,11 +20,11 @@ export function WorkflowNode({
   selected,
 }: NodeProps<WorkflowNodeType>) {
   let theme = {
-    bg: "bg-blue-50/50",
-    border: "border-blue-100",
-    iconBg: "bg-blue-100",
-    text: "text-blue-600",
-    ring: "border-blue-500 shadow-md ring-4 ring-blue-50",
+    bg: "bg-amber-50/50",
+    border: "border-amber-100",
+    iconBg: "bg-amber-100",
+    text: "text-amber-700",
+    ring: "border-amber-500 shadow-md ring-4 ring-amber-50",
     label: "Tool Node",
     Icon: Bot,
   };

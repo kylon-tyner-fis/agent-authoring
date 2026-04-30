@@ -154,7 +154,7 @@ export default function ToolEditorPage({
   if (isLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
       </div>
     );
   }
@@ -174,7 +174,7 @@ export default function ToolEditorPage({
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
           >
             {isCopied ? (
-              <Check className="w-4 h-4 text-indigo-600" />
+              <Check className="w-4 h-4 text-amber-700" />
             ) : (
               <Copy className="w-4 h-4" />
             )}
@@ -182,7 +182,7 @@ export default function ToolEditorPage({
           </button>
           <button
             onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors"
           >
             <Save className="w-4 h-4" /> Save Tool
           </button>
@@ -193,7 +193,7 @@ export default function ToolEditorPage({
         <div className="max-w-5xl mx-auto space-y-8">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-indigo-500" /> Tool Details
+              <Wrench className="w-4 h-4 text-amber-600" /> Tool Details
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -204,7 +204,7 @@ export default function ToolEditorPage({
                   type="text"
                   value={tool.name}
                   onChange={(e) => setTool({ ...tool, name: e.target.value })}
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500 text-slate-900"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-amber-500 text-slate-900"
                   placeholder="e.g. Database Query"
                 />
               </div>
@@ -229,7 +229,7 @@ export default function ToolEditorPage({
                   onChange={(e) =>
                     setTool({ ...tool, description: e.target.value })
                   }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500 text-slate-900"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-amber-500 text-slate-900"
                   placeholder="What does this tool do?"
                 />
               </div>
@@ -242,7 +242,7 @@ export default function ToolEditorPage({
             </h2>
             <p className="text-xs text-slate-500">
               Use double braces{" "}
-              <code className="bg-slate-100 px-1 rounded text-indigo-600">
+              <code className="bg-slate-100 px-1 rounded text-amber-700">
                 {"{{variable_name}}"}
               </code>{" "}
               to inject inputs.
@@ -253,7 +253,7 @@ export default function ToolEditorPage({
               onChange={(e) =>
                 setTool({ ...tool, prompt_template: e.target.value })
               }
-              className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-indigo-500 resize-none text-sm font-mono text-slate-900 leading-relaxed"
+              className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-amber-500 resize-none text-sm font-mono text-slate-900 leading-relaxed"
             />
           </div>
 

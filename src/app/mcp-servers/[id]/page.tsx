@@ -97,7 +97,7 @@ export default function MCPServerEditorPage({
   if (isLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
       </div>
     );
   }
@@ -117,7 +117,7 @@ export default function MCPServerEditorPage({
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
           >
             {isCopied ? (
-              <Check className="w-4 h-4 text-teal-600" />
+              <Check className="w-4 h-4 text-cyan-700" />
             ) : (
               <Copy className="w-4 h-4" />
             )}
@@ -126,7 +126,7 @@ export default function MCPServerEditorPage({
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm font-semibold hover:bg-cyan-700 transition-colors shadow-sm disabled:opacity-50"
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -144,7 +144,7 @@ export default function MCPServerEditorPage({
           {/* General Info */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Server className="w-4 h-4 text-teal-500" /> General Information
+              <Server className="w-4 h-4 text-cyan-600" /> General Information
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5 col-span-2">
@@ -157,7 +157,7 @@ export default function MCPServerEditorPage({
                   onChange={(e) =>
                     setServer({ ...server, name: e.target.value })
                   }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 transition-colors text-slate-900"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 transition-colors text-slate-900"
                   placeholder="e.g. Internal Knowledge Graph"
                 />
               </div>
@@ -184,7 +184,7 @@ export default function MCPServerEditorPage({
                       status: e.target.value as MCPServerConfig["status"],
                     })
                   }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 bg-white cursor-pointer text-slate-900"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 bg-white cursor-pointer text-slate-900"
                 >
                   <option value="active">🟢 Active</option>
                   <option value="inactive">⚪ Inactive</option>
@@ -197,7 +197,7 @@ export default function MCPServerEditorPage({
           {/* Connection Details */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-teal-500" /> Connection Details
+              <Link2 className="w-4 h-4 text-cyan-600" /> Connection Details
             </h2>
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -210,7 +210,7 @@ export default function MCPServerEditorPage({
                   onChange={(e) =>
                     setServer({ ...server, url: e.target.value })
                   }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 font-mono text-slate-900"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
                   placeholder="https://mcp.yourdomain.com/v1"
                 />
               </div>
@@ -225,7 +225,7 @@ export default function MCPServerEditorPage({
                       onClick={() => setServer({ ...server, auth_type: type })}
                       className={`p-3 border rounded-lg cursor-pointer text-center text-sm font-medium transition-all ${
                         server.auth_type === type
-                          ? "border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500"
+                          ? "border-cyan-500 bg-cyan-50 text-cyan-700 ring-1 ring-cyan-500"
                           : "border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                     >
@@ -249,7 +249,7 @@ export default function MCPServerEditorPage({
                       onChange={(e) =>
                         setServer({ ...server, auth_token: e.target.value })
                       }
-                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-teal-500 font-mono text-slate-900"
+                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
                       placeholder={
                         server.auth_type === "bearer"
                           ? "access_..."

@@ -13,11 +13,11 @@ export type TriggerNodeType = Node<TriggerNodeData, "trigger">;
 
 export function TriggerNode({ data, selected }: NodeProps<TriggerNodeType>) {
   const theme = {
-    bg: "bg-emerald-50/50",
-    border: "border-emerald-100",
-    iconBg: "bg-emerald-100",
-    text: "text-emerald-600",
-    ring: "border-emerald-500 shadow-md ring-4 ring-emerald-50",
+    bg: "bg-sky-50/50",
+    border: "border-sky-100",
+    iconBg: "bg-sky-100",
+    text: "text-sky-700",
+    ring: "border-sky-500 shadow-md ring-4 ring-sky-50",
     label: "Trigger (API Input)",
     Icon: Zap,
   };

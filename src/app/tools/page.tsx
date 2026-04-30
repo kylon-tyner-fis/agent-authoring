@@ -41,7 +41,7 @@ export default function ToolsDashboard() {
         <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Wrench className="w-6 h-6 text-indigo-600" /> Tool Library
+              <Wrench className="w-6 h-6 text-amber-700" /> Tool Library
             </h1>
             <p className="text-slate-500 text-sm mt-1">
               Fundamental, single-purpose building blocks. Integrations, prompt
@@ -50,7 +50,7 @@ export default function ToolsDashboard() {
           </div>
           <button
             onClick={() => router.push("/tools/new")}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-indigo-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-amber-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-amber-700 transition-colors shadow-sm"
           >
             <Plus className="w-5 h-5" /> Create Tool
           </button>
@@ -72,8 +72,8 @@ export default function ToolsDashboard() {
                 className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group"
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
-                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-indigo-50 border-indigo-200">
-                    <Code2 className="w-5 h-5 text-indigo-600" />
+                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-amber-50 border-amber-200">
+                    <Code2 className="w-5 h-5 text-amber-700" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg truncate">

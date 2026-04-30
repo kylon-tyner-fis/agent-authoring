@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Plus, Trash2, Loader2, Cpu, Clock, Network } from "lucide-react";
+import { Plus, Trash2, Loader2, Network } from "lucide-react";
 
 interface SkillListItem {
   id: string;
@@ -53,7 +53,7 @@ export default function SkillsDashboard() {
         <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Network className="w-6 h-6 text-blue-600" /> Skills
+              <Network className="w-6 h-6 text-violet-600" /> Skills
             </h1>
             <p className="text-slate-500 text-sm mt-1">
               Pre-determined, orchestrated workflows. Combine tools, logic
@@ -63,7 +63,7 @@ export default function SkillsDashboard() {
           </div>
           <button
             onClick={() => router.push("/skills/new")}
-            className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-violet-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-violet-700 transition-colors shadow-sm"
           >
             <Plus className="w-5 h-5" /> Create Skill
           </button>
@@ -85,8 +85,8 @@ export default function SkillsDashboard() {
                 className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group"
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
-                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-blue-50 border-blue-200">
-                    <Network className="w-5 h-5 text-blue-600" />
+                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-violet-50 border-violet-200">
+                    <Network className="w-5 h-5 text-violet-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">

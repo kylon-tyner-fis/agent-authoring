@@ -113,7 +113,7 @@ export default function OrchestratorEditorPage({
   if (isLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
       </div>
     );
   }
@@ -133,7 +133,7 @@ export default function OrchestratorEditorPage({
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
           >
             {isCopied ? (
-              <Check className="w-4 h-4 text-purple-600" />
+              <Check className="w-4 h-4 text-sky-600" />
             ) : (
               <Copy className="w-4 h-4" />
             )}
@@ -142,7 +142,7 @@ export default function OrchestratorEditorPage({
 
           <button
             onClick={() => setIsPlaygroundOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200"
           >
             <Play className="w-4 h-4" /> Test Orchestrator
           </button>
@@ -150,7 +150,7 @@ export default function OrchestratorEditorPage({
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-semibold hover:bg-sky-700 transition-colors disabled:opacity-50"
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -169,7 +169,7 @@ export default function OrchestratorEditorPage({
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Layers className="w-4 h-4 text-purple-500" /> General
+                <Layers className="w-4 h-4 text-sky-500" /> General
                 Information
               </h2>
               <div className="grid grid-cols-2 gap-4">
@@ -183,7 +183,7 @@ export default function OrchestratorEditorPage({
                     onChange={(e) =>
                       setOrchestrator({ ...orchestrator, name: e.target.value })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-purple-500"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500"
                     placeholder="e.g. Master Content Coordinator"
                   />
                 </div>
@@ -200,7 +200,7 @@ export default function OrchestratorEditorPage({
                         description: e.target.value,
                       })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-purple-500"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500"
                   />
                 </div>
                 <div className="space-y-1.5 col-span-2">
@@ -219,7 +219,7 @@ export default function OrchestratorEditorPage({
                         system_prompt: e.target.value,
                       })
                     }
-                    className="w-full p-3 text-sm border border-gray-300 rounded-lg outline-none focus:border-purple-500 min-h-[150px] bg-slate-50 text-slate-900"
+                    className="w-full p-3 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500 min-h-[150px] bg-slate-50 text-slate-900"
                     placeholder="e.g. You are the lead Orchestrator responsible for..."
                   />
                 </div>
@@ -235,7 +235,7 @@ export default function OrchestratorEditorPage({
                         status: e.target.value as "active" | "inactive",
                       })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-purple-500 bg-white"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500 bg-white"
                   >
                     <option value="active">🟢 Active</option>
                     <option value="inactive">⚪ Inactive</option>
@@ -290,6 +290,7 @@ export default function OrchestratorEditorPage({
             <AgentPlayground
               config={orchestrator}
               apiEndpoint="/api/orchestrators/simulate"
+              accent="orchestrator"
               onClose={() => setIsPlaygroundOpen(false)}
             />
           </div>

@@ -17,7 +17,7 @@ export function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
     <div
       className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[250px] ${
         selected
-          ? "border-blue-500 shadow-md ring-4 ring-blue-50"
+          ? "border-emerald-500 shadow-md ring-4 ring-emerald-50"
           : "border-slate-200"
       }`}
     >
@@ -25,19 +25,19 @@ export function AgentNode({ data, selected }: NodeProps<AgentNodeType>) {
       <Handle
         type="target"
         position={Position.Top}
-        className="w-3 h-3 bg-blue-500"
+        className="w-3 h-3 bg-emerald-500"
       />
 
       {/* Node Header */}
-      <div className="bg-blue-50/50 border-b border-blue-100 p-3 flex items-center gap-3 rounded-t-xl">
-        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0 text-blue-600">
+      <div className="bg-emerald-50/50 border-b border-emerald-100 p-3 flex items-center gap-3 rounded-t-xl">
+        <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-600">
           <Bot className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-bold text-slate-800 truncate">
             {data.label}
           </h3>
-          <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">
+          <p className="text-sm font-semibold text-emerald-600 uppercase tracking-wider">
             Agent Node
           </p>
         </div>

@@ -236,7 +236,7 @@ export default function AgentEditorPage({
 
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Network className="w-4 h-4 text-blue-500" /> Assigned Skills
+                <Network className="w-4 h-4 text-violet-500" /> Assigned Skills
                 (Workflows)
               </h2>
               <p className="text-xs text-slate-500">
@@ -249,7 +249,7 @@ export default function AgentEditorPage({
                   <div
                     key={skill.id}
                     onClick={() => toggleSkill(skill.id)}
-                    className={`p-4 border rounded-xl cursor-pointer transition-all ${agent.skills.includes(skill.id) ? "border-blue-500 bg-blue-50/30 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}
+                    className={`p-4 border rounded-xl cursor-pointer transition-all ${agent.skills.includes(skill.id) ? "border-violet-500 bg-violet-50/30 ring-1 ring-violet-500" : "border-slate-200 hover:border-slate-300"}`}
                   >
                     <div className="flex justify-between items-start mb-1">
                       <span className="font-bold text-sm text-slate-800 truncate">

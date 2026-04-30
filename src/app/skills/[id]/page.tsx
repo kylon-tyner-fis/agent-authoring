@@ -77,7 +77,7 @@ export default function SkillEditorPage({
   if (isLoading || !config) {
     return (
       <div className="fixed top-[57px] bottom-0 left-0 right-0 flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
       </div>
     );
   }
