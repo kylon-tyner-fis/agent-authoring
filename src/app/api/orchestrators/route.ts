@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const projectId = searchParams.get("projectId");
 
   try {
-    let query = supabase.from("agents").select("*");
+    let query = supabase.from("orchestrators").select("*");
 
     if (projectId) {
       query = query.eq("project_id", projectId);
