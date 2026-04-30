@@ -6,13 +6,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-export async function GET() {
-  try {
-    const { data, error } = await supabase
-      .from("orchestrators")
-      .select("*")
-      .order("created_at", { ascending: false });
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const projectId = searchParams.get("projectId");
 
+  try {
+    let query = supabase.from("orchestrators").select("*");
+
+    if (projectId) {
+      query = query.eq("project_id", projectId);
+    }
+
+    const { data, error } = await query.order("created_at", {
+      ascending: false,
+    });
     if (error) throw error;
     return NextResponse.json({ orchestrators: data });
   } catch (error: any) {

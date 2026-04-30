@@ -49,6 +49,7 @@ export async function POST(req: Request) {
     // Map orchestrator to AgentConfig format to reuse the runner
     const orchestratorAsAgent: AgentConfig = {
       id: config.id,
+      project_id: config.project_id,
       name: config.name,
       description: config.description,
       skills: [],

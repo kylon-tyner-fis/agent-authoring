@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/src/components/layout/Toast";
 import { AppChrome } from "@/src/components/layout/AppChrome";
+import { ProjectProvider } from "../lib/contexts/ProjectContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +36,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>
-          <AppChrome>{children}</AppChrome>
+          <ProjectProvider>
+            <AppChrome>{children}</AppChrome>
+          </ProjectProvider>
         </ToastProvider>
       </body>
     </html>

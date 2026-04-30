@@ -2,36 +2,41 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Layers, Plus, Trash2, Loader2 } from "lucide-react";
-import { OrchestratorConfig } from "@/src/lib/types/constants";
+import { Bot, Plus, Trash2, Loader2 } from "lucide-react";
+import { AgentConfig } from "@/src/lib/types/constants";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
-export default function OrchestratorsDashboard() {
+export default function AgentsDashboard() {
   const router = useRouter();
-  const [orchestrators, setOrchestrators] = useState<OrchestratorConfig[]>([]);
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const { currentProject } = useProject();
+
   useEffect(() => {
-    const fetchOrchestrators = async () => {
+    if (!currentProject) return;
+
+    const fetchAgents = async () => {
       try {
-        const res = await fetch("/api/orchestrators");
+        const res = await fetch(`/api/agents?projectId=${currentProject.id}`);
         const data = await res.json();
-        if (data.orchestrators) setOrchestrators(data.orchestrators);
+        if (data.agents) setAgents(data.agents);
       } catch (error) {
-        console.error("Failed to fetch orchestrators", error);
+        console.error("Failed to fetch agents", error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchOrchestrators();
-  }, []);
+    fetchAgents();
+  }, [currentProject]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm(`Delete orchestrator?`)) return;
+    if (!confirm(`Delete agent?`)) return;
     try {
-      await fetch(`/api/orchestrators/${id}`, { method: "DELETE" });
-      setOrchestrators(orchestrators.filter((o) => o.id !== id));
+      await fetch(`/api/agents/${id}`, { method: "DELETE" });
+      setAgents(agents.filter((a) => a.id !== id));
     } catch (error) {
-      console.error("Failed to delete orchestrator", error);
+      console.error("Failed to delete agent", error);
     }
   };
 
@@ -41,18 +46,18 @@ export default function OrchestratorsDashboard() {
         <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Layers className="w-6 h-6 text-sky-600" /> Orchestrators
+              <Bot className="w-6 h-6 text-emerald-600" /> Agents
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              Top-level executive systems that manage and delegate tasks to
-              specialized Agents.
+              Autonomous executive systems that reason, plan, and dynamically
+              delegate tasks to your Skills.
             </p>
           </div>
           <button
-            onClick={() => router.push("/orchestrators/new")}
-            className="flex items-center gap-2 bg-sky-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-sky-700 transition-colors shadow-sm"
+            onClick={() => router.push("/agents/new")}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
           >
-            <Plus className="w-5 h-5" /> Create Orchestrator
+            <Plus className="w-5 h-5" /> Create Agent
           </button>
         </div>
 
@@ -61,45 +66,43 @@ export default function OrchestratorsDashboard() {
             <div className="flex justify-center items-center p-12 text-slate-400 bg-white rounded-xl border border-slate-200">
               <Loader2 className="w-8 h-8 animate-spin" />
             </div>
-          ) : orchestrators.length === 0 ? (
+          ) : agents.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-xl border border-slate-200">
-              <p className="text-slate-900 font-bold">No orchestrators found</p>
+              <p className="text-slate-900 font-bold">No agents found</p>
             </div>
           ) : (
-            orchestrators.map((orchestrator) => (
+            agents.map((agent) => (
               <div
-                key={orchestrator.id}
+                key={agent.id}
                 className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group"
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
-                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-sky-50 border-sky-200">
-                    <Layers className="w-5 h-5 text-sky-600" />
+                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-emerald-50 border-emerald-200">
+                    <Bot className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">
-                      <span className="truncate">{orchestrator.name}</span>
+                      <span className="truncate">{agent.name}</span>
                       <span
-                        className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${orchestrator.status === "active" ? "bg-green-50 text-green-600 border-green-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}
+                        className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${agent.status === "active" ? "bg-green-50 text-green-600 border-green-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}
                       >
-                        {orchestrator.status}
+                        {agent.status}
                       </span>
                     </h3>
                     <p className="text-sm text-slate-500 mt-1 line-clamp-1">
-                      {orchestrator.description}
+                      {agent.description}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <button
-                    onClick={() =>
-                      router.push(`/orchestrators/${orchestrator.id}`)
-                    }
+                    onClick={() => router.push(`/agents/${agent.id}`)}
                     className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
                   >
-                    Edit Orchestrator
+                    Edit Agent
                   </button>
                   <button
-                    onClick={() => handleDelete(orchestrator.id)}
+                    onClick={() => handleDelete(agent.id)}
                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />

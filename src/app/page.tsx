@@ -12,9 +12,11 @@ import {
   Activity,
   AlertCircle,
 } from "lucide-react";
+import { useProject } from "../lib/contexts/ProjectContext";
 
 export default function GlobalDashboard() {
   const router = useRouter();
+  const { currentProject } = useProject();
 
   // 1. Dynamic Data Integration: State to hold our fetched counts
   const [counts, setCounts] = useState({
@@ -28,15 +30,26 @@ export default function GlobalDashboard() {
   // State to hold the health of our external integrations
   const [mcpHealth, setMcpHealth] = useState({ total: 0, offline: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Fetch data on mount
   useEffect(() => {
+    if (!hasMounted || !currentProject?.id) return;
+
     const fetchDashboardData = async () => {
       try {
         const [orchRes, agentsRes, skillsRes, toolsRes, mcpRes] =
           await Promise.all([
-            fetch("/api/orchestrators").then((res) => res.json()),
-            fetch("/api/agents").then((res) => res.json()),
+            fetch(`/api/orchestrators?projectId=${currentProject.id}`).then(
+              (res) => res.json(),
+            ),
+            fetch(`/api/agents?projectId=${currentProject.id}`).then((res) =>
+              res.json(),
+            ),
             fetch("/api/skills").then((res) => res.json()),
             fetch("/api/tools").then((res) => res.json()),
             fetch("/api/mcp-servers").then((res) => res.json()),
@@ -65,7 +78,7 @@ export default function GlobalDashboard() {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [currentProject]);
 
   const sections = [
     {
@@ -214,8 +227,17 @@ export default function GlobalDashboard() {
               </div>
 
               <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
-                  {s.count}
+                <span
+                  key={hasMounted ? s.count : "initial"}
+                  className={`text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full ${
+                    hasMounted &&
+                    !isLoading &&
+                    (s.title === "Agents" || s.title === "Orchestrators")
+                      ? "animate-in fade-in zoom-in-95 duration-500"
+                      : ""
+                  }`}
+                >
+                  {!hasMounted ? "Loading..." : s.count}
                 </span>
               </div>
             </button>
