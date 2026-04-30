@@ -92,7 +92,7 @@ export const EditorTopPanel = ({
   const theme = themeMap[themeColor];
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
+    <div className="px-4 sm:px-6 lg:px-8 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10 animate-in slide-in-from-top-16 fade-in duration-300 ease-in-out">
       <button
         onClick={() => router.push(backUrl)}
         // We added negative margin and padding to increase the clickable area without altering layout alignment

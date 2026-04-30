@@ -15,24 +15,23 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 
+const activeThemeMap: Record<string, string> = {
+  dashboard: "bg-slate-800 text-slate-100 border-slate-200 shadow-sm",
+  orchestrators: "bg-sky-100 text-sky-800 border-sky-200 shadow-sm",
+  agents: "bg-emerald-100 text-emerald-800 border-emerald-200 shadow-sm",
+  skills: "bg-violet-100 text-violet-800 border-violet-200 shadow-sm",
+  tools: "bg-amber-100 text-amber-800 border-amber-200 shadow-sm",
+  mcpServers: "bg-cyan-100 text-cyan-800 border-cyan-200 shadow-sm",
+};
+
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const activeSection = resolvePrimarySection(pathname);
 
-  // 1. Identify if we are on a workspace/edit page
-  const isDetailPage = pathname.match(
-    /^\/(skills|agents|mcp-servers|tools|orchestrators)\/.+$/,
-  );
-
-  // 2. Dynamically assign the layout wrapper class
-  const headerLayoutClass = isDetailPage
-    ? "max-w-full" // Fluid edge-to-edge
-    : "max-w-7xl"; // Constrained
-
   // Helper to return the correct icon for each nav item
   const getNavIcon = (key: string, isActive: boolean) => {
     const className = `w-4 h-4 shrink-0 transition-colors ${
-      isActive ? "text-slate-900" : "text-slate-400 group-hover:text-slate-600"
+      isActive ? "" : "text-slate-400 group-hover:text-slate-600"
     }`;
     switch (key) {
       case "orchestrators":
@@ -55,25 +54,28 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
       <header className="h-16 shrink-0 sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur flex items-center">
         {/* Changed to justify-between to push utilities to the right */}
         <div
-          className={`mx-auto w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-5 transition-all duration-300 ease-in-out ${headerLayoutClass}`}
+          className={`mx-auto w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-5 transition-all duration-300 ease-in-out max-w-full`}
         >
           {/* Left Side: Navigation Links */}
           <nav
             aria-label="Primary"
-            className="flex items-center gap-1.5 overflow-x-auto"
+            className="h-16 flex items-center gap-1.5 overflow-x-auto"
           >
             {PRIMARY_NAV.map((item) => {
               const isActive = item.key === activeSection;
+              const activeClass =
+                activeThemeMap[item.key] || activeThemeMap.dashboard;
+
               return (
                 <Link
                   key={item.key}
                   href={item.href}
                   aria-current={isActive ? "page" : undefined}
                   // 4. Enhance Active/Inactive State Transitions: Softer styles & group hovers
-                  className={`group rounded-lg px-3 py-2 text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2 ${
+                  className={`group rounded-lg px-3 py-2 text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2 border ${
                     isActive
-                      ? "bg-slate-100 text-slate-900 shadow-sm border border-slate-200/50"
-                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 border border-transparent"
+                      ? activeClass
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 border-transparent"
                   }`}
                 >
                   {item.key === "dashboard" ? (

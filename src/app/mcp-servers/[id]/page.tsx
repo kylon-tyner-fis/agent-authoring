@@ -85,14 +85,6 @@ export default function MCPServerEditorPage({
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="h-full w-full flex items-center justify-center bg-slate-50 overflow-hidden">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
       <EditorTopPanel
@@ -105,132 +97,138 @@ export default function MCPServerEditorPage({
         isSaving={isSaving}
         themeColor="cyan"
       />
-
-      {/* Editor Body remains unchanged from your previous version, just bound to state */}
-      <div className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-3xl mx-auto space-y-6">
-          {/* General Info */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Server className="w-4 h-4 text-cyan-600" /> General Information
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5 col-span-2">
-                <label className="text-xs font-semibold text-gray-600">
-                  Server Name
-                </label>
-                <input
-                  type="text"
-                  value={server.name}
-                  onChange={(e) =>
-                    setServer({ ...server, name: e.target.value })
-                  }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 transition-colors text-slate-900"
-                  placeholder="e.g. Internal Knowledge Graph"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600">
-                  Internal ID
-                </label>
-                <input
-                  type="text"
-                  value={server.id || "Generated on save"}
-                  disabled
-                  className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-900 font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5" /> Status
-                </label>
-                <select
-                  value={server.status}
-                  onChange={(e) =>
-                    setServer({
-                      ...server,
-                      status: e.target.value as MCPServerConfig["status"],
-                    })
-                  }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 bg-white cursor-pointer text-slate-900"
-                >
-                  <option value="active">🟢 Active</option>
-                  <option value="inactive">⚪ Inactive</option>
-                  <option value="error">🔴 Error / Offline</option>
-                </select>
+      {isLoading ? (
+        <div className="h-full w-full flex items-center justify-center bg-slate-50 overflow-hidden">
+          <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-8">
+          <div className="max-w-3xl mx-auto space-y-6">
+            {/* General Info */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Server className="w-4 h-4 text-cyan-600" /> General Information
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Server Name
+                  </label>
+                  <input
+                    type="text"
+                    value={server.name}
+                    onChange={(e) =>
+                      setServer({ ...server, name: e.target.value })
+                    }
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 transition-colors text-slate-900"
+                    placeholder="e.g. Internal Knowledge Graph"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Internal ID
+                  </label>
+                  <input
+                    type="text"
+                    value={server.id || "Generated on save"}
+                    disabled
+                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-900 font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5" /> Status
+                  </label>
+                  <select
+                    value={server.status}
+                    onChange={(e) =>
+                      setServer({
+                        ...server,
+                        status: e.target.value as MCPServerConfig["status"],
+                      })
+                    }
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 bg-white cursor-pointer text-slate-900"
+                  >
+                    <option value="active">🟢 Active</option>
+                    <option value="inactive">⚪ Inactive</option>
+                    <option value="error">🔴 Error / Offline</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Connection Details */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-cyan-600" /> Connection Details
-            </h2>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600">
-                  Server URL (Endpoint)
-                </label>
-                <input
-                  type="url"
-                  value={server.url}
-                  onChange={(e) =>
-                    setServer({ ...server, url: e.target.value })
-                  }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
-                  placeholder="https://mcp.yourdomain.com/v1"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5" /> Authentication Type
-                </label>
-                <div className="grid grid-cols-3 gap-3 mt-1">
-                  {(["none", "api_key", "bearer"] as const).map((type) => (
-                    <div
-                      key={type}
-                      onClick={() => setServer({ ...server, auth_type: type })}
-                      className={`p-3 border rounded-lg cursor-pointer text-center text-sm font-medium transition-all ${
-                        server.auth_type === type
-                          ? "border-cyan-500 bg-cyan-50 text-cyan-700 ring-1 ring-cyan-500"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {type === "none" && "No Auth"}
-                      {type === "api_key" && "API Key (Header)"}
-                      {type === "bearer" && "Bearer Token"}
-                    </div>
-                  ))}
+            {/* Connection Details */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-cyan-600" /> Connection Details
+              </h2>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Server URL (Endpoint)
+                  </label>
+                  <input
+                    type="url"
+                    value={server.url}
+                    onChange={(e) =>
+                      setServer({ ...server, url: e.target.value })
+                    }
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
+                    placeholder="https://mcp.yourdomain.com/v1"
+                  />
                 </div>
-                {server.auth_type !== "none" && (
-                  <div className="space-y-1.5 animate-in fade-in duration-200">
-                    <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5" />
-                      {server.auth_type === "bearer"
-                        ? "Bearer Token"
-                        : "API Key"}
-                    </label>
-                    <input
-                      type="password" // Use password type to hide the token in the UI
-                      value={server.auth_token || ""}
-                      onChange={(e) =>
-                        setServer({ ...server, auth_token: e.target.value })
-                      }
-                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
-                      placeholder={
-                        server.auth_type === "bearer"
-                          ? "access_..."
-                          : "your-api-key"
-                      }
-                    />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5" /> Authentication Type
+                  </label>
+                  <div className="grid grid-cols-3 gap-3 mt-1">
+                    {(["none", "api_key", "bearer"] as const).map((type) => (
+                      <div
+                        key={type}
+                        onClick={() =>
+                          setServer({ ...server, auth_type: type })
+                        }
+                        className={`p-3 border rounded-lg cursor-pointer text-center text-sm font-medium transition-all ${
+                          server.auth_type === type
+                            ? "border-cyan-500 bg-cyan-50 text-cyan-700 ring-1 ring-cyan-500"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {type === "none" && "No Auth"}
+                        {type === "api_key" && "API Key (Header)"}
+                        {type === "bearer" && "Bearer Token"}
+                      </div>
+                    ))}
                   </div>
-                )}
+                  {server.auth_type !== "none" && (
+                    <div className="space-y-1.5 animate-in fade-in duration-200">
+                      <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5" />
+                        {server.auth_type === "bearer"
+                          ? "Bearer Token"
+                          : "API Key"}
+                      </label>
+                      <input
+                        type="password" // Use password type to hide the token in the UI
+                        value={server.auth_token || ""}
+                        onChange={(e) =>
+                          setServer({ ...server, auth_token: e.target.value })
+                        }
+                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
+                        placeholder={
+                          server.auth_type === "bearer"
+                            ? "access_..."
+                            : "your-api-key"
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

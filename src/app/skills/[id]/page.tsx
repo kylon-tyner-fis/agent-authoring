@@ -8,7 +8,6 @@ import {
   DEFAULT_SKILL_CONFIG,
   Message,
 } from "@/src/lib/types/constants";
-import { Loader2 } from "lucide-react";
 import { ConfigPanel } from "@/src/components/features/skill-editor/ConfigPanel";
 import { Playground } from "@/src/components/features/skill-editor/Playground";
 
@@ -74,13 +73,7 @@ export default function SkillEditorPage({
     fetchData();
   }, [id, isNew]);
 
-  if (isLoading || !config) {
-    return (
-      <div className="h-full w-full flex overflow-hidden bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
-      </div>
-    );
-  }
+  // REMOVED the "if (isLoading || !config)" block completely so the layout renders instantly
 
   return (
     <div className="h-full w-full flex overflow-hidden bg-slate-50">
@@ -90,7 +83,8 @@ export default function SkillEditorPage({
         }`}
       >
         <ConfigPanel
-          config={config}
+          // Pass the default config while loading to prevent null errors
+          config={config || DEFAULT_SKILL_CONFIG}
           setConfig={
             setConfig as React.Dispatch<React.SetStateAction<SkillConfig>>
           }
@@ -98,13 +92,14 @@ export default function SkillEditorPage({
           availableServers={availableServers}
           activeNodeId={activeNodeId}
           onOpenPlayground={() => setIsPlaygroundOpen(true)}
+          isLoading={isLoading} // ADDED: pass the loading state down
         />
       </div>
 
       {isPlaygroundOpen && (
         <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300 border-l border-slate-200">
           <Playground
-            config={config}
+            config={config!}
             messages={messages}
             setMessages={setMessages}
             onClose={() => setIsPlaygroundOpen(false)}

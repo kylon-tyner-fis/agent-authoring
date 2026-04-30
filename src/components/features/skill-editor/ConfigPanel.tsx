@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation"; // <-- Added router
+import { useRouter } from "next/navigation";
 import {
   SlidersHorizontal,
-  Share2,
   Braces,
   Fingerprint,
   Network,
   AlignLeft,
   Cpu,
   Database,
-  ShieldAlert, // <-- Added for loading state consistency
+  ShieldAlert,
+  Loader2,
 } from "lucide-react";
 import {
   SkillConfig,
@@ -35,6 +35,7 @@ interface ConfigPanelProps {
   availableServers: MCPServerConfig[];
   activeNodeId?: string | null;
   onOpenPlayground: () => void;
+  isLoading?: boolean; // ADDED
 }
 
 type Tab = "identity" | "engine" | "schema" | "orchestration";
@@ -52,8 +53,9 @@ export const ConfigPanel = ({
   availableTools,
   availableServers,
   onOpenPlayground,
+  isLoading, // ADDED
 }: ConfigPanelProps) => {
-  const router = useRouter(); // <-- Added router instance
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("identity");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -94,11 +96,20 @@ export const ConfigPanel = ({
     });
   };
 
-  const [schemaNodes, setSchemaNodes] = useState<SchemaNode[]>(
-    parseConfigToNodes(config.state_schema),
-  );
+  // Start with empty nodes so we don't accidentally parse empty loading states
+  const [schemaNodes, setSchemaNodes] = useState<SchemaNode[]>([]);
+
+  // Only parse the data into the local state once loading finishes
+  useEffect(() => {
+    if (!isLoading) {
+      setSchemaNodes(parseConfigToNodes(config.state_schema));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   useEffect(() => {
+    if (isLoading) return; // Prevent wiping out config while loading
+
     const compileNodes = (nodes: SchemaNode[]): any => {
       const result: any = {};
       nodes.forEach((n) => {
@@ -120,7 +131,7 @@ export const ConfigPanel = ({
     };
 
     setConfig((prev) => ({ ...prev, state_schema: compileNodes(schemaNodes) }));
-  }, [schemaNodes, setConfig]);
+  }, [schemaNodes, setConfig, isLoading]);
 
   const syncCanvasToConfig = () => {
     if (activeTab === "orchestration" && canvasRef.current) {
@@ -326,6 +337,7 @@ export const ConfigPanel = ({
         <option value="any" />
       </datalist>
 
+      {/* Renders immediately and animates in sync with the layout */}
       <EditorTopPanel
         backUrl="/skills"
         backLabel="Back to Skills"
@@ -335,363 +347,376 @@ export const ConfigPanel = ({
         testLabel="Test Skill"
         onSave={handleSaveSkill}
         saveLabel="Save Skill"
-        isSaving={isSaving}
+        isSaving={isSaving || !!isLoading}
         saveSuccess={saveSuccess}
         themeColor="violet"
       />
 
-      <div className="flex px-4 sm:px-6 lg:px-8 pt-2 bg-slate-50 border-b border-gray-200 shrink-0 overflow-x-auto">
-        {[
-          { id: "identity", label: "Identity", icon: Fingerprint },
-          { id: "engine", label: "AI Engine", icon: Cpu },
-          { id: "schema", label: "State Schema", icon: Braces },
-          { id: "orchestration", label: "Orchestration", icon: Network },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabChange(tab.id as Tab)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-violet-600 text-violet-700 bg-violet-50/50 rounded-t-lg"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            <tab.icon
-              className={`w-4 h-4 ${
-                activeTab === tab.id ? "text-violet-600" : "text-gray-400"
-              }`}
-            />{" "}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center bg-slate-50">
+          <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
+        </div>
+      ) : (
+        <>
+          <div className="flex px-4 sm:px-6 lg:px-8 pt-2 bg-slate-50 border-b border-gray-200 shrink-0 overflow-x-auto">
+            {[
+              { id: "identity", label: "Identity", icon: Fingerprint },
+              { id: "engine", label: "AI Engine", icon: Cpu },
+              { id: "schema", label: "State Schema", icon: Braces },
+              { id: "orchestration", label: "Orchestration", icon: Network },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id as Tab)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "border-violet-600 text-violet-700 bg-violet-50/50 rounded-t-lg"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                <tab.icon
+                  className={`w-4 h-4 ${
+                    activeTab === tab.id ? "text-violet-600" : "text-gray-400"
+                  }`}
+                />{" "}
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-      <div className="px-4 sm:px-6 lg:px-8 py-6 flex-1 overflow-y-auto bg-white">
-        {activeTab === "identity" && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <AlignLeft className="w-4 h-4 text-slate-400" /> Meta
-                Information
-              </h2>
-              <div className="grid grid-cols-12 gap-4">
-                <div className="space-y-1.5 col-span-9">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Skill Name
-                  </label>
-                  <input
-                    type="text"
-                    value={config.name || ""}
-                    onChange={(e) =>
-                      setConfig({ ...config, name: e.target.value })
-                    }
-                    placeholder="e.g. Generate Content"
-                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
-                  />
+          <div className="px-4 sm:px-6 lg:px-8 py-6 flex-1 overflow-y-auto bg-white">
+            {activeTab === "identity" && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="space-y-4">
+                  <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <AlignLeft className="w-4 h-4 text-slate-400" /> Meta
+                    Information
+                  </h2>
+                  <div className="grid grid-cols-12 gap-4">
+                    <div className="space-y-1.5 col-span-9">
+                      <label className="text-xs font-semibold text-gray-600">
+                        Skill Name
+                      </label>
+                      <input
+                        type="text"
+                        value={config.name || ""}
+                        onChange={(e) =>
+                          setConfig({ ...config, name: e.target.value })
+                        }
+                        placeholder="e.g. Generate Content"
+                        className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5 col-span-3">
+                      <label className="text-xs font-semibold text-gray-600">
+                        Version
+                      </label>
+                      <input
+                        type="text"
+                        value={config.version || ""}
+                        onChange={(e) =>
+                          setConfig({ ...config, version: e.target.value })
+                        }
+                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none font-mono bg-gray-50 text-center text-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-1.5 col-span-12">
+                      <label className="text-xs font-semibold text-gray-600">
+                        Description
+                      </label>
+                      <input
+                        type="text"
+                        value={config.description || ""}
+                        onChange={(e) =>
+                          setConfig({ ...config, description: e.target.value })
+                        }
+                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50 text-slate-900"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1.5 col-span-3">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Version
-                  </label>
-                  <input
-                    type="text"
-                    value={config.version || ""}
-                    onChange={(e) =>
-                      setConfig({ ...config, version: e.target.value })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none font-mono bg-gray-50 text-center text-slate-900"
-                  />
-                </div>
-                <div className="space-y-1.5 col-span-12">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Description
-                  </label>
-                  <input
-                    type="text"
-                    value={config.description || ""}
-                    onChange={(e) =>
-                      setConfig({ ...config, description: e.target.value })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50 text-slate-900"
-                  />
+
+                <hr className="border-gray-100" />
+
+                <div className="space-y-4">
+                  <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-violet-500" /> Global
+                    Workflow Rules
+                  </h2>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-600 flex justify-between">
+                      <span>System Instructions</span>
+                      <span className="text-gray-400 font-normal">
+                        Rules applied to ALL nodes in this graph.
+                      </span>
+                    </label>
+                    <textarea
+                      rows={6}
+                      value={config.system_prompt || ""}
+                      onChange={(e) =>
+                        setConfig({ ...config, system_prompt: e.target.value })
+                      }
+                      className="w-full p-3 border border-gray-300 rounded-lg outline-none min-h-[150px] text-sm bg-gray-50 text-slate-900"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            <hr className="border-gray-100" />
+            {activeTab === "engine" && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
+                <div className="space-y-4">
+                  <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-purple-500" />{" "}
+                    Model Configuration
+                  </h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-600">
+                        Provider
+                      </label>
+                      <select
+                        value={config.model.provider}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            model: {
+                              ...config.model,
+                              provider: e.target.value,
+                              model_name:
+                                SUPPORTED_MODELS[
+                                  e.target
+                                    .value as keyof typeof SUPPORTED_MODELS
+                                ][0],
+                            },
+                          })
+                        }
+                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 text-slate-900"
+                      >
+                        {SUPPORTED_PROVIDERS.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-600">
+                        Model Name
+                      </label>
+                      <select
+                        value={config.model.model_name}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            model: {
+                              ...config.model,
+                              model_name: e.target.value,
+                            },
+                          })
+                        }
+                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 text-slate-900"
+                      >
+                        {SUPPORTED_MODELS[
+                          config.model.provider as keyof typeof SUPPORTED_MODELS
+                        ]?.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2 col-span-2 bg-slate-50 p-6 rounded-xl border border-gray-200 mt-2">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <label className="text-sm font-semibold text-gray-900 block">
+                            Temperature
+                          </label>
+                          <span className="text-xs text-gray-500">
+                            Controls randomness (0 = deterministic, 2 =
+                            creative)
+                          </span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          max="2"
+                          step="0.1"
+                          value={config.model.temperature}
+                          onChange={(e) =>
+                            setConfig({
+                              ...config,
+                              model: {
+                                ...config.model,
+                                temperature: parseFloat(e.target.value) || 0,
+                              },
+                            })
+                          }
+                          className="text-sm font-mono bg-white px-2 py-1 rounded border border-gray-300 w-20"
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        value={config.model.temperature}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            model: {
+                              ...config.model,
+                              temperature: parseFloat(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full accent-purple-600"
+                      />
 
-            <div className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-violet-500" /> Global
-                Workflow Rules
-              </h2>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 flex justify-between">
-                  <span>System Instructions</span>
-                  <span className="text-gray-400 font-normal">
-                    Rules applied to ALL nodes in this graph.
-                  </span>
-                </label>
-                <textarea
-                  rows={6}
-                  value={config.system_prompt || ""}
-                  onChange={(e) =>
-                    setConfig({ ...config, system_prompt: e.target.value })
-                  }
-                  className="w-full p-3 border border-gray-300 rounded-lg outline-none min-h-[150px] text-sm bg-gray-50 text-slate-900"
+                      <div className="flex items-center justify-between mb-3 mt-8">
+                        <div>
+                          <label className="text-sm font-semibold text-gray-900 block">
+                            Max Tokens
+                          </label>
+                          <span className="text-xs text-gray-500">
+                            Maximum length of the generated response
+                          </span>
+                        </div>
+                        <input
+                          type="number"
+                          min="256"
+                          max="8192"
+                          step="1"
+                          value={config.model.max_tokens}
+                          onChange={(e) =>
+                            setConfig({
+                              ...config,
+                              model: {
+                                ...config.model,
+                                max_tokens: parseInt(e.target.value) || 256,
+                              },
+                            })
+                          }
+                          className="text-sm font-mono bg-white px-2 py-1 rounded border border-gray-300 w-24"
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min="256"
+                        max="8192"
+                        step="256"
+                        value={config.model.max_tokens}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            model: {
+                              ...config.model,
+                              max_tokens: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full accent-purple-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-gray-100" />
+
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-1 mb-2">
+                    <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                      <Database className="w-4 h-4 text-emerald-500" /> Memory &
+                      Persistence
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-600">
+                        Checkpointer Provider
+                      </label>
+                      <input
+                        type="text"
+                        value="postgresSaver"
+                        readOnly
+                        className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-900 font-mono cursor-not-allowed"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-600">
+                        Thread TTL (Seconds)
+                      </label>
+                      <input
+                        type="number"
+                        value={config.persistence?.ttl_seconds || ""}
+                        onChange={(e) =>
+                          updatePersistence({
+                            ttl_seconds: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 font-mono text-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-600">
+                        Store TTL (Seconds)
+                      </label>
+                      <input
+                        type="number"
+                        value={config.persistence?.store_ttl || ""}
+                        onChange={(e) =>
+                          updatePersistence({
+                            store_ttl: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 font-mono text-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "schema" && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
+                <div className="flex flex-col gap-1 mb-4">
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    Graph State Schema
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Define the memory structure for your StateGraph.
+                  </p>
+                </div>
+                <SchemaViewer
+                  title="Graph State Schema"
+                  nodes={schemaNodes}
+                  setNodes={setSchemaNodes}
+                  addButtonText="Add State Variable"
                 />
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {activeTab === "engine" && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
-            <div className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-purple-500" /> Model
-                Configuration
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Provider
-                  </label>
-                  <select
-                    value={config.model.provider}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        model: {
-                          ...config.model,
-                          provider: e.target.value,
-                          model_name:
-                            SUPPORTED_MODELS[
-                              e.target.value as keyof typeof SUPPORTED_MODELS
-                            ][0],
-                        },
-                      })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 text-slate-900"
-                  >
-                    {SUPPORTED_PROVIDERS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
+            {activeTab === "orchestration" && (
+              <div className="space-y-6 h-full flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex flex-col gap-1 shrink-0">
+                  <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <Network className="w-4 h-4 text-violet-500" /> Workflow
+                    Configuration
+                  </h2>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Model Name
-                  </label>
-                  <select
-                    value={config.model.model_name}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        model: { ...config.model, model_name: e.target.value },
-                      })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 text-slate-900"
-                  >
-                    {SUPPORTED_MODELS[
-                      config.model.provider as keyof typeof SUPPORTED_MODELS
-                    ]?.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2 col-span-2 bg-slate-50 p-6 rounded-xl border border-gray-200 mt-2">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <label className="text-sm font-semibold text-gray-900 block">
-                        Temperature
-                      </label>
-                      <span className="text-xs text-gray-500">
-                        Controls randomness (0 = deterministic, 2 = creative)
-                      </span>
-                    </div>
-                    <input
-                      type="number"
-                      min="0"
-                      max="2"
-                      step="0.1"
-                      value={config.model.temperature}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          model: {
-                            ...config.model,
-                            temperature: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="text-sm font-mono bg-white px-2 py-1 rounded border border-gray-300 w-20"
-                    />
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="0.1"
-                    value={config.model.temperature}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        model: {
-                          ...config.model,
-                          temperature: parseFloat(e.target.value),
-                        },
-                      })
-                    }
-                    className="w-full accent-purple-600"
-                  />
-
-                  <div className="flex items-center justify-between mb-3 mt-8">
-                    <div>
-                      <label className="text-sm font-semibold text-gray-900 block">
-                        Max Tokens
-                      </label>
-                      <span className="text-xs text-gray-500">
-                        Maximum length of the generated response
-                      </span>
-                    </div>
-                    <input
-                      type="number"
-                      min="256"
-                      max="8192"
-                      step="1"
-                      value={config.model.max_tokens}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          model: {
-                            ...config.model,
-                            max_tokens: parseInt(e.target.value) || 256,
-                          },
-                        })
-                      }
-                      className="text-sm font-mono bg-white px-2 py-1 rounded border border-gray-300 w-24"
-                    />
-                  </div>
-                  <input
-                    type="range"
-                    min="256"
-                    max="8192"
-                    step="256"
-                    value={config.model.max_tokens}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        model: {
-                          ...config.model,
-                          max_tokens: parseInt(e.target.value),
-                        },
-                      })
-                    }
-                    className="w-full accent-purple-600"
-                  />
-                </div>
+                <OrchestrationCanvas
+                  ref={canvasRef}
+                  initialData={config.orchestration}
+                  globalStateSchema={config.state_schema}
+                  availableTools={availableTools}
+                  availableServers={availableServers}
+                  activeNodeId={activeNodeId}
+                />
               </div>
-            </div>
-
-            <hr className="border-gray-100" />
-
-            <div className="space-y-4">
-              <div className="flex flex-col gap-1 mb-2">
-                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <Database className="w-4 h-4 text-emerald-500" /> Memory &
-                  Persistence
-                </h2>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Checkpointer Provider
-                  </label>
-                  <input
-                    type="text"
-                    value="postgresSaver"
-                    readOnly
-                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-900 font-mono cursor-not-allowed"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Thread TTL (Seconds)
-                  </label>
-                  <input
-                    type="number"
-                    value={config.persistence?.ttl_seconds || ""}
-                    onChange={(e) =>
-                      updatePersistence({
-                        ttl_seconds: parseInt(e.target.value) || 0,
-                      })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 font-mono text-slate-900"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Store TTL (Seconds)
-                  </label>
-                  <input
-                    type="number"
-                    value={config.persistence?.store_ttl || ""}
-                    onChange={(e) =>
-                      updatePersistence({
-                        store_ttl: parseInt(e.target.value) || 0,
-                      })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 font-mono text-slate-900"
-                  />
-                </div>
-              </div>
-            </div>
+            )}
           </div>
-        )}
-
-        {activeTab === "schema" && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
-            <div className="flex flex-col gap-1 mb-4">
-              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                Graph State Schema
-              </h2>
-              <p className="text-sm text-gray-500">
-                Define the memory structure for your StateGraph.
-              </p>
-            </div>
-            <SchemaViewer
-              title="Graph State Schema"
-              nodes={schemaNodes}
-              setNodes={setSchemaNodes}
-              addButtonText="Add State Variable"
-            />
-          </div>
-        )}
-
-        {activeTab === "orchestration" && (
-          <div className="space-y-6 h-full flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="flex flex-col gap-1 shrink-0">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Share2 className="w-4 h-4 text-sky-500" /> Workflow
-                Configuration
-              </h2>
-            </div>
-            <OrchestrationCanvas
-              ref={canvasRef}
-              initialData={config.orchestration}
-              globalStateSchema={config.state_schema}
-              availableTools={availableTools}
-              availableServers={availableServers}
-              activeNodeId={activeNodeId}
-            />
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 };

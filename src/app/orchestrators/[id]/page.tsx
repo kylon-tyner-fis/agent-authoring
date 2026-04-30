@@ -102,14 +102,6 @@ export default function OrchestratorEditorPage({
     }));
   };
 
-  if (isLoading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
       <EditorTopPanel
@@ -124,139 +116,150 @@ export default function OrchestratorEditorPage({
         isSaving={isSaving}
         themeColor="sky"
       />
-      <div className="flex flex-1 overflow-hidden">
-        <div
-          className={`flex-1 overflow-y-auto p-8 transition-all duration-300 ${isPlaygroundOpen ? "w-[60%]" : "w-full"}`}
-        >
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Layers className="w-4 h-4 text-sky-500" /> General Information
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Orchestrator Name
-                  </label>
-                  <input
-                    type="text"
-                    value={orchestrator.name}
-                    onChange={(e) =>
-                      setOrchestrator({ ...orchestrator, name: e.target.value })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500"
-                    placeholder="e.g. Master Content Coordinator"
-                  />
-                </div>
-                <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Description
-                  </label>
-                  <input
-                    type="text"
-                    value={orchestrator.description}
-                    onChange={(e) =>
-                      setOrchestrator({
-                        ...orchestrator,
-                        description: e.target.value,
-                      })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500"
-                  />
-                </div>
-                <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-semibold text-gray-600 flex justify-between">
-                    <span>System Prompt</span>
-                    <span className="text-gray-400 font-normal">
-                      Base Persona & Instructions
-                    </span>
-                  </label>
-                  <textarea
-                    rows={8}
-                    value={orchestrator.system_prompt || ""}
-                    onChange={(e) =>
-                      setOrchestrator({
-                        ...orchestrator,
-                        system_prompt: e.target.value,
-                      })
-                    }
-                    className="w-full p-3 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500 min-h-[150px] bg-slate-50 text-slate-900"
-                    placeholder="e.g. You are the lead Orchestrator responsible for..."
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Status
-                  </label>
-                  <select
-                    value={orchestrator.status}
-                    onChange={(e) =>
-                      setOrchestrator({
-                        ...orchestrator,
-                        status: e.target.value as "active" | "inactive",
-                      })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500 bg-white"
-                  >
-                    <option value="active">🟢 Active</option>
-                    <option value="inactive">⚪ Inactive</option>
-                  </select>
-                </div>
-              </div>
-            </div>
 
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Bot className="w-4 h-4 text-emerald-500" /> Assigned Agents
-              </h2>
-              <p className="text-xs text-slate-500">
-                Select the agents this orchestrator can delegate tasks to.
-              </p>
-
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                {availableAgents.map((agent) => (
-                  <div
-                    key={agent.id}
-                    onClick={() => toggleAgent(agent.id)}
-                    className={`p-4 border rounded-xl cursor-pointer transition-all ${orchestrator.agents.includes(agent.id) ? "border-emerald-500 bg-emerald-50/30 ring-1 ring-emerald-500" : "border-slate-200 hover:border-slate-300"}`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="font-bold text-sm text-slate-800 truncate">
-                        {agent.name}
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={orchestrator.agents.includes(agent.id)}
-                        readOnly
-                        className="mt-1"
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500 line-clamp-2">
-                      {agent.description}
-                    </span>
-                  </div>
-                ))}
-                {availableAgents.length === 0 && (
-                  <div className="col-span-2 p-6 text-sm text-slate-400 italic text-center border border-dashed border-slate-300 rounded-xl">
-                    No agents available. Create one in the Agents tab first.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+      {isLoading ? (
+        <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+          <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
         </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          <div
+            className={`flex-1 overflow-y-auto p-8 transition-all duration-300 ${isPlaygroundOpen ? "w-[60%]" : "w-full"}`}
+          >
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-sky-500" /> General
+                  Information
+                </h2>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-xs font-semibold text-gray-600">
+                      Orchestrator Name
+                    </label>
+                    <input
+                      type="text"
+                      value={orchestrator.name}
+                      onChange={(e) =>
+                        setOrchestrator({
+                          ...orchestrator,
+                          name: e.target.value,
+                        })
+                      }
+                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500"
+                      placeholder="e.g. Master Content Coordinator"
+                    />
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-xs font-semibold text-gray-600">
+                      Description
+                    </label>
+                    <input
+                      type="text"
+                      value={orchestrator.description}
+                      onChange={(e) =>
+                        setOrchestrator({
+                          ...orchestrator,
+                          description: e.target.value,
+                        })
+                      }
+                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-xs font-semibold text-gray-600 flex justify-between">
+                      <span>System Prompt</span>
+                      <span className="text-gray-400 font-normal">
+                        Base Persona & Instructions
+                      </span>
+                    </label>
+                    <textarea
+                      rows={8}
+                      value={orchestrator.system_prompt || ""}
+                      onChange={(e) =>
+                        setOrchestrator({
+                          ...orchestrator,
+                          system_prompt: e.target.value,
+                        })
+                      }
+                      className="w-full p-3 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500 min-h-[150px] bg-slate-50 text-slate-900"
+                      placeholder="e.g. You are the lead Orchestrator responsible for..."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-600">
+                      Status
+                    </label>
+                    <select
+                      value={orchestrator.status}
+                      onChange={(e) =>
+                        setOrchestrator({
+                          ...orchestrator,
+                          status: e.target.value as "active" | "inactive",
+                        })
+                      }
+                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500 bg-white"
+                    >
+                      <option value="active">🟢 Active</option>
+                      <option value="inactive">⚪ Inactive</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
 
-        {isPlaygroundOpen && (
-          <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300 border-l border-slate-200">
-            <AgentPlayground
-              config={orchestrator}
-              apiEndpoint="/api/orchestrators/simulate"
-              accent="orchestrator"
-              onClose={() => setIsPlaygroundOpen(false)}
-            />
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-emerald-500" /> Assigned Agents
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Select the agents this orchestrator can delegate tasks to.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  {availableAgents.map((agent) => (
+                    <div
+                      key={agent.id}
+                      onClick={() => toggleAgent(agent.id)}
+                      className={`p-4 border rounded-xl cursor-pointer transition-all ${orchestrator.agents.includes(agent.id) ? "border-emerald-500 bg-emerald-50/30 ring-1 ring-emerald-500" : "border-slate-200 hover:border-slate-300"}`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-bold text-sm text-slate-800 truncate">
+                          {agent.name}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={orchestrator.agents.includes(agent.id)}
+                          readOnly
+                          className="mt-1"
+                        />
+                      </div>
+                      <span className="text-xs text-slate-500 line-clamp-2">
+                        {agent.description}
+                      </span>
+                    </div>
+                  ))}
+                  {availableAgents.length === 0 && (
+                    <div className="col-span-2 p-6 text-sm text-slate-400 italic text-center border border-dashed border-slate-300 rounded-xl">
+                      No agents available. Create one in the Agents tab first.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+
+          {isPlaygroundOpen && (
+            <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300 border-l border-slate-200">
+              <AgentPlayground
+                config={orchestrator}
+                apiEndpoint="/api/orchestrators/simulate"
+                accent="orchestrator"
+                onClose={() => setIsPlaygroundOpen(false)}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

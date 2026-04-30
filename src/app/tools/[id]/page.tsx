@@ -156,14 +156,6 @@ export default function ToolEditorPage({
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col bg-slate-50">
       <EditorTopPanel
@@ -177,101 +169,107 @@ export default function ToolEditorPage({
         themeColor="amber"
       />
 
-      <div className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-5xl mx-auto space-y-8">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-amber-600" /> Tool Details
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600">
-                  Tool Name
-                </label>
-                <input
-                  type="text"
-                  value={tool.name}
-                  onChange={(e) => setTool({ ...tool, name: e.target.value })}
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-amber-500 text-slate-900"
-                  placeholder="e.g. Database Query"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600">
-                  Internal ID
-                </label>
-                <input
-                  type="text"
-                  value={tool.id || "Generated on save"}
-                  disabled
-                  className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
-                />
-              </div>
-              <div className="space-y-1.5 col-span-2">
-                <label className="text-xs font-semibold text-gray-600">
-                  Description
-                </label>
-                <input
-                  type="text"
-                  value={tool.description}
-                  onChange={(e) =>
-                    setTool({ ...tool, description: e.target.value })
-                  }
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-amber-500 text-slate-900"
-                  placeholder="What does this tool do?"
-                />
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center bg-slate-50">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-8">
+          <div className="max-w-5xl mx-auto space-y-8">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-amber-600" /> Tool Details
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Tool Name
+                  </label>
+                  <input
+                    type="text"
+                    value={tool.name}
+                    onChange={(e) => setTool({ ...tool, name: e.target.value })}
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-amber-500 text-slate-900"
+                    placeholder="e.g. Database Query"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Internal ID
+                  </label>
+                  <input
+                    type="text"
+                    value={tool.id || "Generated on save"}
+                    disabled
+                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    value={tool.description}
+                    onChange={(e) =>
+                      setTool({ ...tool, description: e.target.value })
+                    }
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-amber-500 text-slate-900"
+                    placeholder="What does this tool do?"
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-              Prompt Template
-            </h2>
-            <p className="text-xs text-slate-500">
-              Use double braces{" "}
-              <code className="bg-slate-100 px-1 rounded text-amber-700">
-                {"{{variable_name}}"}
-              </code>{" "}
-              to inject inputs.
-            </p>
-            <textarea
-              rows={6}
-              value={tool.prompt_template}
-              onChange={(e) =>
-                setTool({ ...tool, prompt_template: e.target.value })
-              }
-              className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-amber-500 resize-none text-sm font-mono text-slate-900 leading-relaxed"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-6">
-            <div className="bg-white min-w-0 p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-                Expected Inputs
+                Prompt Template
               </h2>
-              <SchemaViewer
-                title="Expected Inputs"
-                nodes={inputNodes}
-                setNodes={setInputNodes}
-                addButtonText="Add Input Field"
+              <p className="text-xs text-slate-500">
+                Use double braces{" "}
+                <code className="bg-slate-100 px-1 rounded text-amber-700">
+                  {"{{variable_name}}"}
+                </code>{" "}
+                to inject inputs.
+              </p>
+              <textarea
+                rows={6}
+                value={tool.prompt_template}
+                onChange={(e) =>
+                  setTool({ ...tool, prompt_template: e.target.value })
+                }
+                className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-amber-500 resize-none text-sm font-mono text-slate-900 leading-relaxed"
               />
             </div>
 
-            <div className="bg-white min-w-0 p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-                Expected Outputs
-              </h2>
-              <SchemaViewer
-                title="Expected Outputs"
-                nodes={outputNodes}
-                setNodes={setOutputNodes}
-                addButtonText="Add Output Field"
-              />
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-white min-w-0 p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Expected Inputs
+                </h2>
+                <SchemaViewer
+                  title="Expected Inputs"
+                  nodes={inputNodes}
+                  setNodes={setInputNodes}
+                  addButtonText="Add Input Field"
+                />
+              </div>
+
+              <div className="bg-white min-w-0 p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Expected Outputs
+                </h2>
+                <SchemaViewer
+                  title="Expected Outputs"
+                  nodes={outputNodes}
+                  setNodes={setOutputNodes}
+                  addButtonText="Add Output Field"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
