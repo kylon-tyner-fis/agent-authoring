@@ -19,6 +19,20 @@ export async function GET(
       .single();
 
     if (error) throw error;
+
+    // Apply Real-Time Health Check
+    if (data.status !== "inactive" && data.health_url) {
+      try {
+        const res = await fetch(data.health_url, {
+          method: "GET",
+          signal: AbortSignal.timeout(3000), // Enforce 3 second max timeout
+        });
+        data.status = res.ok ? "active" : "error";
+      } catch (err) {
+        data.status = "error";
+      }
+    }
+
     return NextResponse.json({ server: data });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

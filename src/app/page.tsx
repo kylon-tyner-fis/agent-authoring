@@ -78,7 +78,7 @@ export default function GlobalDashboard() {
     };
 
     fetchDashboardData();
-  }, [currentProject]);
+  }, [currentProject, hasMounted]);
 
   const sections = [
     {
