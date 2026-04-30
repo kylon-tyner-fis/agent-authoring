@@ -26,7 +26,8 @@ const activeThemeMap: Record<string, string> = {
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
-  const activeSection = resolvePrimarySection(pathname);
+  const isHelpActive = pathname.startsWith("/help");
+  const activeSection = isHelpActive ? null : resolvePrimarySection(pathname);
 
   // Helper to return the correct icon for each nav item
   const getNavIcon = (key: string, isActive: boolean) => {
@@ -97,13 +98,18 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
           {/* 2. Add Right-Side Utility Actions (Profile/Help) */}
           <div className="flex items-center gap-1 shrink-0 pl-4 border-l border-slate-200">
-            <button
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+            <Link
+              href="/help"
+              className={`p-2 rounded-full transition-colors ${
+                isHelpActive
+                  ? "bg-slate-700 text-slate-100"
+                  : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              }`}
               aria-label="Help and Documentation"
               title="Help & Docs"
             >
               <HelpCircle className="w-5 h-5" />
-            </button>
+            </Link>
             <button
               className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors relative"
               aria-label="Notifications"
