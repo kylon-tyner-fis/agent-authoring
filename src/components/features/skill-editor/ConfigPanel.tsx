@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation"; // <-- Added router
 import {
   Settings2,
   SlidersHorizontal,
@@ -19,6 +20,8 @@ import {
   ShieldAlert,
   Check,
   Copy,
+  ArrowLeft, // <-- Added icon
+  Loader2, // <-- Added for loading state consistency
 } from "lucide-react";
 import {
   SkillConfig,
@@ -38,7 +41,7 @@ interface ConfigPanelProps {
   config: SkillConfig;
   setConfig: React.Dispatch<React.SetStateAction<SkillConfig>>;
   availableTools: ToolConfig[];
-  availableServers: MCPServerConfig[]; // NEW
+  availableServers: MCPServerConfig[];
   activeNodeId?: string | null;
   onOpenPlayground: () => void;
 }
@@ -59,6 +62,7 @@ export const ConfigPanel = ({
   availableServers,
   onOpenPlayground,
 }: ConfigPanelProps) => {
+  const router = useRouter(); // <-- Added router instance
   const [activeTab, setActiveTab] = useState<Tab>("identity");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -131,7 +135,6 @@ export const ConfigPanel = ({
     if (activeTab === "orchestration" && canvasRef.current) {
       const latestCanvasData = canvasRef.current.getCanvasData();
 
-      // NEW: Automatically extract required mcp_servers from the orchestration nodes
       const requiredServers = Array.from(
         new Set(
           (latestCanvasData.nodes || [])
@@ -142,7 +145,7 @@ export const ConfigPanel = ({
 
       setConfig((prev) => ({
         ...prev,
-        mcp_servers: requiredServers, // Keeps config in sync with canvas
+        mcp_servers: requiredServers,
         orchestration: {
           nodes: latestCanvasData.nodes,
           edges: latestCanvasData.edges,
@@ -173,11 +176,9 @@ export const ConfigPanel = ({
     const rawNodes = latestCanvasData?.nodes || [];
     const rawEdges = latestCanvasData?.edges || [];
 
-    // Strip visual positioning and internal React Flow state from nodes
     const semanticNodes = rawNodes.map((n: any) => {
       const { active, ...cleanData } = n.data || {};
 
-      // Resolve IDs to human-readable names for the snapshot
       let actionName;
       if (n.type === "tool" && cleanData.toolId) {
         actionName = availableTools.find(
@@ -197,7 +198,6 @@ export const ConfigPanel = ({
       };
     });
 
-    // Strip internal React Flow state from edges
     const semanticEdges = rawEdges.map((e: any) => ({
       source: e.source,
       target: e.target,
@@ -335,19 +335,14 @@ export const ConfigPanel = ({
         <option value="any" />
       </datalist>
 
-      <div className="p-5 border-b border-gray-200 flex items-center justify-between bg-white shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shadow-sm">
-            <Settings2 className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-gray-900 leading-tight">
-              LangGraph Studio
-            </h1>
-            <p className="text-xs text-gray-500">Skill Authoring</p>
-          </div>
-        </div>
-
+      {/* --- STANDARDIZED CONTEXTUAL SUB-HEADER --- */}
+      <div className="px-4 sm:px-6 lg:px-8 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
+        <button
+          onClick={() => router.push("/skills")}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Skills
+        </button>
         <div className="flex items-center gap-3">
           <button
             onClick={handleCopyConfig}
@@ -363,7 +358,7 @@ export const ConfigPanel = ({
 
           <button
             onClick={handleOpenPlayground}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-violet-50 text-violet-600 hover:bg-violet-100 border border-violet-200"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200"
           >
             <Play className="w-4 h-4" /> Test Skill
           </button>
@@ -374,23 +369,23 @@ export const ConfigPanel = ({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               saveSuccess
                 ? "bg-green-100 text-green-700 border border-green-200"
-                : "bg-violet-900 text-white hover:bg-violet-800"
+                : "bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
             }`}
           >
-            {saveSuccess ? (
-              <>
-                <CheckCircle2 className="w-4 h-4" /> Published
-              </>
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : saveSuccess ? (
+              <CheckCircle2 className="w-4 h-4" />
             ) : (
-              <>
-                <Save className="w-4 h-4" /> Save Config
-              </>
+              <Save className="w-4 h-4" />
             )}
+            {saveSuccess ? "Published" : "Save Skill"}
           </button>
         </div>
       </div>
+      {/* ------------------------------------------- */}
 
-      <div className="flex px-4 pt-2 bg-slate-50 border-b border-gray-200 shrink-0 overflow-x-auto">
+      <div className="flex px-4 sm:px-6 lg:px-8 pt-2 bg-slate-50 border-b border-gray-200 shrink-0 overflow-x-auto">
         {[
           { id: "identity", label: "Identity", icon: Fingerprint },
           { id: "engine", label: "AI Engine", icon: Cpu },
@@ -416,7 +411,7 @@ export const ConfigPanel = ({
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 bg-white">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 flex-1 overflow-y-auto bg-white">
         {activeTab === "identity" && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="space-y-4">

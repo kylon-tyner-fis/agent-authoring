@@ -96,15 +96,15 @@ export default function MCPServerEditorPage({
 
   if (isLoading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+      <div className="h-full w-full flex items-center justify-center bg-slate-50 overflow-hidden">
         <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50">
-      <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
+    <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
+      <div className="px-4 sm:px-6 lg:px-8 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
         <button
           onClick={() => router.push("/mcp-servers")}
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"

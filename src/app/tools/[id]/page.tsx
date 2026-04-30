@@ -160,7 +160,7 @@ export default function ToolEditorPage({
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50">
+    <div className="h-full flex flex-col bg-slate-50">
       <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
         <button
           onClick={() => router.push("/tools")}
@@ -189,7 +189,7 @@ export default function ToolEditorPage({
         </div>
       </div>
 
-      <div className="flex-1 p-8">
+      <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-5xl mx-auto space-y-8">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">

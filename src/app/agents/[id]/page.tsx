@@ -116,8 +116,8 @@ export default function AgentEditorPage({
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
-      <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10">
+    <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
+      <div className="py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10 px-4 sm:px-6 lg:px-8">
         <button
           onClick={() => router.push("/agents")}
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
