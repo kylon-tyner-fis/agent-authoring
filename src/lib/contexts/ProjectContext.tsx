@@ -9,6 +9,8 @@ interface ProjectContextType {
   setCurrentProject: (project: Project) => void;
   isLoading: boolean;
   refreshProjects: () => Promise<void>;
+  updateProject: (id: string, name: string) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -19,6 +21,33 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     null,
   );
   const [isLoading, setIsLoading] = useState(true);
+
+  const updateProject = async (id: string, name: string) => {
+    const res = await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      await fetchProjects();
+    }
+  };
+
+  const deleteProject = async (id: string) => {
+    const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      await fetchProjects();
+      // If we deleted the current project, switch to default
+      if (currentProject?.id === id) {
+        const defaultProj =
+          projects.find((p) => p.name === "Default Project") || projects[0];
+        if (defaultProj) setCurrentProject(defaultProj);
+      }
+    } else {
+      const data = await res.json();
+      throw new Error(data.error || "Failed to delete project");
+    }
+  };
 
   const fetchProjects = async () => {
     try {
@@ -64,6 +93,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         setCurrentProject,
         isLoading,
         refreshProjects: fetchProjects,
+        updateProject,
+        deleteProject,
       }}
     >
       {children}

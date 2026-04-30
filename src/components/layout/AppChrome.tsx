@@ -18,7 +18,9 @@ import {
   Search,
   ChevronDown,
   Check,
-  Plus, // Added Plus icon
+  Plus,
+  Trash2,
+  Pencil, // Added Plus icon
 } from "lucide-react";
 import Image from "next/image";
 
@@ -36,8 +38,14 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const activeSection = resolvePrimarySection(pathname);
   const isHelpActive = pathname.startsWith("/help");
 
-  const { currentProject, projects, setCurrentProject, refreshProjects } =
-    useProject();
+  const {
+    currentProject,
+    projects,
+    setCurrentProject,
+    refreshProjects,
+    updateProject,
+    deleteProject,
+  } = useProject();
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
 
@@ -180,19 +188,63 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
                   <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
                     {filteredProjects.map((p) => (
-                      <button
+                      <div
                         key={p.id}
-                        onClick={() => {
-                          setCurrentProject(p);
-                          setIsProjectMenuOpen(false);
-                        }}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm hover:bg-slate-50 text-slate-700 transition-colors"
+                        className="group/item flex items-center gap-1 pr-1"
                       >
-                        <span className="truncate">{p.name}</span>
-                        {currentProject?.id === p.id && (
-                          <Check className="w-4 h-4 text-indigo-600" />
+                        <button
+                          onClick={() => {
+                            setCurrentProject(p);
+                            setIsProjectMenuOpen(false);
+                          }}
+                          className="flex-1 flex items-center justify-between px-3 py-2 rounded-lg text-sm hover:bg-slate-50 text-slate-700 transition-colors text-left"
+                        >
+                          <span className="truncate">{p.name}</span>
+                          {currentProject?.id === p.id && (
+                            <Check className="w-4 h-4 text-indigo-600" />
+                          )}
+                        </button>
+
+                        {/* Settings Actions - Only show on hover for non-Default projects */}
+                        {p.name !== "Default Project" && (
+                          <div className="flex opacity-0 group-hover/item:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newName = window.prompt(
+                                  "Rename project:",
+                                  p.name,
+                                );
+                                if (newName) updateProject(p.id, newName);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50"
+                              title="Rename"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (
+                                  confirm(
+                                    `Delete project "${p.name}"? All associated Agents and Orchestrators must be deleted first.`,
+                                  )
+                                ) {
+                                  try {
+                                    await deleteProject(p.id);
+                                  } catch (err: any) {
+                                    alert(err.message);
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
-                      </button>
+                      </div>
                     ))}
                     {filteredProjects.length === 0 && (
                       <div className="px-3 py-4 text-center text-xs text-slate-400 italic">
