@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { runExecutiveAgent } from "@/src/lib/runtime/agent-executor";
+import { AgentConfig } from "@/src/lib/types/constants";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,33 +33,61 @@ export async function POST(
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    const { data: agentConfig, error: agentError } = await supabase
-      .from("agents")
+    // 1. Fetch the Orchestrator
+    const { data: orchConfig, error: orchError } = await supabase
+      .from("orchestrators")
       .select("*")
       .eq("id", id)
       .single();
 
-    if (agentError || !agentConfig) {
+    if (orchError || !orchConfig) {
       return NextResponse.json(
-        { error: "Agent not found." },
+        { error: "Orchestrator not found." },
         { status: 404, headers: corsHeaders },
       );
     }
 
-    const allRequiredSkillIds = new Set<string>(agentConfig.skills || []);
-    const { data: assignedSkills, error: skillsError } = await supabase
+    // 2. Fetch the assigned Agents
+    const { data: assignedAgents, error: agentsError } = await supabase
+      .from("agents")
+      .select("*")
+      .in("id", orchConfig.agents || []);
+
+    if (agentsError) {
+      throw new Error(`Failed to load assigned agents: ${agentsError.message}`);
+    }
+
+    // 3. Gather ALL skill IDs needed by the sub-agents
+    const allRequiredSkillIds = new Set<string>();
+    (assignedAgents || []).forEach((agent) => {
+      (agent.skills || []).forEach((sId: string) =>
+        allRequiredSkillIds.add(sId),
+      );
+    });
+
+    const { data: allSkills, error: skillsError } = await supabase
       .from("skills")
       .select("*")
       .in("id", Array.from(allRequiredSkillIds));
 
     if (skillsError) {
-      throw new Error(`Failed to load assigned skills: ${skillsError.message}`);
+      throw new Error(`Failed to load skills: ${skillsError.message}`);
     }
+
+    // Map orchestrator to AgentConfig format to reuse the runner
+    const orchestratorAsAgent: AgentConfig = {
+      id: orchConfig.id,
+      name: orchConfig.name,
+      description: orchConfig.description,
+      skills: [], // Orchestrators don't use skills directly
+      status: orchConfig.status,
+      system_prompt: orchConfig.system_prompt,
+    };
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
-        // FULL REPORTER INSTALLED HERE AS WELL
+        // FULL REPORTER
         const reporter = {
           onMessageChunk: (chunk: string) =>
             controller.enqueue(
@@ -128,9 +157,9 @@ export async function POST(
 
         try {
           await runExecutiveAgent(
-            agentConfig,
-            assignedSkills || [],
-            [], // No sub-agents
+            orchestratorAsAgent,
+            allSkills || [],
+            assignedAgents || [], // Pass the sub-agents so the orchestrator can use them!
             input,
             threadId,
             reporter,
@@ -160,7 +189,7 @@ export async function POST(
       },
     });
   } catch (error: any) {
-    console.error("Agent Execution Error:", error);
+    console.error("Execution Error:", error);
     return NextResponse.json(
       { error: error.message },
       { status: 500, headers: corsHeaders },
