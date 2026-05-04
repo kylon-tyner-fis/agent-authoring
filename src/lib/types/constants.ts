@@ -31,9 +31,10 @@ export interface MCPServerConfig {
   id: string;
   name: string;
   url: string;
+  health_url?: string;
   auth_type: "none" | "api_key" | "bearer";
   auth_token?: string;
-  status: "active" | "inactive" | "error";
+  status: "Active" | "Inactive" | "Error";
 }
 
 export interface GraphNode {

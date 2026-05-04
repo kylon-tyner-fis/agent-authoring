@@ -14,7 +14,27 @@ export async function GET() {
       .order("name", { ascending: true });
 
     if (error) throw error;
-    return NextResponse.json({ servers: data });
+
+    // Apply Real-Time Health Checks
+    const serversWithHealth = await Promise.all(
+      data.map(async (server) => {
+        // Only run a check if it hasn't been purposefully disabled and a URL exists
+        if (server.status !== "Inactive" && server.health_url) {
+          try {
+            const res = await fetch(server.health_url, {
+              method: "GET",
+              signal: AbortSignal.timeout(3000), // Enforce 3 second max timeout
+            });
+            server.status = res.ok ? "Active" : "Error";
+          } catch (err) {
+            server.status = "Error";
+          }
+        }
+        return server;
+      }),
+    );
+
+    return NextResponse.json({ servers: serversWithHealth });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

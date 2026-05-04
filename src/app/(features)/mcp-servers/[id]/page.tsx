@@ -20,8 +20,9 @@ export default function MCPServerEditorPage({
     id: "",
     name: "",
     url: "",
+    health_url: "",
     auth_type: "none",
-    status: "active",
+    status: "Active",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -31,6 +32,7 @@ export default function MCPServerEditorPage({
     const snapshot = {
       name: server.name,
       url: server.url,
+      health_url: server.health_url,
       auth_type: server.auth_type,
       status: server.status,
       // Intentionally omitting auth_token for safety
@@ -139,20 +141,14 @@ export default function MCPServerEditorPage({
                   <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
                     <Activity className="w-3.5 h-3.5" /> Status
                   </label>
-                  <select
+                  <input
                     value={server.status}
-                    onChange={(e) =>
-                      setServer({
-                        ...server,
-                        status: e.target.value as MCPServerConfig["status"],
-                      })
-                    }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 bg-white cursor-pointer text-slate-900"
-                  >
-                    <option value="active">🟢 Active</option>
-                    <option value="inactive">⚪ Inactive</option>
-                    <option value="error">🔴 Error / Offline</option>
-                  </select>
+                    disabled
+                    className="w-full p-2.5 text-sm border border-gray-200 rounded-lg outline-none bg-slate-50 cursor-not-allowed text-slate-500"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Status is updated dynamically via health checks.
+                  </p>
                 </div>
               </div>
             </div>
@@ -177,6 +173,26 @@ export default function MCPServerEditorPage({
                     placeholder="https://mcp.yourdomain.com/v1"
                   />
                 </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Health Check URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={server.health_url || ""}
+                    onChange={(e) =>
+                      setServer({ ...server, health_url: e.target.value })
+                    }
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
+                    placeholder="https://mcp.yourdomain.com/health"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    If provided, this URL will be actively pinged to determine
+                    the real-time status of the server.
+                  </p>
+                </div>
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
                     <Key className="w-3.5 h-3.5" /> Authentication Type
@@ -209,7 +225,7 @@ export default function MCPServerEditorPage({
                           : "API Key"}
                       </label>
                       <input
-                        type="password" // Use password type to hide the token in the UI
+                        type="password"
                         value={server.auth_token || ""}
                         onChange={(e) =>
                           setServer({ ...server, auth_token: e.target.value })
