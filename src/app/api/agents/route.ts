@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,9 +32,29 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const agent = await req.json();
+    const normalizedId =
+      typeof agent.id === "string" && agent.id.trim().length > 0
+        ? agent.id.trim()
+        : randomUUID();
+    const normalizedProjectId =
+      typeof agent.project_id === "string" ? agent.project_id.trim() : "";
+
+    if (!normalizedProjectId) {
+      return NextResponse.json(
+        { error: "project_id is required to save an agent." },
+        { status: 400 },
+      );
+    }
+
+    const payload = {
+      ...agent,
+      id: normalizedId,
+      project_id: normalizedProjectId,
+    };
+
     const { data, error } = await supabase
       .from("agents")
-      .upsert([agent], { onConflict: "id" })
+      .upsert([payload], { onConflict: "id" })
       .select()
       .single();
 
