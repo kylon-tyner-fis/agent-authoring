@@ -157,13 +157,13 @@ export default function GlobalDashboard() {
     {
       title: "MCP Servers",
       description: "External connectors for databases, search, and APIs.",
-      icon: <Server className="w-6 h-6 text-fuchsia-700" />,
+      icon: <Server className="w-6 h-6 text-emerald-700" />,
       path: "/mcp-servers",
       count: isLoading ? "Loading..." : `${counts.mcpServers} Connected`,
       accent: {
-        hoverBorder: "hover:border-fuchsia-400",
-        iconBg: "bg-fuchsia-50",
-        actionHoverBg: "group-hover:bg-fuchsia-600",
+        hoverBorder: "hover:border-emerald-400",
+        iconBg: "bg-emerald-50",
+        actionHoverBg: "group-hover:bg-emerald-600",
       },
       action: () => router.push("/mcp-servers"),
     },
