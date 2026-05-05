@@ -22,7 +22,7 @@ export function NodeMapping({
   const globalColor =
     flowDirection === "global-to-local"
       ? "text-indigo-500"
-      : "text-emerald-500";
+      : "text-fuchsia-500";
 
   return (
     <div className="text-sm flex items-center justify-between gap-2 text-slate-500 font-mono bg-slate-50 rounded px-1.5 py-1 border border-slate-100">

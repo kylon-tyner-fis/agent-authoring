@@ -238,7 +238,7 @@ export default function OrchestratorEditorPage({
 
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <Bot className="w-4 h-4 text-emerald-500" /> Assigned Agents
+                  <Bot className="w-4 h-4 text-fuchsia-500" /> Assigned Agents
                 </h2>
                 <p className="text-xs text-slate-500">
                   Select the agents this orchestrator can delegate tasks to.
@@ -249,7 +249,7 @@ export default function OrchestratorEditorPage({
                     <div
                       key={agent.id}
                       onClick={() => toggleAgent(agent.id)}
-                      className={`p-4 border rounded-xl cursor-pointer transition-all ${orchestrator.agents.includes(agent.id) ? "border-emerald-500 bg-emerald-50/30 ring-1 ring-emerald-500" : "border-slate-200 hover:border-slate-300"}`}
+                      className={`p-4 border rounded-xl cursor-pointer transition-all ${orchestrator.agents.includes(agent.id) ? "border-fuchsia-500 bg-fuchsia-50/30 ring-1 ring-fuchsia-500" : "border-slate-200 hover:border-slate-300"}`}
                     >
                       <div className="flex justify-between items-start mb-1">
                         <span className="font-bold text-sm text-slate-800 truncate">

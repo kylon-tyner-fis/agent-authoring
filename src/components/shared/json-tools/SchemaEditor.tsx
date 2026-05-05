@@ -55,7 +55,7 @@ export const SchemaEditor = ({
           >
             <div className="flex gap-2 items-center group relative">
               {depth > 0 && (
-                <div className="absolute -left-6 top-1/2 w-4 border-b-2 border-l-2 border-emerald-200 rounded-bl h-10 -translate-y-10" />
+                <div className="absolute -left-6 top-1/2 w-4 border-b-2 border-l-2 border-fuchsia-200 rounded-bl h-10 -translate-y-10" />
               )}
 
               <input
@@ -63,7 +63,7 @@ export const SchemaEditor = ({
                 value={node.key}
                 placeholder="Key (e.g. query)"
                 onChange={(e) => updateNode(node.id, { key: e.target.value })}
-                className="flex-1 p-2.5 min-w-0 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-emerald-500 bg-white shadow-sm transition-all text-slate-900"
+                className="flex-1 p-2.5 min-w-0 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-fuchsia-500 bg-white shadow-sm transition-all text-slate-900"
               />
               <span className="text-gray-400 font-mono">:</span>
 
@@ -77,9 +77,9 @@ export const SchemaEditor = ({
                     ...(isComplex && !node.children ? { children: [] } : {}),
                   });
                 }}
-                className={`flex-[1.5] min-w-0 p-2.5 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-emerald-500 shadow-sm transition-all cursor-pointer ${
+                className={`flex-[1.5] min-w-0 p-2.5 text-sm border border-gray-300 rounded-lg outline-none font-mono focus:border-fuchsia-500 shadow-sm transition-all cursor-pointer ${
                   hasChildren
-                    ? "bg-emerald-50 text-slate-900 border-emerald-300 font-bold"
+                    ? "bg-fuchsia-50 text-slate-900 border-fuchsia-300 font-bold"
                     : "bg-white text-slate-900"
                 }`}
               >
@@ -116,8 +116,8 @@ export const SchemaEditor = ({
             </div>
 
             {hasChildren && (
-              <div className="ml-6 pl-4 border-l-2 border-emerald-100 py-1">
-                <div className="text-sm font-bold text-emerald-600/70 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <div className="ml-6 pl-4 border-l-2 border-fuchsia-100 py-1">
+                <div className="text-sm font-bold text-fuchsia-600/70 uppercase tracking-wider mb-2 flex items-center gap-1">
                   <ListTree className="w-3 h-3" />
                   {isArrayOfObject
                     ? "Array Item Properties"
@@ -140,8 +140,8 @@ export const SchemaEditor = ({
         onClick={addNode}
         className={`flex items-center gap-1.5 font-semibold text-xs py-1.5 transition-colors ${
           depth === 0
-            ? "w-full mt-4 py-2.5 border-2 border-dashed border-emerald-200 rounded-lg text-emerald-600 hover:bg-emerald-50 justify-center"
-            : "text-emerald-500 hover:text-emerald-700"
+            ? "w-full mt-4 py-2.5 border-2 border-dashed border-fuchsia-200 rounded-lg text-fuchsia-600 hover:bg-fuchsia-50 justify-center"
+            : "text-fuchsia-500 hover:text-fuchsia-700"
         }`}
       >
         {depth === 0 ? (

@@ -627,7 +627,7 @@ export const ConfigPanel = ({
                 <div className="space-y-4">
                   <div className="flex flex-col gap-1 mb-2">
                     <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                      <Database className="w-4 h-4 text-emerald-500" /> Memory &
+                      <Database className="w-4 h-4 text-fuchsia-500" /> Memory &
                       Persistence
                     </h2>
                   </div>

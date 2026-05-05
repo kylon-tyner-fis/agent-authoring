@@ -319,7 +319,7 @@ export const Playground = ({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
             >
               {isCopied ? (
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <Check className="w-3.5 h-3.5 text-fuchsia-600" />
               ) : (
                 <Copy className="w-3.5 h-3.5" />
               )}
@@ -469,10 +469,10 @@ export const Playground = ({
                     key={i}
                     className="flex flex-col gap-1.5 ml-6 my-2 animate-in fade-in"
                   >
-                    <div className="flex items-center gap-2 text-[11px] text-emerald-600 font-mono px-4">
+                    <div className="flex items-center gap-2 text-[11px] text-fuchsia-600 font-mono px-4">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Tool Completed:</span>
-                      <span className="font-semibold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                      <span className="font-semibold bg-fuchsia-50 border border-fuchsia-200 px-1.5 py-0.5 rounded">
                         {history.toolName}
                       </span>
                     </div>

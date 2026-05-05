@@ -610,7 +610,7 @@ const CanvasEditor = forwardRef<
               {serversList.map((server) => (
                 <div
                   key={server.id}
-                  className="p-2 border border-cyan-200 bg-white text-cyan-700 rounded cursor-grab flex flex-col gap-1 hover:bg-cyan-50 transition-colors shadow-sm"
+                  className="p-2 border border-emerald-200 bg-white text-emerald-700 rounded cursor-grab flex flex-col gap-1 hover:bg-emerald-50 transition-colors shadow-sm"
                   onDragStart={(e) => onDragStart(e, "mcp_node", server.id)}
                   draggable
                 >
@@ -781,7 +781,7 @@ const CanvasEditor = forwardRef<
                               handleNodeChange("toolName", e.target.value);
                               handleNodeChange("input_mapping", {}); // reset mappings
                             }}
-                            className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-cyan-500 bg-white"
+                            className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
                           >
                             <option value="">-- Choose an action --</option>
                             {availableMcpTools.map((t) => (
@@ -801,7 +801,7 @@ const CanvasEditor = forwardRef<
                       {selectedMcpToolDef && (
                         <>
                           <div className="pt-4 border-t border-slate-100 space-y-3">
-                            <div className="flex items-center gap-2 text-cyan-700 mb-2">
+                            <div className="flex items-center gap-2 text-emerald-700 mb-2">
                               <ArrowRightLeft className="w-4 h-4" />
                               <h3 className="text-xs font-bold uppercase tracking-wider">
                                 Input Mapping
@@ -839,7 +839,7 @@ const CanvasEditor = forwardRef<
                                         e.target.value,
                                       )
                                     }
-                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-cyan-500 bg-white"
+                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
                                   >
                                     <option value="">
                                       -- Select State Variable --
@@ -856,7 +856,7 @@ const CanvasEditor = forwardRef<
                           </div>
 
                           <div className="pt-4 border-t border-slate-100 space-y-3">
-                            <div className="flex items-center gap-2 text-cyan-700 mb-2">
+                            <div className="flex items-center gap-2 text-emerald-700 mb-2">
                               <ArrowRightLeft className="w-4 h-4" />
                               <h3 className="text-xs font-bold uppercase tracking-wider">
                                 Output Mapping
@@ -886,7 +886,7 @@ const CanvasEditor = forwardRef<
                                     e.target.value,
                                   )
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-cyan-500 bg-white"
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
                               >
                                 <option value="">
                                   -- Select Target State --

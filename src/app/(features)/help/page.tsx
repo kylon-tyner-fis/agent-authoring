@@ -135,7 +135,7 @@ export default function HelpPage() {
       id: "quickstart",
       label: "Quick Start Guides",
       icon: Rocket,
-      color: "text-emerald-600",
+      color: "text-fuchsia-600",
     },
     {
       id: "canvas",
@@ -159,7 +159,7 @@ export default function HelpPage() {
       id: "api",
       label: "API & Integration",
       icon: Code2,
-      color: "text-cyan-600",
+      color: "text-emerald-600",
     },
     {
       id: "troubleshooting",
@@ -187,9 +187,9 @@ export default function HelpPage() {
     },
     {
       title: "Agent",
-      icon: <Bot className="w-6 h-6 text-emerald-600" />,
-      bg: "bg-emerald-50",
-      border: "border-emerald-200",
+      icon: <Bot className="w-6 h-6 text-fuchsia-600" />,
+      bg: "bg-fuchsia-50",
+      border: "border-fuchsia-200",
       job: "Plans and makes autonomous decisions.",
       description:
         "A runtime instance defined by a specific persona and configuration. It analyzes tasks delegated by the orchestrator and decides which tools or skills are required to solve the problem.",
@@ -214,9 +214,9 @@ export default function HelpPage() {
     },
     {
       title: "MCP (Model Context Protocol)",
-      icon: <Server className="w-6 h-6 text-cyan-700" />,
-      bg: "bg-cyan-50",
-      border: "border-cyan-200",
+      icon: <Server className="w-6 h-6 text-emerald-700" />,
+      bg: "bg-emerald-50",
+      border: "border-emerald-200",
       job: "Connects the system to externally hosted capabilities.",
       description:
         "A standardized protocol used as a remote integration boundary. It allows the runtime to securely communicate with external servers, mapping remote functions into the system as usable tools.",
@@ -687,7 +687,7 @@ export default function HelpPage() {
                   </div>
 
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <h3 className="text-lg font-bold text-emerald-700">
+                    <h3 className="text-lg font-bold text-fuchsia-700">
                       1. Building Your First Skill
                     </h3>
                     <p className="text-sm text-slate-600 leading-relaxed">
@@ -716,7 +716,7 @@ export default function HelpPage() {
                   </div>
 
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <h3 className="text-lg font-bold text-emerald-700">
+                    <h3 className="text-lg font-bold text-fuchsia-700">
                       2. Creating an Agent
                     </h3>
                     <p className="text-sm text-slate-600 leading-relaxed">
@@ -738,7 +738,7 @@ export default function HelpPage() {
                   </div>
 
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <h3 className="text-lg font-bold text-emerald-700">
+                    <h3 className="text-lg font-bold text-fuchsia-700">
                       3. Setting up an Orchestrator
                     </h3>
                     <p className="text-sm text-slate-600 leading-relaxed">
