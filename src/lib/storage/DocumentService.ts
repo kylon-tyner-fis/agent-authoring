@@ -8,6 +8,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+export class DocumentServiceError extends Error {
+  constructor(
+    public code: string,
+    public status: number,
+    message: string,
+    public details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "DocumentServiceError";
+  }
+}
+
 export class DocumentService {
   /**
    * Uploads a raw file to Storage, creates the metadata record,
@@ -133,7 +145,12 @@ export class DocumentService {
       .single();
 
     if (fetchError || !data) {
-      throw new Error("File not found for this agent.");
+      throw new DocumentServiceError(
+        "FILE_NOT_FOUND",
+        404,
+        "File not found for this agent.",
+        { agentId, fileId },
+      );
     }
 
     // 2. Delete the raw file from Storage
@@ -158,7 +175,12 @@ export class DocumentService {
       .eq("agent_id", agentId);
 
     if (dbError) {
-      throw new Error(`Failed to delete database record: ${dbError.message}`);
+      throw new DocumentServiceError(
+        "FILE_DELETE_DB_FAILED",
+        500,
+        "Failed to delete database record.",
+        { agentId, fileId, cause: dbError.message },
+      );
     }
   }
 
@@ -175,7 +197,12 @@ export class DocumentService {
       .single();
 
     if (fetchError || !fileRecord)
-      throw new Error("File not found for this agent.");
+      throw new DocumentServiceError(
+        "FILE_NOT_FOUND",
+        404,
+        "File not found for this agent.",
+        { agentId, fileId },
+      );
 
     // 2. Download from storage
     const { data: fileBlob, error: downloadError } = await supabase.storage
@@ -183,7 +210,12 @@ export class DocumentService {
       .download(fileRecord.file_path);
 
     if (downloadError || !fileBlob)
-      throw new Error("Could not download file from storage.");
+      throw new DocumentServiceError(
+        "FILE_STORAGE_DOWNLOAD_FAILED",
+        502,
+        "Could not download file from storage.",
+        { agentId, fileId, cause: downloadError?.message },
+      );
 
     return await fileBlob.text();
   }
@@ -206,7 +238,12 @@ export class DocumentService {
       .single();
 
     if (fetchError || !fileRecord)
-      throw new Error("File not found for this agent.");
+      throw new DocumentServiceError(
+        "FILE_NOT_FOUND",
+        404,
+        "File not found for this agent.",
+        { agentId, fileId },
+      );
 
     // 2. Overwrite the file in Supabase Storage
     const { error: uploadError } = await supabase.storage
@@ -216,12 +253,31 @@ export class DocumentService {
         contentType: "text/plain",
       });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      throw new DocumentServiceError(
+        "FILE_STORAGE_UPLOAD_FAILED",
+        502,
+        "Failed to update file content in storage.",
+        { agentId, fileId, cause: uploadError.message },
+      );
+    }
 
     // 3. If it's a reference file, we must rebuild the vector memory
     if (fileRecord.usage_type === "reference") {
-      // Purge old chunks
-      await supabase.from("file_chunks").delete().eq("file_id", fileId);
+      const { data: oldChunks, error: oldChunksError } = await supabase
+        .from("file_chunks")
+        .select("content, embedding, metadata")
+        .eq("file_id", fileId)
+        .eq("agent_id", agentId);
+
+      if (oldChunksError) {
+        throw new DocumentServiceError(
+          "VECTOR_REINDEX_READ_FAILED",
+          500,
+          "Failed to read existing vector chunks.",
+          { agentId, fileId, cause: oldChunksError.message },
+        );
+      }
 
       // Re-embed new chunks
       const textSplitter = new RecursiveCharacterTextSplitter({
@@ -233,26 +289,76 @@ export class DocumentService {
         modelName: "text-embedding-3-small",
       });
 
-      const chunksToInsert = await Promise.all(
-        chunks.map(async (chunk) => {
-          const embedding = await embeddings.embedQuery(chunk.pageContent);
-          return {
-            file_id: fileId,
-            agent_id: fileRecord.agent_id,
-            content: chunk.pageContent,
-            embedding,
-            metadata: { filename: fileRecord.filename },
-          };
-        }),
+      const chunkTexts = chunks.map((chunk) => chunk.pageContent);
+      const newEmbeddings =
+        chunkTexts.length > 0 ? await embeddings.embedDocuments(chunkTexts) : [];
+
+      const chunksToInsert = chunks.map((chunk, index) => ({
+        file_id: fileId,
+        agent_id: fileRecord.agent_id,
+        content: chunk.pageContent,
+        embedding: newEmbeddings[index],
+        metadata: { filename: fileRecord.filename, chunk_index: index },
+      }));
+
+      const { error: deleteError } = await supabase
+        .from("file_chunks")
+        .delete()
+        .eq("file_id", fileId)
+        .eq("agent_id", agentId);
+
+      if (deleteError) {
+        throw new DocumentServiceError(
+          "VECTOR_REINDEX_DELETE_FAILED",
+          500,
+          "Failed to clear existing vector chunks.",
+          { agentId, fileId, cause: deleteError.message },
+        );
+      }
+
+      if (chunksToInsert.length === 0) {
+        return;
+      }
+
+      const { error: insertError } = await supabase.from("file_chunks").insert(
+        chunksToInsert,
       );
 
-      const { error: insertError } = await supabase
-        .from("file_chunks")
-        .insert(chunksToInsert);
-
       if (insertError) {
-        console.error("Failed to re-insert chunks:", insertError);
-        throw new Error("Failed to update vector database.");
+        console.error("Failed to insert new chunks, attempting restore:", {
+          agentId,
+          fileId,
+          error: insertError,
+        });
+
+        const rollbackChunks = (oldChunks || []).map((chunk) => ({
+          file_id: fileId,
+          agent_id: fileRecord.agent_id,
+          content: chunk.content,
+          embedding: chunk.embedding,
+          metadata: chunk.metadata,
+        }));
+
+        if (rollbackChunks.length > 0) {
+          const { error: rollbackError } = await supabase
+            .from("file_chunks")
+            .insert(rollbackChunks);
+
+          if (rollbackError) {
+            console.error("Failed to restore old chunks during rollback:", {
+              agentId,
+              fileId,
+              error: rollbackError,
+            });
+          }
+        }
+
+        throw new DocumentServiceError(
+          "VECTOR_REINDEX_FAILED",
+          500,
+          "Failed to update vector database.",
+          { agentId, fileId, cause: insertError.message },
+        );
       }
     }
   }
