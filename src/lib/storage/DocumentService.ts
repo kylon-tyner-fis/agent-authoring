@@ -159,4 +159,91 @@ export class DocumentService {
       throw new Error(`Failed to delete database record: ${dbError.message}`);
     }
   }
+
+  /**
+   * Retrieves the raw text content of a saved file.
+   */
+  static async getFileText(fileId: string): Promise<string> {
+    // 1. Get the file path
+    const { data: fileRecord, error: fetchError } = await supabase
+      .from("agent_files")
+      .select("file_path")
+      .eq("id", fileId)
+      .single();
+
+    if (fetchError || !fileRecord) throw new Error("File record not found.");
+
+    // 2. Download from storage
+    const { data: fileBlob, error: downloadError } = await supabase.storage
+      .from("agent-documents")
+      .download(fileRecord.file_path);
+
+    if (downloadError || !fileBlob)
+      throw new Error("Could not download file from storage.");
+
+    return await fileBlob.text();
+  }
+
+  /**
+   * Overwrites the file in storage. If it is a reference file,
+   * purges the old vector chunks and generates new ones.
+   */
+  static async updateFileText(fileId: string, newText: string): Promise<void> {
+    // 1. Get the file details
+    const { data: fileRecord, error: fetchError } = await supabase
+      .from("agent_files")
+      .select("*")
+      .eq("id", fileId)
+      .single();
+
+    if (fetchError || !fileRecord) throw new Error("File record not found.");
+
+    // 2. Overwrite the file in Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from("agent-documents")
+      .upload(fileRecord.file_path, newText, {
+        upsert: true,
+        contentType: "text/plain",
+      });
+
+    if (uploadError) throw uploadError;
+
+    // 3. If it's a reference file, we must rebuild the vector memory
+    if (fileRecord.usage_type === "reference") {
+      // Purge old chunks
+      await supabase.from("file_chunks").delete().eq("file_id", fileId);
+
+      // Re-embed new chunks
+      const textSplitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 1000,
+        chunkOverlap: 200,
+      });
+      const chunks = await textSplitter.createDocuments([newText]);
+      const embeddings = new OpenAIEmbeddings({
+        modelName: "text-embedding-3-small",
+      });
+
+      const chunksToInsert = await Promise.all(
+        chunks.map(async (chunk) => {
+          const embedding = await embeddings.embedQuery(chunk.pageContent);
+          return {
+            file_id: fileId,
+            agent_id: fileRecord.agent_id,
+            content: chunk.pageContent,
+            embedding,
+            metadata: { filename: fileRecord.filename },
+          };
+        }),
+      );
+
+      const { error: insertError } = await supabase
+        .from("file_chunks")
+        .insert(chunksToInsert);
+
+      if (insertError) {
+        console.error("Failed to re-insert chunks:", insertError);
+        throw new Error("Failed to update vector database.");
+      }
+    }
+  }
 }

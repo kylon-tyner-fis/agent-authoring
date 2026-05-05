@@ -12,7 +12,11 @@ import {
   Database,
   Save,
   ArrowLeft,
+  Edit2,
+  X,
+  UserSquare,
 } from "lucide-react";
+import { useToast } from "@/src/components/layout/Toast";
 
 interface AgentConfig {
   id?: string;
@@ -39,6 +43,7 @@ interface AgentFile {
 export default function AgentEditorPage() {
   const params = useParams();
   const router = useRouter();
+  const { addToast } = useToast();
   const isNew = params.id === "new";
   const id = isNew ? null : (params.id as string);
 
@@ -46,9 +51,9 @@ export default function AgentEditorPage() {
   const [agent, setAgent] = useState<AgentConfig>({
     name: "",
     description: "",
-    system_prompt: "",
+    system_prompt: "", // Kept in state for backend compatibility, but hidden from UI
     skills: [],
-    sub_agents: [], // Kept for backend compatibility, but hidden from UI
+    sub_agents: [],
   });
 
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
@@ -62,6 +67,13 @@ export default function AgentEditorPage() {
   // New state for Drag & Drop
   const [dragInstruction, setDragInstruction] = useState(false);
   const [dragReference, setDragReference] = useState(false);
+
+  // --- FILE EDITOR STATE ---
+  const [editingFile, setEditingFile] = useState<AgentFile | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [isFetchingFile, setIsFetchingFile] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [pendingEdits, setPendingEdits] = useState<Record<string, string>>({});
 
   // Separate refs for the hidden inputs
   const instructionRef = useRef<HTMLInputElement>(null);
@@ -105,6 +117,7 @@ export default function AgentEditorPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // 1. Save the Agent Configuration
       const url = isNew ? "/api/agents" : `/api/agents/${id}`;
       const method = isNew ? "POST" : "PUT";
 
@@ -114,16 +127,66 @@ export default function AgentEditorPage() {
         body: JSON.stringify(agent),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      // Safely parse the response
+      const responseText = await res.text();
+      let data: any = {};
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          console.error("Non-JSON response from server:", responseText);
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            `Server Error ${res.status}: ${responseText.substring(0, 100)}`,
+        );
+      }
+
+      const savedAgentId = data.agent?.id || agent.id;
+
+      // 2. Process any pending file edits
+      const editPromises = Object.entries(pendingEdits).map(
+        ([fileId, newText]) => {
+          return fetch(`/api/agents/${savedAgentId}/files/${fileId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: newText }),
+          }).then(async (res) => {
+            // Safely parse file saves too
+            const fileResponseText = await res.text();
+            let fileData: any = {};
+            if (fileResponseText) {
+              try {
+                fileData = JSON.parse(fileResponseText);
+              } catch (e) {}
+            }
+
+            if (!res.ok) {
+              throw new Error(
+                `Failed to save file ${fileId}: ${fileData.error || res.statusText}`,
+              );
+            }
+          });
+        },
+      );
+
+      // Wait for all file vectorization and saving to finish
+      await Promise.all(editPromises);
+
+      // 3. Clear local edits since they are now synced with the server
+      setPendingEdits({});
 
       if (isNew) {
-        router.push(`/agents/${data.agent.id}`);
+        addToast("Agent created successfully!", "success");
+        router.push(`/agents/${savedAgentId}`);
       } else {
-        alert("Agent saved successfully!");
+        addToast("Agent and files saved successfully!", "success");
       }
     } catch (error: any) {
-      alert(`Save failed: ${error.message}`);
+      addToast(`Save failed: ${error.message}`, "error");
     } finally {
       setIsSaving(false);
     }
@@ -154,7 +217,7 @@ export default function AgentEditorPage() {
         setFiles([data.file, ...files]);
       }
     } catch (err: any) {
-      alert(`Upload failed: ${err.message}`);
+      addToast(`Upload failed: ${err.message}`, "error");
     } finally {
       setIsUploading(false);
       if (instructionRef.current) instructionRef.current.value = "";
@@ -220,6 +283,45 @@ export default function AgentEditorPage() {
     }
   };
 
+  const handleEditClick = async (file: AgentFile) => {
+    if (!agent.id) return;
+    setEditingFile(file);
+    setEditContent("");
+
+    // 1. If we already have unsaved local changes, load those instead of fetching!
+    if (pendingEdits[file.id] !== undefined) {
+      setEditContent(pendingEdits[file.id]);
+      return;
+    }
+
+    // 2. Otherwise, fetch the original text from the server
+    setIsFetchingFile(true);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/files/${file.id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setEditContent(data.text);
+    } catch (err: any) {
+      addToast(`Failed to load file content: ${err.message}`, "error");
+      setEditingFile(null);
+    } finally {
+      setIsFetchingFile(false);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingFile) return;
+
+    // Simply save the changes locally to our pendingEdits map!
+    // We DO NOT hit the database or trigger vectorization here.
+    setPendingEdits((prev) => ({
+      ...prev,
+      [editingFile.id]: editContent,
+    }));
+
+    setEditingFile(null);
+  };
+
   // --- TOGGLE HANDLERS FOR CAPABILITIES ---
   const toggleSkill = (skillId: string) => {
     setAgent((prev) => ({
@@ -283,8 +385,12 @@ export default function AgentEditorPage() {
 
       <div className="flex-1 p-6">
         <div className="max-w-4xl mx-auto space-y-6">
-          {/* General Info */}
+          {/* PANEL 1: General Info */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-2">
+              <UserSquare className="w-4 h-4 text-fuchsia-500" /> Agent Profile
+            </h2>
+
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Agent Name
@@ -312,82 +418,18 @@ export default function AgentEditorPage() {
                 placeholder="What is this agent's primary purpose?"
               />
             </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                System Prompt / Persona
-              </label>
-              <textarea
-                value={agent.system_prompt}
-                onChange={(e) =>
-                  setAgent({ ...agent, system_prompt: e.target.value })
-                }
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 focus:bg-white transition-all h-36 resize-y font-mono text-sm leading-relaxed"
-                placeholder="You are an expert data analyst. Your job is to..."
-              />
-            </div>
           </div>
 
-          {/* Assigned Skills (Full Width) */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Network className="w-4 h-4 text-fuchsia-500" /> Assigned Skills
-              </h2>
-              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {agent.skills.length} Selected
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 -mt-2">
-              Select the tools and workflows this agent is permitted to use.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto pr-2">
-              {availableSkills.map((skill) => (
-                <label
-                  key={skill.id}
-                  className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all ${
-                    agent.skills.includes(skill.id)
-                      ? "border-fuchsia-500 bg-fuchsia-50/50 ring-1 ring-fuchsia-500/20"
-                      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={agent.skills.includes(skill.id)}
-                    onChange={() => toggleSkill(skill.id)}
-                    className="mt-1 rounded text-fuchsia-600 focus:ring-fuchsia-500 border-slate-300 w-4 h-4 transition-colors"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-slate-800 text-sm truncate">
-                      {skill.name}
-                    </div>
-                    <div className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
-                      {skill.description}
-                    </div>
-                  </div>
-                </label>
-              ))}
-              {availableSkills.length === 0 && (
-                <div className="col-span-full py-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-                  <p className="text-sm text-slate-500 italic">
-                    No skills available.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* --- KNOWLEDGE & MEMORY SECTION --- */}
+          {/* PANEL 2: KNOWLEDGE & MEMORY SECTION */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <BrainCircuit className="w-4 h-4 text-fuchsia-500" /> Knowledge &
-              Memory
+              <BrainCircuit className="w-4 h-4 text-fuchsia-500" /> Cognitive
+              Foundation
             </h2>
             <p className="text-xs text-slate-500">
-              Upload text or markdown files. <b>Instruction</b> files are
-              appended to the system prompt. <b>Reference</b> files are chunked,
-              vectorized, and accessible via the agent's internal search tool.
+              Upload text or markdown files to shape the agent's logic.{" "}
+              <b>Instructions</b> dictate behavior and rules. <b>References</b>{" "}
+              serve as searchable context and data.
             </p>
 
             {isNew ? (
@@ -499,35 +541,60 @@ export default function AgentEditorPage() {
                             No instruction files uploaded.
                           </p>
                         ) : (
-                          instructionFiles.map((file) => (
-                            <div
-                              key={file.id}
-                              className="group flex items-start justify-between p-3.5 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
-                            >
-                              <div className="flex items-start gap-3 overflow-hidden">
-                                <div className="p-2 rounded-lg bg-fuchsia-50 text-fuchsia-600 shrink-0">
-                                  <FileText className="w-4 h-4" />
+                          instructionFiles.map((file) => {
+                            const hasUnsavedChanges = Object.keys(
+                              pendingEdits,
+                            ).includes(file.id);
+                            return (
+                              <div
+                                key={file.id}
+                                className="group flex items-start justify-between p-3.5 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
+                              >
+                                <div className="flex items-start gap-3 overflow-hidden">
+                                  <div className="p-2 rounded-lg bg-fuchsia-50 text-fuchsia-600 shrink-0">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div className="flex flex-col min-w-0 mt-0.5">
+                                    <span className="text-sm font-bold text-slate-800 break-words leading-tight">
+                                      {file.filename}
+                                      {pendingEdits[file.id] !== undefined && (
+                                        <span
+                                          className="w-2 h-2 rounded-full bg-amber-400"
+                                          title="Unsaved edits pending"
+                                        />
+                                      )}
+                                    </span>
+                                    <span className="text-[10px] uppercase font-bold tracking-wider mt-1.5 text-slate-400">
+                                      {new Date(
+                                        file.created_at,
+                                      ).toLocaleDateString()}
+                                      {hasUnsavedChanges && (
+                                        <span className="text-amber-500 ml-1.5">
+                                          - Unsaved changes
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex flex-col min-w-0 mt-0.5">
-                                  <span className="text-sm font-bold text-slate-800 break-words leading-tight">
-                                    {file.filename}
-                                  </span>
-                                  <span className="text-[10px] uppercase font-bold tracking-wider mt-1.5 text-slate-400">
-                                    {new Date(
-                                      file.created_at,
-                                    ).toLocaleDateString()}
-                                  </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => handleEditClick(file)}
+                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Edit File"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteFile(file.id)}
+                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete File"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </div>
                               </div>
-                              <button
-                                onClick={() => handleDeleteFile(file.id)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                                title="Delete File"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -544,35 +611,60 @@ export default function AgentEditorPage() {
                             No reference files uploaded.
                           </p>
                         ) : (
-                          referenceFiles.map((file) => (
-                            <div
-                              key={file.id}
-                              className="group flex items-start justify-between p-3.5 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
-                            >
-                              <div className="flex items-start gap-3 overflow-hidden">
-                                <div className="p-2 rounded-lg bg-blue-50 text-blue-600 shrink-0">
-                                  <FileText className="w-4 h-4" />
+                          referenceFiles.map((file) => {
+                            const hasUnsavedChanges = Object.keys(
+                              pendingEdits,
+                            ).includes(file.id);
+                            return (
+                              <div
+                                key={file.id}
+                                className="group flex items-start justify-between p-3.5 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
+                              >
+                                <div className="flex items-start gap-3 overflow-hidden">
+                                  <div className="p-2 rounded-lg bg-blue-50 text-blue-600 shrink-0">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div className="flex flex-col min-w-0 mt-0.5">
+                                    <span className="text-sm font-bold text-slate-800 break-words leading-tight">
+                                      {file.filename}
+                                      {pendingEdits[file.id] !== undefined && (
+                                        <span
+                                          className="w-2 h-2 rounded-full bg-amber-400"
+                                          title="Unsaved edits pending"
+                                        />
+                                      )}
+                                    </span>
+                                    <span className="text-[10px] uppercase font-bold tracking-wider mt-1.5 text-slate-400">
+                                      {new Date(
+                                        file.created_at,
+                                      ).toLocaleDateString()}
+                                      {hasUnsavedChanges && (
+                                        <span className="text-amber-500 ml-1.5">
+                                          - Unsaved changes
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex flex-col min-w-0 mt-0.5">
-                                  <span className="text-sm font-bold text-slate-800 break-words leading-tight">
-                                    {file.filename}
-                                  </span>
-                                  <span className="text-[10px] uppercase font-bold tracking-wider mt-1.5 text-slate-400">
-                                    {new Date(
-                                      file.created_at,
-                                    ).toLocaleDateString()}
-                                  </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => handleEditClick(file)}
+                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Edit File"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteFile(file.id)}
+                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete File"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </div>
                               </div>
-                              <button
-                                onClick={() => handleDeleteFile(file.id)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                                title="Delete File"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -581,8 +673,125 @@ export default function AgentEditorPage() {
               </div>
             )}
           </div>
+
+          {/* PANEL 3: Assigned Skills (Full Width) */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Network className="w-4 h-4 text-fuchsia-500" /> Assigned Skills
+              </h2>
+              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                {agent.skills.length} Selected
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 -mt-2">
+              Select the tools and workflows this agent is permitted to use.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto pr-2">
+              {availableSkills.map((skill) => (
+                <label
+                  key={skill.id}
+                  className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all ${
+                    agent.skills.includes(skill.id)
+                      ? "border-fuchsia-500 bg-fuchsia-50/50 ring-1 ring-fuchsia-500/20"
+                      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={agent.skills.includes(skill.id)}
+                    onChange={() => toggleSkill(skill.id)}
+                    className="mt-1 rounded text-fuchsia-600 focus:ring-fuchsia-500 border-slate-300 w-4 h-4 transition-colors"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-slate-800 text-sm truncate">
+                      {skill.name}
+                    </div>
+                    <div className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
+                      {skill.description}
+                    </div>
+                  </div>
+                </label>
+              ))}
+              {availableSkills.length === 0 && (
+                <div className="col-span-full py-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+                  <p className="text-sm text-slate-500 italic">
+                    No skills available.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* --- FILE EDITOR MODAL --- */}
+      {editingFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-2 rounded-lg ${editingFile.usage_type === "instruction" ? "bg-fuchsia-100 text-fuchsia-600" : "bg-blue-100 text-blue-600"}`}
+                >
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 leading-none">
+                    {editingFile.filename}
+                  </h3>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    {editingFile.usage_type} File
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingFile(null)}
+                className="p-2 text-slate-400 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 p-6 relative">
+              {isFetchingFile ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                </div>
+              ) : (
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full h-full p-4 font-mono text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800 resize-none"
+                  placeholder="File content..."
+                />
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setEditingFile(null)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={isFetchingFile || isSavingEdit}
+                className="flex items-center gap-2 px-6 py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-900 transition-colors disabled:opacity-50"
+              >
+                {isSavingEdit ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {isSavingEdit ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
