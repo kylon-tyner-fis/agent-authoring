@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { OpenAIEmbeddings } from "@langchain/openai";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
 // Initialize the Supabase admin client for backend operations
 const supabase = createClient(
@@ -21,6 +20,35 @@ export class DocumentServiceError extends Error {
 }
 
 export class DocumentService {
+  private static createChunkedDocuments(
+    textContent: string,
+    filename: string,
+    chunkSize = 1000,
+    chunkOverlap = 200,
+  ) {
+    if (!textContent) return [];
+
+    const safeChunkOverlap = Math.max(0, Math.min(chunkOverlap, chunkSize - 1));
+    const step = Math.max(1, chunkSize - safeChunkOverlap);
+    const docs: Array<{
+      pageContent: string;
+      metadata: Record<string, unknown>;
+    }> = [];
+
+    for (let start = 0; start < textContent.length; start += step) {
+      const end = Math.min(start + chunkSize, textContent.length);
+      const pageContent = textContent.slice(start, end).trim();
+      if (!pageContent) continue;
+      docs.push({
+        pageContent,
+        metadata: { filename, start_index: start },
+      });
+      if (end >= textContent.length) break;
+    }
+
+    return docs;
+  }
+
   /**
    * Uploads a raw file to Storage, creates the metadata record,
    * and triggers the background processing for vectors if needed.
@@ -96,12 +124,7 @@ export class DocumentService {
     // --- REFERENCE FILE PROCESSING ---
 
     // 1. Split Text
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
-    });
-
-    const docs = await splitter.createDocuments([textContent], [{ filename }]);
+    const docs = this.createChunkedDocuments(textContent, filename);
 
     if (docs.length === 0) return;
 
@@ -280,11 +303,7 @@ export class DocumentService {
       }
 
       // Re-embed new chunks
-      const textSplitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 1000,
-        chunkOverlap: 200,
-      });
-      const chunks = await textSplitter.createDocuments([newText]);
+      const chunks = this.createChunkedDocuments(newText, fileRecord.filename);
       const embeddings = new OpenAIEmbeddings({
         modelName: "text-embedding-3-small",
       });
