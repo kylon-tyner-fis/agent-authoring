@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 import {
   SkillConfig,
   ToolConfig,
@@ -15,6 +16,19 @@ const supabase = createClient(
 export async function POST(req: Request) {
   try {
     const config: SkillConfig = await req.json();
+    const normalizedId =
+      typeof config.id === "string" && config.id.trim().length > 0
+        ? config.id.trim()
+        : randomUUID();
+    const normalizedProjectId =
+      typeof config.project_id === "string" ? config.project_id.trim() : "";
+
+    if (!normalizedProjectId) {
+      return NextResponse.json(
+        { error: "project_id is required to save a skill." },
+        { status: 400 },
+      );
+    }
 
     // 1. Fetch full dependencies from the renamed 'tools' table
     const [toolsResponse, serversResponse] = await Promise.all([
@@ -31,28 +45,35 @@ export async function POST(req: Request) {
     // 2. Generate the standalone compiled manifest
     const compiledManifest = generateManifest(config, allTools, allServers);
 
+    const payload = {
+      ...config,
+      id: normalizedId,
+      project_id: normalizedProjectId,
+    };
+
     // 3. Save the orchestration config to the renamed 'skills' table
     const { data, error } = await supabase
       .from("skills")
       .upsert(
         [
           {
-            id: config.id,
-            name: config.name,
-            version: config.version,
-            description: config.description,
-            provider: config.model.provider,
-            model_name: config.model.model_name,
-            temperature: config.model.temperature,
-            max_tokens: config.model.max_tokens,
-            mcp_servers: config.mcp_servers,
-            system_prompt: config.system_prompt,
-            state_schema: config.state_schema,
-            graph: config.graph,
-            subgraphs: config.subgraphs,
-            persistence: config.persistence,
-            interrupts: config.interrupts,
-            orchestration: config.orchestration,
+            id: payload.id,
+            project_id: payload.project_id,
+            name: payload.name,
+            version: payload.version,
+            description: payload.description,
+            provider: payload.model.provider,
+            model_name: payload.model.model_name,
+            temperature: payload.model.temperature,
+            max_tokens: payload.model.max_tokens,
+            mcp_servers: payload.mcp_servers,
+            system_prompt: payload.system_prompt,
+            state_schema: payload.state_schema,
+            graph: payload.graph,
+            subgraphs: payload.subgraphs,
+            persistence: payload.persistence,
+            interrupts: payload.interrupts,
+            orchestration: payload.orchestration,
             compiled_manifest: compiledManifest,
           },
         ],

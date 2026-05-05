@@ -20,6 +20,7 @@ export interface ModelConfig {
 
 export interface ToolConfig {
   id: string;
+  project_id: string;
   name: string;
   description: string;
   prompt_template: string;
@@ -29,6 +30,7 @@ export interface ToolConfig {
 
 export interface MCPServerConfig {
   id: string;
+  project_id: string;
   name: string;
   url: string;
   health_url?: string;
@@ -92,6 +94,7 @@ export interface OrchestrationConfig {
 
 export interface SkillConfig {
   id: string;
+  project_id: string;
   name: string;
   version: string;
   description: string;
@@ -142,6 +145,7 @@ export interface OrchestratorConfig {
 
 export const DEFAULT_SKILL_CONFIG: SkillConfig = {
   id: "",
+  project_id: "",
   name: "",
   version: "1.0.0",
   description: "",
