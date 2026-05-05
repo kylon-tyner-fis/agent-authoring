@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowLeft,
   Check,
@@ -6,26 +8,41 @@ import {
   Play,
   Save,
   CheckCircle2,
+  LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export interface EditorTopPanelProps {
   backUrl: string;
-  backLabel: string;
+  backLabel?: string; // Optional if using title/subtitle
+  title?: string;
+  subtitle?: string;
+  icon?: LucideIcon;
   onCopy?: () => void;
   isCopied?: boolean;
   onTest?: () => void;
   testLabel?: string;
   onSave: () => void;
-  saveLabel: string;
+  saveLabel?: string;
   isSaving: boolean;
   saveSuccess?: boolean;
-  themeColor?: "emerald" | "sky" | "cyan" | "amber" | "violet" | "slate";
+  themeColor?:
+    | "emerald"
+    | "sky"
+    | "cyan"
+    | "amber"
+    | "violet"
+    | "slate"
+    | "fuchsia"
+    | "indigo";
 }
 
 export const EditorTopPanel = ({
   backUrl,
   backLabel,
+  title,
+  subtitle,
+  icon: Icon,
   onCopy,
   isCopied,
   onTest,
@@ -39,6 +56,22 @@ export const EditorTopPanel = ({
   const router = useRouter();
 
   const themeMap = {
+    fuchsia: {
+      text: "text-fuchsia-600",
+      bg: "bg-fuchsia-600",
+      hoverBg: "hover:bg-fuchsia-700",
+      lightBg: "bg-fuchsia-100",
+      lightHoverBg: "hover:bg-fuchsia-200",
+      border: "border-fuchsia-200",
+    },
+    indigo: {
+      text: "text-indigo-600",
+      bg: "bg-indigo-600",
+      hoverBg: "hover:bg-indigo-700",
+      lightBg: "bg-indigo-100",
+      lightHoverBg: "hover:bg-indigo-200",
+      border: "border-indigo-200",
+    },
     emerald: {
       text: "text-emerald-600",
       bg: "bg-emerald-600",
@@ -92,19 +125,43 @@ export const EditorTopPanel = ({
   const theme = themeMap[themeColor];
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10 animate-in slide-in-from-top-16 fade-in duration-300 ease-in-out">
-      <button
-        onClick={() => router.push(backUrl)}
-        // We added negative margin and padding to increase the clickable area without altering layout alignment
-        className="flex items-center gap-2 px-3 py-2 -ml-3 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> {backLabel}
-      </button>
+    <div className="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between sticky top-0 z-10 shadow-sm shrink-0">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={() => router.push(backUrl)}
+          className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+
+        {title ? (
+          <div className="flex items-center gap-3">
+            {Icon && (
+              <div
+                className={`w-10 h-10 rounded-xl ${theme.lightBg} flex items-center justify-center ${theme.text}`}
+              >
+                <Icon className="w-5 h-5" />
+              </div>
+            )}
+            <div>
+              <h1 className="text-xl font-bold text-slate-800 leading-tight">
+                {title}
+              </h1>
+              {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+            </div>
+          </div>
+        ) : (
+          <span className="text-sm font-semibold text-slate-700">
+            {backLabel}
+          </span>
+        )}
+      </div>
+
       <div className="flex items-center gap-3">
         {onCopy && (
           <button
             onClick={onCopy}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
           >
             {isCopied ? (
               <Check className={`w-4 h-4 ${theme.text}`} />
@@ -127,9 +184,9 @@ export const EditorTopPanel = ({
         <button
           onClick={onSave}
           disabled={isSaving}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm ${
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm ${
             saveSuccess
-              ? "bg-green-100 text-green-700 border border-green-200 !text-green-700"
+              ? "bg-green-100 text-green-700 border border-green-200"
               : `text-white ${theme.bg} ${theme.hoverBg}`
           }`}
         >
