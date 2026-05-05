@@ -306,7 +306,11 @@ export default function AgentEditorPage() {
         method: "DELETE",
       });
       if (res.ok) {
-        setFiles(files.filter((f) => f.id !== fileId));
+        setFiles((prevFiles) => prevFiles.filter((f) => f.id !== fileId));
+        setPendingEdits((prevEdits) => {
+          const { [fileId]: _deletedEdit, ...remainingEdits } = prevEdits;
+          return remainingEdits;
+        });
       }
     } catch (err) {
       console.error(err);
