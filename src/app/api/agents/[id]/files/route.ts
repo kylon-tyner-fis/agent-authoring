@@ -17,7 +17,7 @@ export async function GET(
       .from("agent_files")
       .select("*")
       .eq("agent_id", id)
-      .order("created_at", { ascending: false });
+      .order("updated_at", { ascending: false });
 
     if (error) throw error;
     return NextResponse.json({ files: data });

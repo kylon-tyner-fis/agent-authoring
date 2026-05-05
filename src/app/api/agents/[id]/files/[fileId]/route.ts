@@ -53,7 +53,7 @@ export async function PUT(
 ) {
   try {
     const resolvedParams = await params;
-    const { text } = await req.json();
+    const { text, filename } = await req.json();
     if (typeof text !== "string" || text.length === 0) {
       return NextResponse.json(
         {
@@ -66,11 +66,10 @@ export async function PUT(
       );
     }
 
-    await DocumentService.updateFileText(
-      resolvedParams.id,
-      resolvedParams.fileId,
+    await DocumentService.updateFile(resolvedParams.id, resolvedParams.fileId, {
       text,
-    );
+      filename,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
