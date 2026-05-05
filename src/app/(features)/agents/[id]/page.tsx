@@ -13,6 +13,8 @@ import {
   Edit2,
   X,
   UserSquare,
+  Upload,
+  Plus,
 } from "lucide-react";
 import { useToast } from "@/src/components/layout/Toast";
 import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
@@ -78,8 +80,10 @@ export default function AgentEditorPage() {
   const [editingFile, setEditingFile] = useState<AgentFile | null>(null);
   const [editContent, setEditContent] = useState("");
   const [isFetchingFile, setIsFetchingFile] = useState(false);
-  const [pendingEdits, setPendingEdits] = useState<Record<string, string>>({});
-
+  const [editFilename, setEditFilename] = useState("");
+  const [pendingEdits, setPendingEdits] = useState<
+    Record<string, { text: string; filename: string }>
+  >({});
   // Separate refs for the hidden inputs
   const instructionRef = useRef<HTMLInputElement>(null);
   const referenceRef = useRef<HTMLInputElement>(null);
@@ -184,11 +188,14 @@ export default function AgentEditorPage() {
 
       // 2. Process any pending file edits
       const editPromises = Object.entries(pendingEdits).map(
-        ([fileId, newText]) => {
+        ([fileId, edit]) => {
           return fetch(`/api/agents/${savedAgentId}/files/${fileId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: newText }),
+            body: JSON.stringify({
+              text: edit.text,
+              filename: edit.filename,
+            }),
           }).then(async (res) => {
             // Safely parse file saves too
             const fileResponseText = await res.text();
@@ -210,6 +217,14 @@ export default function AgentEditorPage() {
 
       // Wait for all file vectorization and saving to finish
       await Promise.all(editPromises);
+
+      setFiles((prevFiles) =>
+        prevFiles.map((f) =>
+          pendingEdits[f.id]
+            ? { ...f, filename: pendingEdits[f.id].filename }
+            : f,
+        ),
+      );
 
       // 3. Clear local edits since they are now synced with the server
       setPendingEdits({});
@@ -261,6 +276,32 @@ export default function AgentEditorPage() {
       if (instructionRef.current) instructionRef.current.value = "";
       if (referenceRef.current) referenceRef.current.value = "";
     }
+  };
+
+  const handleCreateEmptyFile = async (
+    usageType: "instruction" | "reference",
+  ) => {
+    if (!agent.id) return;
+
+    const defaultName =
+      usageType === "instruction" ? "new-instruction.md" : "new-reference.md";
+    const filename = window.prompt(
+      "Enter a name for your new file:",
+      defaultName,
+    );
+
+    if (!filename?.trim()) return;
+
+    // Append .md extension if missing to ensure proper rendering in the editor
+    const finalFilename =
+      filename.toLowerCase().endsWith(".md") ||
+      filename.toLowerCase().endsWith(".txt")
+        ? filename
+        : `${filename}.md`;
+
+    const emptyFile = new File([""], finalFilename, { type: "text/markdown" });
+    await processUpload(emptyFile, usageType);
+    addToast(`Empty ${usageType} file created: ${finalFilename}`, "success");
   };
 
   const handleDrop = (
@@ -328,18 +369,20 @@ export default function AgentEditorPage() {
   const handleEditClick = async (file: AgentFile) => {
     if (!agent.id) return;
     setEditingFile(file);
-    setEditContent("");
 
-    // 1. If we already have unsaved local changes, load those instead of fetching!
-    if (pendingEdits[file.id] !== undefined) {
-      setEditContent(pendingEdits[file.id]);
+    // If we already have unsaved local changes, load those instead
+    if (pendingEdits[file.id]) {
+      setEditContent(pendingEdits[file.id].text);
+      setEditFilename(pendingEdits[file.id].filename);
       return;
     }
 
-    // 2. Otherwise, fetch the original text from the server
+    setEditFilename(file.filename); // Initialize with current name
     setIsFetchingFile(true);
     try {
-      const res = await fetch(`/api/agents/${agent.id}/files/${file.id}`);
+      const res = await fetch(
+        `/api/agents/${agent.id}/files/${file.id}?projectId=${currentProject?.id}`,
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setEditContent(data.text);
@@ -353,14 +396,10 @@ export default function AgentEditorPage() {
 
   const handleSaveEdit = () => {
     if (!editingFile) return;
-
-    // Simply save the changes locally to our pendingEdits map!
-    // We DO NOT hit the database or trigger vectorization here.
     setPendingEdits((prev) => ({
       ...prev,
-      [editingFile.id]: editContent,
+      [editingFile.id]: { text: editContent, filename: editFilename },
     }));
-
     setEditingFile(null);
   };
 
@@ -504,6 +543,28 @@ export default function AgentEditorPage() {
                         Upload a prompt or rule file. Directly governs the
                         agent's behavior.
                       </p>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCreateEmptyFile("instruction");
+                          }}
+                          className="flex gap-2 mt-4 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200 rounded-lg text-fuchsia-600 hover:bg-fuchsia-50 transition-colors shadow-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                          New
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isUploading) instructionRef.current?.click();
+                          }}
+                          className="flex gap-2 mt-4 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200 rounded-lg text-fuchsia-600 hover:bg-fuchsia-50 transition-colors shadow-sm"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Upload
+                        </button>
+                      </div>
                       {isUploading && dragInstruction && (
                         <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">
                           <Loader2 className="w-8 h-8 animate-spin text-fuchsia-500" />
@@ -546,6 +607,28 @@ export default function AgentEditorPage() {
                       <p className="text-xs text-slate-500 mt-1.5 max-w-[200px] leading-relaxed">
                         Upload knowledge bases. Searchable via internal RAG.
                       </p>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCreateEmptyFile("reference");
+                          }}
+                          className="flex gap-2 mt-4 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200 rounded-lg text-fuchsia-600 hover:bg-fuchsia-50 transition-colors shadow-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                          New
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isUploading) referenceRef.current?.click();
+                          }}
+                          className="flex gap-2 mt-4 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200 rounded-lg text-fuchsia-600 hover:bg-fuchsia-50 transition-colors shadow-sm"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Upload
+                        </button>
+                      </div>
                       {isUploading && !dragInstruction && (
                         <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">
                           <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
@@ -584,11 +667,14 @@ export default function AgentEditorPage() {
                                     </div>
                                     <div className="flex flex-col min-w-0 mt-0.5">
                                       <span className="text-sm font-bold text-slate-800 break-words leading-tight">
-                                        {file.filename}
+                                        {/* Priority: Unsaved local filename -> Original filename */}
+                                        {pendingEdits[file.id]?.filename ||
+                                          file.filename}
+
                                         {pendingEdits[file.id] !==
                                           undefined && (
                                           <span
-                                            className="w-2 h-2 rounded-full bg-amber-400"
+                                            className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-2"
                                             title="Unsaved edits pending"
                                           />
                                         )}
@@ -655,11 +741,14 @@ export default function AgentEditorPage() {
                                     </div>
                                     <div className="flex flex-col min-w-0 mt-0.5">
                                       <span className="text-sm font-bold text-slate-800 break-words leading-tight">
-                                        {file.filename}
+                                        {/* Priority: Unsaved local filename -> Original filename */}
+                                        {pendingEdits[file.id]?.filename ||
+                                          file.filename}
+
                                         {pendingEdits[file.id] !==
                                           undefined && (
                                           <span
-                                            className="w-2 h-2 rounded-full bg-amber-400"
+                                            className="inline-block w-2 h-2 rounded-full bg-amber-400 ml-2"
                                             title="Unsaved edits pending"
                                           />
                                         )}
@@ -784,17 +873,29 @@ export default function AgentEditorPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-lg ${editingFile.usage_type === "instruction" ? "bg-fuchsia-100 text-fuchsia-600" : "bg-blue-100 text-blue-600"}`}
-                >
-                  <FileText className="w-5 h-5" />
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                  <div className="relative group/input">
+                    <input
+                      type="text"
+                      value={editFilename}
+                      onChange={(e) => setEditFilename(e.target.value)}
+                      className="text-lg font-bold text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent transition-all min-w-[350px] shadow-sm hover:border-slate-300"
+                      placeholder="Enter filename..."
+                      autoFocus
+                    />
+                    <div className="absolute -right-2 -top-2 opacity-0 group-hover/input:opacity-100 transition-opacity">
+                      <span className="bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">
+                        Editing Name
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 leading-none">
-                    {editingFile.filename}
-                  </h3>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <div className="flex items-center gap-2 ml-1">
+                  <span
+                    className={`w-2 h-2 rounded-full ${editingFile.usage_type === "instruction" ? "bg-fuchsia-400" : "bg-blue-400"}`}
+                  />
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                     {editingFile.usage_type} File
                   </span>
                 </div>
