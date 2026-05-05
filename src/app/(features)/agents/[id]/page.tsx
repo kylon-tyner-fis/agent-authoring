@@ -1,12 +1,27 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Network, Loader2 } from "lucide-react";
+import {
+  Bot,
+  Network,
+  Loader2,
+  Trash2,
+  BrainCircuit,
+  FileText,
+  Upload,
+} from "lucide-react";
 import { AgentConfig, SkillConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
 import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
+
+interface AgentFile {
+  id: string;
+  filename: string;
+  usage_type: "instruction" | "reference";
+  created_at: string;
+}
 
 export default function AgentEditorPage({
   params,
@@ -32,6 +47,13 @@ export default function AgentEditorPage({
   const [isSaving, setIsSaving] = useState(false);
   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+
+  const [files, setFiles] = useState<AgentFile[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadUsageType, setUploadUsageType] = useState<
+    "instruction" | "reference"
+  >("reference");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCopyConfig = async () => {
     try {
@@ -62,6 +84,11 @@ export default function AgentEditorPage({
             res.json(),
           );
           if (agentData.agent) setAgent(agentData.agent);
+
+          const filesData = await fetch(`/api/agents/${id}/files`).then((res) =>
+            res.json(),
+          );
+          if (filesData.files) setFiles(filesData.files);
         }
       } catch (error) {
         console.error("Failed to load data:", error);
@@ -98,6 +125,50 @@ export default function AgentEditorPage({
         ? prev.skills.filter((id) => id !== skillId)
         : [...prev.skills, skillId],
     }));
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !agent.id) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("usageType", uploadUsageType);
+
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/files`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error);
+
+      if (data.file) {
+        setFiles([data.file, ...files]);
+      }
+    } catch (err: any) {
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this file?"))
+      return;
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/files/${fileId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setFiles(files.filter((f) => f.id !== fileId));
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -234,6 +305,107 @@ export default function AgentEditorPage({
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* --- KNOWLEDGE & MEMORY SECTION --- */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <BrainCircuit className="w-4 h-4 text-fuchsia-500" />{" "}
+                  Knowledge & Memory
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Upload text or markdown files. <b>Instruction</b> files are
+                  appended to the system prompt. <b>Reference</b> files are
+                  chunked, vectorized, and accessible via the agent's internal
+                  search tool.
+                </p>
+
+                {isNew ? (
+                  <div className="p-6 text-sm text-slate-400 italic text-center border border-dashed border-slate-300 rounded-xl bg-slate-50">
+                    You must save the agent first before uploading files.
+                  </div>
+                ) : (
+                  <div className="space-y-4 mt-2">
+                    {/* Upload Controls */}
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <select
+                        value={uploadUsageType}
+                        onChange={(e) =>
+                          setUploadUsageType(
+                            e.target.value as "instruction" | "reference",
+                          )
+                        }
+                        className="p-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-fuchsia-500 bg-white font-semibold text-slate-700"
+                        disabled={isUploading}
+                      >
+                        <option value="reference">
+                          📚 Reference Document (RAG)
+                        </option>
+                        <option value="instruction">🧠 Core Instruction</option>
+                      </select>
+
+                      <input
+                        type="file"
+                        accept=".txt,.md"
+                        className="hidden"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                      />
+
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-900 transition-colors disabled:opacity-50 text-sm"
+                      >
+                        {isUploading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                        {isUploading
+                          ? "Processing & Embedding..."
+                          : "Upload File"}
+                      </button>
+                    </div>
+
+                    {/* File List */}
+                    {files.length > 0 && (
+                      <div className="grid grid-cols-1 gap-2 mt-4">
+                        {files.map((file) => (
+                          <div
+                            key={file.id}
+                            className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm"
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <div
+                                className={`p-2 rounded-lg ${file.usage_type === "instruction" ? "bg-fuchsia-50 text-fuchsia-600" : "bg-blue-50 text-blue-600"}`}
+                              >
+                                <FileText className="w-4 h-4" />
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-sm font-bold text-slate-800 truncate">
+                                  {file.filename}
+                                </span>
+                                <span
+                                  className={`text-[10px] uppercase font-bold tracking-wider mt-0.5 ${file.usage_type === "instruction" ? "text-fuchsia-500" : "text-blue-500"}`}
+                                >
+                                  {file.usage_type}
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteFile(file.id)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete File"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
