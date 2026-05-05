@@ -23,7 +23,9 @@ function collectReferencedIds(config: SkillConfig) {
     if (node.serverId) serverIds.add(node.serverId);
   }
 
-  const orchestrationNodes = (config.orchestration?.nodes || []) as Array<{ data?: { toolId?: string; serverId?: string } }>;
+  const orchestrationNodes = (config.orchestration?.nodes || []) as Array<{
+    data?: { toolId?: string; serverId?: string };
+  }>;
   for (const node of orchestrationNodes) {
     const data = node?.data || {};
     if (data.toolId) toolIds.add(data.toolId);
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!projectId) {
+    if (!normalizedProjectId) {
       return NextResponse.json(
         { error: "Missing required field: project_id" },
         { status: 400 },
@@ -59,8 +61,11 @@ export async function POST(req: Request) {
 
     // Fetch dependencies scoped to project
     const [toolsResponse, serversResponse] = await Promise.all([
-      supabase.from("tools").select("*").eq("project_id", projectId),
-      supabase.from("mcp_servers").select("*").eq("project_id", projectId),
+      supabase.from("tools").select("*").eq("project_id", normalizedProjectId),
+      supabase
+        .from("mcp_servers")
+        .select("*")
+        .eq("project_id", normalizedProjectId),
     ]);
 
     if (toolsResponse.error) throw toolsResponse.error;
@@ -98,7 +103,11 @@ export async function POST(req: Request) {
     }
 
     // Generate manifest from project-scoped dependencies only
-    const compiledManifest = generateManifest(config, projectTools, projectServers);
+    const compiledManifest = generateManifest(
+      config,
+      projectTools,
+      projectServers,
+    );
 
     // Persist skill and enforce project invariant
     const { data, error } = await supabase
