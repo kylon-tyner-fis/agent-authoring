@@ -161,13 +161,12 @@ export async function GET(req: Request) {
       );
     }
 
-    let query = supabase
+    const query = supabase
       .from("skills")
       .select(
         "id, name, version, description, provider, model_name, updated_at",
-      );
-
-    query = query.eq("project_id", projectId);
+      )
+      .eq("project_id", projectId);
 
     const { data, error } = await query.order("updated_at", {
       ascending: false,
@@ -177,6 +176,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ skills: data });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.log("ERROR", error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

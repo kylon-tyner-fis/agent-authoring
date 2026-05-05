@@ -36,10 +36,19 @@ export default function SkillEditorPage({
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!currentProject?.id) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const [toolsRes, serversRes] = await Promise.all([
-          fetch("/api/tools").then((r) => r.json()),
-          fetch("/api/mcp-servers").then((r) => r.json()),
+          fetch(`/api/tools?projectId=${currentProject.id}`).then((r) =>
+            r.json(),
+          ),
+          fetch(`/api/mcp-servers?projectId=${currentProject.id}`).then((r) =>
+            r.json(),
+          ),
         ]);
 
         if (toolsRes.tools) setAvailableTools(toolsRes.tools);
@@ -49,13 +58,15 @@ export default function SkillEditorPage({
           setConfig({
             ...DEFAULT_SKILL_CONFIG,
             id: "",
-            project_id: currentProject?.id || "",
+            project_id: currentProject.id,
           });
           setIsLoading(false);
           return;
         }
 
-        const res = await fetch(`/api/skills/${id}`);
+        const res = await fetch(
+          `/api/skills/${id}?projectId=${currentProject.id}`,
+        );
         const data = await res.json();
 
         if (data.skill) {

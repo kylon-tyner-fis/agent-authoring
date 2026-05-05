@@ -11,16 +11,20 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const projectId = searchParams.get("projectId");
 
+  if (!projectId) {
+    return NextResponse.json(
+      { error: "projectId is required" },
+      { status: 400 },
+    );
+  }
+
   try {
-    let query = supabase.from("orchestrators").select("*");
+    const { data, error } = await supabase
+      .from("orchestrators")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false });
 
-    if (projectId) {
-      query = query.eq("project_id", projectId);
-    }
-
-    const { data, error } = await query.order("created_at", {
-      ascending: false,
-    });
     if (error) throw error;
     return NextResponse.json({ orchestrators: data });
   } catch (error: any) {

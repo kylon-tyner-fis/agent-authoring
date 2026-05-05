@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Loader2, Network } from "lucide-react";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 interface SkillListItem {
   id: string;
@@ -15,14 +16,19 @@ interface SkillListItem {
 
 export default function SkillsDashboard() {
   const router = useRouter();
+  const { currentProject } = useProject();
   const [skills, setSkills] = useState<SkillListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!currentProject) return;
+
     const fetchSkills = async () => {
       try {
-        const skillsRes = await fetch("/api/skills");
+        const skillsRes = await fetch(
+          `/api/skills?projectId=${currentProject.id}`,
+        );
         const skillsData = await skillsRes.json();
         if (skillsData.skills) setSkills(skillsData.skills);
       } catch (error) {
@@ -33,12 +39,15 @@ export default function SkillsDashboard() {
     };
 
     fetchSkills();
-  }, []);
+  }, [currentProject]);
 
   const confirmDelete = async () => {
-    if (!deletingId) return;
+    if (!deletingId || !currentProject) return;
+
     try {
-      await fetch(`/api/skills/${deletingId}`, { method: "DELETE" });
+      await fetch(`/api/skills/${deletingId}?projectId=${currentProject.id}`, {
+        method: "DELETE",
+      });
       setSkills(skills.filter((s) => s.id !== deletingId));
     } catch (error) {
       console.error("Failed to delete skill", error);

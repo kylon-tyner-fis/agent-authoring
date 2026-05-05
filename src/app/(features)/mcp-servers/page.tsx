@@ -12,17 +12,23 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { MCPServerConfig } from "@/src/lib/types/constants";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 export default function MCPServersDashboard() {
   const router = useRouter();
+  const { currentProject } = useProject();
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!currentProject) return;
+
     const fetchServers = async () => {
       try {
-        const res = await fetch("/api/mcp-servers");
-        const data = await res.json();
+        const mcpServersRes = await fetch(
+          `/api/mcp-servers?projectId=${currentProject.id}`,
+        );
+        const data = await mcpServersRes.json();
         if (data.servers) setServers(data.servers);
       } catch (error) {
         console.error("Failed to fetch servers", error);
@@ -31,15 +37,21 @@ export default function MCPServersDashboard() {
       }
     };
     fetchServers();
-  }, []);
+  }, [currentProject]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Remove this MCP Server? Skills depending on it may fail."))
+  const handleDelete = async (deletingId: string) => {
+    if (
+      !currentProject ||
+      !confirm("Remove this MCP Server? Skills depending on it may fail.")
+    )
       return;
 
     try {
-      await fetch(`/api/mcp-servers/${id}`, { method: "DELETE" });
-      setServers(servers.filter((s) => s.id !== id));
+      await fetch(
+        `/api/mcp-servers/${deletingId}?projectId=${currentProject.id}`,
+        { method: "DELETE" },
+      );
+      setServers(servers.filter((s) => s.id !== deletingId));
     } catch (error) {
       console.error("Failed to delete server", error);
     }

@@ -12,10 +12,15 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const projectId = new URL(req.url).searchParams.get("projectId");
+    if (!projectId)
+      return NextResponse.json({ error: "Missing projectId" }, { status: 400 });
+
     const { data, error } = await supabase
       .from("agents")
       .select("*")
       .eq("id", id)
+      .eq("project_id", projectId) // Secure by project
       .single();
 
     if (error) throw error;
@@ -31,7 +36,16 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { error } = await supabase.from("agents").delete().eq("id", id);
+    const projectId = new URL(req.url).searchParams.get("projectId");
+    if (!projectId)
+      return NextResponse.json({ error: "Missing projectId" }, { status: 400 });
+
+    const { error } = await supabase
+      .from("agents")
+      .delete()
+      .eq("id", id)
+      .eq("project_id", projectId);
+
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -46,10 +60,11 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await req.json();
+    const projectId = new URL(req.url).searchParams.get("projectId");
+    if (!projectId)
+      return NextResponse.json({ error: "Missing projectId" }, { status: 400 });
 
-    // Extract the exact fields we want to update (prevents trying to update read-only fields like id or created_at)
-    const { name, description, system_prompt, skills, sub_agents, project_id } =
-      body;
+    const { name, description, system_prompt, skills, sub_agents } = body;
 
     const { data, error } = await supabase
       .from("agents")
@@ -59,10 +74,10 @@ export async function PUT(
         system_prompt,
         skills,
         sub_agents,
-        project_id,
-        updated_at: new Date().toISOString(), // Keep track of when it was last edited
+        updated_at: new Date().toISOString(),
       })
       .eq("id", id)
+      .eq("project_id", projectId) // Secure by project
       .select()
       .single();
 

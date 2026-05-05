@@ -10,8 +10,6 @@ import {
   FileText,
   Trash2,
   Database,
-  Save,
-  ArrowLeft,
   Edit2,
   X,
   UserSquare,
@@ -80,7 +78,6 @@ export default function AgentEditorPage() {
   const [editingFile, setEditingFile] = useState<AgentFile | null>(null);
   const [editContent, setEditContent] = useState("");
   const [isFetchingFile, setIsFetchingFile] = useState(false);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [pendingEdits, setPendingEdits] = useState<Record<string, string>>({});
 
   // Separate refs for the hidden inputs
@@ -94,20 +91,18 @@ export default function AgentEditorPage() {
         setIsLoading(false);
         return;
       }
-
       setIsLoading(true);
       try {
-        // Fetch dependencies (skills)
-        const skillsRes = await fetch("/api/skills");
+        const skillsRes = await fetch(
+          `/api/skills?projectId=${currentProject.id}`,
+        );
         const skillsData = await skillsRes.json();
-
         if (skillsData.skills) setAvailableSkills(skillsData.skills);
 
-        // Fetch current agent & its files
         if (!isNew) {
           const [agentRes, filesRes] = await Promise.all([
-            fetch(`/api/agents/${id}`),
-            fetch(`/api/agents/${id}/files`),
+            fetch(`/api/agents/${id}?projectId=${currentProject.id}`),
+            fetch(`/api/agents/${id}/files?projectId=${currentProject.id}`),
           ]);
 
           const agentData = await agentRes.json();
@@ -153,7 +148,9 @@ export default function AgentEditorPage() {
     setSaveSuccess(false);
     try {
       // 1. Save the Agent Configuration
-      const url = isNew ? "/api/agents" : `/api/agents/${id}`;
+      const url = isNew
+        ? "/api/agents"
+        : `/api/agents/${id}?projectId=${currentProject?.id}`;
       const method = isNew ? "POST" : "PUT";
 
       const res = await fetch(url, {
