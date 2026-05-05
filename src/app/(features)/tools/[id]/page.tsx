@@ -81,7 +81,8 @@ export default function ToolEditorPage({
   const [inputNodes, setInputNodes] = useState<SchemaNode[]>([]);
   const [outputNodes, setOutputNodes] = useState<SchemaNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false); // ADDED: isSaving state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopyConfig = async () => {
@@ -129,7 +130,9 @@ export default function ToolEditorPage({
   }, [id, isNew]);
 
   const handleSave = async () => {
-    setIsSaving(true); // ADDED: toggle loading to true
+    setIsSaving(true);
+    setSaveSuccess(false);
+
     const finalId = tool.id || uuidv4();
 
     const finalTool = {
@@ -147,12 +150,14 @@ export default function ToolEditorPage({
       });
 
       if (res.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
         router.push("/tools");
       }
     } catch (error) {
       console.error("Error saving tool:", error);
     } finally {
-      setIsSaving(false); // ADDED: toggle loading to false
+      setIsSaving(false);
     }
   };
 
@@ -160,12 +165,15 @@ export default function ToolEditorPage({
     <div className="h-full flex flex-col bg-slate-50">
       <EditorTopPanel
         backUrl="/tools"
-        backLabel="Back to Library"
+        title={isNew ? "Create Tool" : tool.name || "Untitled Tool"}
+        subtitle="Define prompt templates, inputs, and outputs"
+        icon={Wrench}
         onCopy={handleCopyConfig}
         isCopied={isCopied}
         onSave={handleSave}
         saveLabel="Save Tool"
         isSaving={isSaving}
+        saveSuccess={saveSuccess}
         themeColor="amber"
       />
 

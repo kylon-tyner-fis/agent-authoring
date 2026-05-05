@@ -7,6 +7,7 @@ import { OrchestratorConfig, AgentConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
 import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
+import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
 
 export default function OrchestratorEditorPage({
   params,
@@ -30,6 +31,7 @@ export default function OrchestratorEditorPage({
   const [availableAgents, setAvailableAgents] = useState<AgentConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -74,6 +76,8 @@ export default function OrchestratorEditorPage({
 
   const handleSave = async () => {
     setIsSaving(true);
+    setSaveSuccess(false);
+
     const finalOrchestrator = {
       ...orchestrator,
       id: orchestrator.id || uuidv4(),
@@ -86,7 +90,11 @@ export default function OrchestratorEditorPage({
         body: JSON.stringify(finalOrchestrator),
       });
 
-      if (res.ok) router.push("/orchestrators");
+      if (res.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
+        router.push("/orchestrators");
+      }
     } catch (error) {
       console.error("Error saving orchestrator:", error);
     } finally {
@@ -107,7 +115,13 @@ export default function OrchestratorEditorPage({
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
       <EditorTopPanel
         backUrl="/orchestrators"
-        backLabel="Back to Orchestrators"
+        title={
+          isNew
+            ? "Create Orchestrator"
+            : orchestrator.name || "Untitled Orchestrator"
+        }
+        subtitle="Coordinate agents, delegation, and workflow routing"
+        icon={Layers}
         onCopy={handleCopyConfig}
         isCopied={isCopied}
         onTest={() => setIsPlaygroundOpen(true)}
@@ -115,6 +129,7 @@ export default function OrchestratorEditorPage({
         onSave={handleSave}
         saveLabel="Save Orchestrator"
         isSaving={isSaving}
+        saveSuccess={saveSuccess}
         themeColor="sky"
       />
 
@@ -124,9 +139,7 @@ export default function OrchestratorEditorPage({
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
-          <div
-            className={`flex-1 overflow-y-auto p-8 transition-all duration-300 ${isPlaygroundOpen ? "w-[60%]" : "w-full"}`}
-          >
+          <div className="min-w-0 flex-1 overflow-y-auto p-8">
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -249,16 +262,14 @@ export default function OrchestratorEditorPage({
             </div>
           </div>
 
-          {isPlaygroundOpen && (
-            <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300 border-l border-slate-200">
-              <AgentPlayground
-                config={orchestrator}
-                apiEndpoint="/api/orchestrators/simulate"
-                accent="orchestrator"
-                onClose={() => setIsPlaygroundOpen(false)}
-              />
-            </div>
-          )}
+          <SlidingPlaygroundPanel isOpen={isPlaygroundOpen}>
+            <AgentPlayground
+              config={orchestrator}
+              apiEndpoint="/api/orchestrators/simulate"
+              accent="orchestrator"
+              onClose={() => setIsPlaygroundOpen(false)}
+            />
+          </SlidingPlaygroundPanel>
         </div>
       )}
     </div>

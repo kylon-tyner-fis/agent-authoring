@@ -10,6 +10,7 @@ import {
 } from "@/src/lib/types/constants";
 import { ConfigPanel } from "@/src/components/features/skill-editor/ConfigPanel";
 import { Playground } from "@/src/components/features/skill-editor/Playground";
+import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
 
 export default function SkillEditorPage({
   params,
@@ -77,11 +78,7 @@ export default function SkillEditorPage({
 
   return (
     <div className="h-full w-full flex overflow-hidden bg-slate-50">
-      <div
-        className={`h-full transition-all duration-300 ease-in-out ${
-          isPlaygroundOpen ? "w-[60%]" : "w-full"
-        }`}
-      >
+      <div className="h-full min-w-0 flex-1">
         <ConfigPanel
           // Pass the default config while loading to prevent null errors
           config={config || DEFAULT_SKILL_CONFIG}
@@ -96,17 +93,15 @@ export default function SkillEditorPage({
         />
       </div>
 
-      {isPlaygroundOpen && (
-        <div className="w-[40%] min-w-[450px] h-full shadow-2xl z-20 bg-white animate-in slide-in-from-right-8 duration-300 border-l border-slate-200">
-          <Playground
-            config={config!}
-            messages={messages}
-            setMessages={setMessages}
-            onClose={() => setIsPlaygroundOpen(false)}
-            onActiveNodeChange={setActiveNodeId}
-          />
-        </div>
-      )}
+      <SlidingPlaygroundPanel isOpen={isPlaygroundOpen}>
+        <Playground
+          config={config!}
+          messages={messages}
+          setMessages={setMessages}
+          onClose={() => setIsPlaygroundOpen(false)}
+          onActiveNodeChange={setActiveNodeId}
+        />
+      </SlidingPlaygroundPanel>
     </div>
   );
 }

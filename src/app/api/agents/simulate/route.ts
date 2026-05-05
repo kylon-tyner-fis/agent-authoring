@@ -115,6 +115,8 @@ export async function POST(req: Request) {
           );
           controller.close();
         } catch (e: any) {
+          console.error("\n🔥 [FATAL] AGENT EXECUTION CRASHED:", e);
+
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({ type: "error", error: e.message })}\n\n`,
