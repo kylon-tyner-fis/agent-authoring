@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
 import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
 import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 export default function OrchestratorEditorPage({
   params,
@@ -15,6 +16,7 @@ export default function OrchestratorEditorPage({
   params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
+  const { currentProject } = useProject();
   const { id } = use(params);
   const isNew = id === "new";
 
@@ -54,8 +56,15 @@ export default function OrchestratorEditorPage({
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!currentProject?.id) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const agentsData = await fetch("/api/agents").then((res) => res.json());
+        const agentsData = await fetch(
+          `/api/agents?projectId=${currentProject.id}`,
+        ).then((res) => res.json());
 
         if (agentsData.agents) setAvailableAgents(agentsData.agents);
 
@@ -72,7 +81,7 @@ export default function OrchestratorEditorPage({
       }
     };
     fetchData();
-  }, [id, isNew]);
+  }, [currentProject?.id, id, isNew]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -81,6 +90,7 @@ export default function OrchestratorEditorPage({
     const finalOrchestrator = {
       ...orchestrator,
       id: orchestrator.id || uuidv4(),
+      project_id: orchestrator.project_id || currentProject?.id || "",
     };
 
     try {
