@@ -27,10 +27,10 @@ import Image from "next/image";
 const activeThemeMap: Record<string, string> = {
   dashboard: "bg-slate-800 text-slate-100 border-slate-200 shadow-sm",
   orchestrators: "bg-sky-100 text-sky-800 border-sky-200 shadow-sm",
-  agents: "bg-emerald-100 text-emerald-800 border-emerald-200 shadow-sm",
+  agents: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 shadow-sm",
   skills: "bg-violet-100 text-violet-800 border-violet-200 shadow-sm",
   tools: "bg-amber-100 text-amber-800 border-amber-200 shadow-sm",
-  mcpServers: "bg-cyan-100 text-cyan-800 border-cyan-200 shadow-sm",
+  mcpServers: "bg-emerald-100 text-emerald-800 border-emerald-200 shadow-sm",
 };
 
 export function AppChrome({ children }: { children: React.ReactNode }) {

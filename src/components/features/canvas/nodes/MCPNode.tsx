@@ -15,11 +15,11 @@ export type MCPNodeType = Node<MCPNodeData, "mcp_node">;
 
 export function MCPNode({ data, selected }: NodeProps<MCPNodeType>) {
   const theme = {
-    bg: "bg-cyan-50/50",
-    border: "border-cyan-100",
-    iconBg: "bg-cyan-100",
-    text: "text-cyan-700",
-    ring: "border-cyan-500 shadow-md ring-4 ring-cyan-50",
+    bg: "bg-emerald-50/50",
+    border: "border-emerald-100",
+    iconBg: "bg-emerald-100",
+    text: "text-emerald-700",
+    ring: "border-emerald-500 shadow-md ring-4 ring-emerald-50",
     label: "MCP Action",
     Icon: Database,
   };

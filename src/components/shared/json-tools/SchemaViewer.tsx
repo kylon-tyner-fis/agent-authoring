@@ -35,7 +35,7 @@ const ReadOnlyNode = ({
         <span className="font-semibold text-slate-800">
           {node.key || <span className="italic text-slate-400">unnamed</span>}
         </span>
-        <span className="text-emerald-600 font-mono text-[11px] px-1.5 py-0.5 bg-emerald-50 rounded border border-emerald-100">
+        <span className="text-fuchsia-600 font-mono text-[11px] px-1.5 py-0.5 bg-fuchsia-50 rounded border border-fuchsia-100">
           {node.typeHint}
           {node.isNullable ? "?" : ""}
         </span>
@@ -65,7 +65,7 @@ export const SchemaViewer = ({
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 transition-all hover:border-slate-300 shadow-sm">
         <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
           <div className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-            <Braces className="w-4 h-4 text-emerald-500" /> Schema Overview
+            <Braces className="w-4 h-4 text-fuchsia-500" /> Schema Overview
           </div>
           <button
             onClick={() => setIsOpen(true)}
@@ -96,7 +96,7 @@ export const SchemaViewer = ({
             <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-slate-50 shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  <Braces className="w-5 h-5 text-emerald-500" /> {title}
+                  <Braces className="w-5 h-5 text-fuchsia-500" /> {title}
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
                   Modify the structure and types of your schema.

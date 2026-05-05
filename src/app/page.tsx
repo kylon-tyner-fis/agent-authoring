@@ -116,13 +116,13 @@ export default function GlobalDashboard() {
       title: "Agents",
       description:
         "Autonomous executive systems that reason, plan, and delegate tasks to specific Skills to achieve open-ended goals.",
-      icon: <Bot className="w-6 h-6 text-emerald-600" />,
+      icon: <Bot className="w-6 h-6 text-fuchsia-600" />,
       path: "/agents",
       count: isLoading ? "Loading..." : `${counts.agents} Configured`,
       accent: {
-        hoverBorder: "hover:border-emerald-400",
-        iconBg: "bg-emerald-50",
-        actionHoverBg: "group-hover:bg-emerald-600",
+        hoverBorder: "hover:border-fuchsia-400",
+        iconBg: "bg-fuchsia-50",
+        actionHoverBg: "group-hover:bg-fuchsia-600",
       },
       action: () => router.push("/agents"),
     },
@@ -157,13 +157,13 @@ export default function GlobalDashboard() {
     {
       title: "MCP Servers",
       description: "External connectors for databases, search, and APIs.",
-      icon: <Server className="w-6 h-6 text-cyan-700" />,
+      icon: <Server className="w-6 h-6 text-fuchsia-700" />,
       path: "/mcp-servers",
       count: isLoading ? "Loading..." : `${counts.mcpServers} Connected`,
       accent: {
-        hoverBorder: "hover:border-cyan-400",
-        iconBg: "bg-cyan-50",
-        actionHoverBg: "group-hover:bg-cyan-600",
+        hoverBorder: "hover:border-fuchsia-400",
+        iconBg: "bg-fuchsia-50",
+        actionHoverBg: "group-hover:bg-fuchsia-600",
       },
       action: () => router.push("/mcp-servers"),
     },
@@ -209,8 +209,8 @@ export default function GlobalDashboard() {
             </>
           ) : (
             <>
-              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                <Activity className="w-6 h-6 text-emerald-500" />
+              <div className="w-12 h-12 rounded-full bg-fuchsia-50 flex items-center justify-center shrink-0">
+                <Activity className="w-6 h-6 text-fuchsia-500" />
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 mt-1.5">

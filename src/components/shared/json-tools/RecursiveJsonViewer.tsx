@@ -13,7 +13,7 @@ export const RecursiveJsonViewer = ({ data }: { data: any }) => {
     return <span className="text-blue-600 font-mono text-sm">{data}</span>;
   if (typeof data === "string")
     return (
-      <span className="text-emerald-700 text-sm break-words leading-relaxed">
+      <span className="text-fuchsia-700 text-sm break-words leading-relaxed">
         "{data}"
       </span>
     );

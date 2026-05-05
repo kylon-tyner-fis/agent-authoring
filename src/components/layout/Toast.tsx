@@ -60,7 +60,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
             key={toast.id}
             className={`flex items-start gap-3 p-4 w-80 rounded-xl shadow-xl border pointer-events-auto transition-all duration-300 ease-out ${
               toast.type === "success"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                ? "bg-fuchsia-50 border-fuchsia-200 text-fuchsia-800"
                 : toast.type === "error"
                   ? "bg-red-50 border-red-200 text-red-800"
                   : "bg-blue-50 border-blue-200 text-blue-800"
@@ -68,7 +68,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
           >
             <div className="shrink-0 mt-0.5">
               {toast.type === "success" && (
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <CheckCircle2 className="w-5 h-5 text-fuchsia-600" />
               )}
               {toast.type === "error" && (
                 <AlertCircle className="w-5 h-5 text-red-600" />

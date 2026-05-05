@@ -46,7 +46,7 @@ export default function AgentsDashboard() {
         <div className="flex items-center justify-between bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Bot className="w-6 h-6 text-emerald-600" /> Agents
+              <Bot className="w-6 h-6 text-fuchsia-600" /> Agents
             </h1>
             <p className="text-slate-500 text-sm mt-1">
               Autonomous executive systems that reason, plan, and dynamically
@@ -55,7 +55,7 @@ export default function AgentsDashboard() {
           </div>
           <button
             onClick={() => router.push("/agents/new")}
-            className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-fuchsia-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-fuchsia-700 transition-colors shadow-sm"
           >
             <Plus className="w-5 h-5" /> Create Agent
           </button>
@@ -77,8 +77,8 @@ export default function AgentsDashboard() {
                 className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group"
               >
                 <div className="flex items-center gap-6 min-w-0 flex-1">
-                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-emerald-50 border-emerald-200">
-                    <Bot className="w-5 h-5 text-emerald-600" />
+                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-fuchsia-50 border-fuchsia-200">
+                    <Bot className="w-5 h-5 text-fuchsia-600" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">

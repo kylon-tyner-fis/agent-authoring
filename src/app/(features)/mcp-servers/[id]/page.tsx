@@ -124,7 +124,7 @@ export default function MCPServerEditorPage({
       />
       {isLoading ? (
         <div className="h-full w-full flex items-center justify-center bg-slate-50 overflow-hidden">
-          <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto p-8">
@@ -132,7 +132,8 @@ export default function MCPServerEditorPage({
             {/* General Info */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Server className="w-4 h-4 text-cyan-600" /> General Information
+                <Server className="w-4 h-4 text-emerald-600" /> General
+                Information
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5 col-span-2">
@@ -145,7 +146,7 @@ export default function MCPServerEditorPage({
                     onChange={(e) =>
                       setServer({ ...server, name: e.target.value })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 transition-colors text-slate-900"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 transition-colors text-slate-900"
                     placeholder="e.g. Internal Knowledge Graph"
                   />
                 </div>
@@ -179,7 +180,8 @@ export default function MCPServerEditorPage({
             {/* Connection Details */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Link2 className="w-4 h-4 text-cyan-600" /> Connection Details
+                <Link2 className="w-4 h-4 text-emerald-600" /> Connection
+                Details
               </h2>
               <div className="space-y-4">
                 <div className="space-y-1.5">
@@ -192,7 +194,7 @@ export default function MCPServerEditorPage({
                     onChange={(e) =>
                       setServer({ ...server, url: e.target.value })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 font-mono text-slate-900"
                     placeholder="https://mcp.yourdomain.com/v1"
                   />
                 </div>
@@ -207,7 +209,7 @@ export default function MCPServerEditorPage({
                     onChange={(e) =>
                       setServer({ ...server, health_url: e.target.value })
                     }
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
+                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 font-mono text-slate-900"
                     placeholder="https://mcp.yourdomain.com/health"
                   />
                   <p className="text-[11px] text-slate-500">
@@ -229,7 +231,7 @@ export default function MCPServerEditorPage({
                         }
                         className={`p-3 border rounded-lg cursor-pointer text-center text-sm font-medium transition-all ${
                           server.auth_type === type
-                            ? "border-cyan-500 bg-cyan-50 text-cyan-700 ring-1 ring-cyan-500"
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500"
                             : "border-slate-200 text-slate-600 hover:bg-slate-50"
                         }`}
                       >
@@ -253,7 +255,7 @@ export default function MCPServerEditorPage({
                         onChange={(e) =>
                           setServer({ ...server, auth_token: e.target.value })
                         }
-                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-cyan-500 font-mono text-slate-900"
+                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-emerald-500 font-mono text-slate-900"
                         placeholder={
                           server.auth_type === "bearer"
                             ? "access_..."

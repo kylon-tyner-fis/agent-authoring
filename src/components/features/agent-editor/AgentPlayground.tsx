@@ -118,13 +118,13 @@ interface AgentPlaygroundProps {
 
 const accentClasses = {
   agent: {
-    link: "text-emerald-600",
-    iconBg: "bg-emerald-100",
-    iconText: "text-emerald-600",
-    messageBg: "bg-emerald-600",
-    spinner: "text-emerald-500",
-    focusRing: "focus:ring-emerald-500",
-    button: "bg-emerald-600 hover:bg-emerald-700",
+    link: "text-fuchsia-600",
+    iconBg: "bg-fuchsia-100",
+    iconText: "text-fuchsia-600",
+    messageBg: "bg-fuchsia-600",
+    spinner: "text-fuchsia-500",
+    focusRing: "focus:ring-fuchsia-500",
+    button: "bg-fuchsia-600 hover:bg-fuchsia-700",
   },
   orchestrator: {
     link: "text-sky-600",
@@ -443,14 +443,14 @@ export const AgentPlayground = ({
                 className="flex flex-col gap-1.5 ml-11 animate-in fade-in w-[85%]"
               >
                 <div
-                  className={`flex items-center gap-2 text-[11px] font-mono ${isSubAgent ? "text-emerald-600" : "text-violet-600"}`}
+                  className={`flex items-center gap-2 text-[11px] font-mono ${isSubAgent ? "text-fuchsia-600" : "text-violet-600"}`}
                 >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>
                     {isSubAgent ? "Delegating task:" : "Executing Workflow:"}
                   </span>
                   <span
-                    className={`font-semibold border px-1.5 py-0.5 rounded ${isSubAgent ? "bg-emerald-50 border-emerald-200" : "bg-violet-50 border-violet-200"}`}
+                    className={`font-semibold border px-1.5 py-0.5 rounded ${isSubAgent ? "bg-fuchsia-50 border-fuchsia-200" : "bg-violet-50 border-violet-200"}`}
                   >
                     {item.skillName}
                   </span>
@@ -540,17 +540,17 @@ export const AgentPlayground = ({
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1.5 ml-16 my-2 animate-in fade-in w-[75%] border-l-2 border-cyan-200 pl-3"
+                className="flex flex-col gap-1.5 ml-16 my-2 animate-in fade-in w-[75%] border-l-2 border-emerald-200 pl-3"
               >
-                <div className="flex items-center gap-2 text-[11px] text-cyan-700 font-mono">
+                <div className="flex items-center gap-2 text-[11px] text-emerald-700 font-mono">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Calling Tool / MCP:</span>
-                  <span className="font-semibold bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded">
+                  <span className="font-semibold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                     {item.toolName}
                   </span>
                 </div>
-                <div className="bg-white border border-cyan-100 rounded shadow-sm p-2">
-                  <span className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider block mb-1">
+                <div className="bg-white border border-emerald-100 rounded shadow-sm p-2">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">
                     Tool Inputs
                   </span>
                   <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto">
@@ -563,14 +563,14 @@ export const AgentPlayground = ({
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1.5 ml-16 mb-4 animate-in fade-in w-[75%] border-l-2 border-cyan-200 pl-3"
+                className="flex flex-col gap-1.5 ml-16 mb-4 animate-in fade-in w-[75%] border-l-2 border-emerald-200 pl-3"
               >
-                <div className="flex items-center gap-2 text-[11px] text-cyan-700 font-mono">
+                <div className="flex items-center gap-2 text-[11px] text-emerald-700 font-mono">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Tool / MCP Completed</span>
                 </div>
-                <div className="bg-white border border-cyan-100 rounded shadow-sm p-2">
-                  <span className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider block mb-1">
+                <div className="bg-white border border-emerald-100 rounded shadow-sm p-2">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">
                     Tool Outputs
                   </span>
                   <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto max-h-60 overflow-y-auto custom-scrollbar">
@@ -585,10 +585,10 @@ export const AgentPlayground = ({
                 key={i}
                 className="flex flex-col gap-1.5 ml-11 animate-in fade-in w-[85%] mb-4"
               >
-                <div className="flex items-center gap-2 text-[11px] text-emerald-600 font-mono">
+                <div className="flex items-center gap-2 text-[11px] text-fuchsia-600 font-mono">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Execution Completed:</span>
-                  <span className="font-semibold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                  <span className="font-semibold bg-fuchsia-50 border border-fuchsia-200 px-1.5 py-0.5 rounded">
                     {item.skillName}
                   </span>
                 </div>
