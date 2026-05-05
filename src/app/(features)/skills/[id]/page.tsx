@@ -11,6 +11,7 @@ import {
 import { ConfigPanel } from "@/src/components/features/skill-editor/ConfigPanel";
 import { Playground } from "@/src/components/features/skill-editor/Playground";
 import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 export default function SkillEditorPage({
   params,
@@ -20,6 +21,7 @@ export default function SkillEditorPage({
   const resolvedParams = use(params);
   const id = resolvedParams.id;
   const isNew = id === "new";
+  const { currentProject } = useProject();
 
   const [config, setConfig] = useState<SkillConfig | null>(null);
   const [availableTools, setAvailableTools] = useState<ToolConfig[]>([]);
@@ -44,7 +46,11 @@ export default function SkillEditorPage({
         if (serversRes.servers) setAvailableServers(serversRes.servers);
 
         if (isNew) {
-          setConfig({ ...DEFAULT_SKILL_CONFIG, id: "" });
+          setConfig({
+            ...DEFAULT_SKILL_CONFIG,
+            id: "",
+            project_id: currentProject?.id || "",
+          });
           setIsLoading(false);
           return;
         }
@@ -56,6 +62,7 @@ export default function SkillEditorPage({
           setConfig({
             ...DEFAULT_SKILL_CONFIG,
             ...data.skill,
+            project_id: data.skill.project_id || currentProject?.id || "",
             model: {
               provider: data.skill.provider,
               model_name: data.skill.model_name,
@@ -72,7 +79,7 @@ export default function SkillEditorPage({
     };
 
     fetchData();
-  }, [id, isNew]);
+  }, [id, isNew, currentProject?.id]);
 
   // REMOVED the "if (isLoading || !config)" block completely so the layout renders instantly
 

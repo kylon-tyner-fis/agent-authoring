@@ -6,6 +6,7 @@ import { Server, Link2, Key, Activity, Loader2 } from "lucide-react";
 import { MCPServerConfig } from "@/src/lib/types/constants";
 import { v4 as uuidv4 } from "uuid";
 import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 export default function MCPServerEditorPage({
   params,
@@ -13,11 +14,13 @@ export default function MCPServerEditorPage({
   params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
+  const { currentProject } = useProject();
   const { id } = use(params);
   const isNew = id === "new";
 
   const [server, setServer] = useState<MCPServerConfig>({
     id: "",
+    project_id: "",
     name: "",
     url: "",
     health_url: "",
@@ -71,7 +74,11 @@ export default function MCPServerEditorPage({
     setSaveSuccess(false);
 
     const finalId = server.id || uuidv4();
-    const finalServer = { ...server, id: finalId };
+    const finalServer = {
+      ...server,
+      id: finalId,
+      project_id: server.project_id || currentProject?.id || "",
+    };
 
     try {
       const res = await fetch("/api/mcp-servers", {

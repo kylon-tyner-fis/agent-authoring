@@ -20,7 +20,7 @@ export interface ModelConfig {
 
 export interface ToolConfig {
   id: string;
-  project_id?: string;
+  project_id: string;
   name: string;
   description: string;
   prompt_template: string;
@@ -30,7 +30,7 @@ export interface ToolConfig {
 
 export interface MCPServerConfig {
   id: string;
-  project_id?: string;
+  project_id: string;
   name: string;
   url: string;
   health_url?: string;

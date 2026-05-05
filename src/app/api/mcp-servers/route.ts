@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,9 +54,29 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const server = await req.json();
+    const normalizedId =
+      typeof server.id === "string" && server.id.trim().length > 0
+        ? server.id.trim()
+        : randomUUID();
+    const normalizedProjectId =
+      typeof server.project_id === "string" ? server.project_id.trim() : "";
+
+    if (!normalizedProjectId) {
+      return NextResponse.json(
+        { error: "project_id is required to save an MCP server." },
+        { status: 400 },
+      );
+    }
+
+    const payload = {
+      ...server,
+      id: normalizedId,
+      project_id: normalizedProjectId,
+    };
+
     const { data, error } = await supabase
       .from("mcp_servers")
-      .upsert([server], { onConflict: "id" })
+      .upsert([payload], { onConflict: "id" })
       .select()
       .single();
 

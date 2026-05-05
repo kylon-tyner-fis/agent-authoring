@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 import {
   SkillConfig,
   ToolConfig,
@@ -22,7 +23,9 @@ function collectReferencedIds(config: SkillConfig) {
     if (node.serverId) serverIds.add(node.serverId);
   }
 
-  const orchestrationNodes = (config.orchestration?.nodes || []) as Array<{ data?: { toolId?: string; serverId?: string } }>;
+  const orchestrationNodes = (config.orchestration?.nodes || []) as Array<{
+    data?: { toolId?: string; serverId?: string };
+  }>;
   for (const node of orchestrationNodes) {
     const data = node?.data || {};
     if (data.toolId) toolIds.add(data.toolId);
@@ -35,9 +38,21 @@ function collectReferencedIds(config: SkillConfig) {
 export async function POST(req: Request) {
   try {
     const config: SkillConfig = await req.json();
-    const projectId = config?.project_id;
+    const normalizedId =
+      typeof config.id === "string" && config.id.trim().length > 0
+        ? config.id.trim()
+        : randomUUID();
+    const normalizedProjectId =
+      typeof config.project_id === "string" ? config.project_id.trim() : "";
 
-    if (!projectId) {
+    if (!normalizedProjectId) {
+      return NextResponse.json(
+        { error: "project_id is required to save a skill." },
+        { status: 400 },
+      );
+    }
+
+    if (!normalizedProjectId) {
       return NextResponse.json(
         { error: "Missing required field: project_id" },
         { status: 400 },
@@ -46,8 +61,11 @@ export async function POST(req: Request) {
 
     // Fetch dependencies scoped to project
     const [toolsResponse, serversResponse] = await Promise.all([
-      supabase.from("tools").select("*").eq("project_id", projectId),
-      supabase.from("mcp_servers").select("*").eq("project_id", projectId),
+      supabase.from("tools").select("*").eq("project_id", normalizedProjectId),
+      supabase
+        .from("mcp_servers")
+        .select("*")
+        .eq("project_id", normalizedProjectId),
     ]);
 
     if (toolsResponse.error) throw toolsResponse.error;
@@ -66,6 +84,13 @@ export async function POST(req: Request) {
       (id) => !serverIdSet.has(id),
     );
 
+    const payload = {
+      ...config,
+      id: normalizedId,
+      project_id: normalizedProjectId,
+    };
+
+    // 3. Save the orchestration config to the renamed 'skills' table
     if (missing_tool_ids.length > 0 || missing_mcp_server_ids.length > 0) {
       return NextResponse.json(
         {
@@ -78,7 +103,11 @@ export async function POST(req: Request) {
     }
 
     // Generate manifest from project-scoped dependencies only
-    const compiledManifest = generateManifest(config, projectTools, projectServers);
+    const compiledManifest = generateManifest(
+      config,
+      projectTools,
+      projectServers,
+    );
 
     // Persist skill and enforce project invariant
     const { data, error } = await supabase
@@ -86,23 +115,23 @@ export async function POST(req: Request) {
       .upsert(
         [
           {
-            id: config.id,
-            project_id: projectId,
-            name: config.name,
-            version: config.version,
-            description: config.description,
-            provider: config.model.provider,
-            model_name: config.model.model_name,
-            temperature: config.model.temperature,
-            max_tokens: config.model.max_tokens,
-            mcp_servers: config.mcp_servers,
-            system_prompt: config.system_prompt,
-            state_schema: config.state_schema,
-            graph: config.graph,
-            subgraphs: config.subgraphs,
-            persistence: config.persistence,
-            interrupts: config.interrupts,
-            orchestration: config.orchestration,
+            id: payload.id,
+            project_id: payload.project_id,
+            name: payload.name,
+            version: payload.version,
+            description: payload.description,
+            provider: payload.model.provider,
+            model_name: payload.model.model_name,
+            temperature: payload.model.temperature,
+            max_tokens: payload.model.max_tokens,
+            mcp_servers: payload.mcp_servers,
+            system_prompt: payload.system_prompt,
+            state_schema: payload.state_schema,
+            graph: payload.graph,
+            subgraphs: payload.subgraphs,
+            persistence: payload.persistence,
+            interrupts: payload.interrupts,
+            orchestration: payload.orchestration,
             compiled_manifest: compiledManifest,
           },
         ],

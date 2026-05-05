@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import { SchemaNode } from "@/src/components/shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "@/src/components/shared/json-tools/SchemaViewer";
 import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 const parseSchema = (schema: Record<string, any>): SchemaNode[] => {
   if (!schema) return [];
@@ -66,11 +67,13 @@ export default function ToolEditorPage({
   params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
+  const { currentProject } = useProject();
   const { id } = use(params);
   const isNew = id === "new";
 
   const [tool, setTool] = useState<ToolConfig>({
     id: "",
+    project_id: "",
     name: "",
     description: "",
     prompt_template: "",
@@ -138,6 +141,7 @@ export default function ToolEditorPage({
     const finalTool = {
       ...tool,
       id: finalId,
+      project_id: tool.project_id || currentProject?.id || "",
       input_schema: compileSchema(inputNodes),
       output_schema: compileSchema(outputNodes),
     };
