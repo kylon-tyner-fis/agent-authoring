@@ -123,16 +123,17 @@ export class DocumentService {
   /**
    * Completely removes a file from the system.
    */
-  static async deleteFile(fileId: string) {
+  static async deleteFile(agentId: string, fileId: string) {
     // 1. Get the file path from the database
     const { data, error: fetchError } = await supabase
       .from("agent_files")
       .select("file_path")
       .eq("id", fileId)
+      .eq("agent_id", agentId)
       .single();
 
     if (fetchError || !data) {
-      throw new Error("File not found in database.");
+      throw new Error("File not found for this agent.");
     }
 
     // 2. Delete the raw file from Storage
@@ -153,7 +154,8 @@ export class DocumentService {
     const { error: dbError } = await supabase
       .from("agent_files")
       .delete()
-      .eq("id", fileId);
+      .eq("id", fileId)
+      .eq("agent_id", agentId);
 
     if (dbError) {
       throw new Error(`Failed to delete database record: ${dbError.message}`);
@@ -163,15 +165,17 @@ export class DocumentService {
   /**
    * Retrieves the raw text content of a saved file.
    */
-  static async getFileText(fileId: string): Promise<string> {
+  static async getFileText(agentId: string, fileId: string): Promise<string> {
     // 1. Get the file path
     const { data: fileRecord, error: fetchError } = await supabase
       .from("agent_files")
       .select("file_path")
       .eq("id", fileId)
+      .eq("agent_id", agentId)
       .single();
 
-    if (fetchError || !fileRecord) throw new Error("File record not found.");
+    if (fetchError || !fileRecord)
+      throw new Error("File not found for this agent.");
 
     // 2. Download from storage
     const { data: fileBlob, error: downloadError } = await supabase.storage
@@ -188,15 +192,21 @@ export class DocumentService {
    * Overwrites the file in storage. If it is a reference file,
    * purges the old vector chunks and generates new ones.
    */
-  static async updateFileText(fileId: string, newText: string): Promise<void> {
+  static async updateFileText(
+    agentId: string,
+    fileId: string,
+    newText: string,
+  ): Promise<void> {
     // 1. Get the file details
     const { data: fileRecord, error: fetchError } = await supabase
       .from("agent_files")
       .select("*")
       .eq("id", fileId)
+      .eq("agent_id", agentId)
       .single();
 
-    if (fetchError || !fileRecord) throw new Error("File record not found.");
+    if (fetchError || !fileRecord)
+      throw new Error("File not found for this agent.");
 
     // 2. Overwrite the file in Supabase Storage
     const { error: uploadError } = await supabase.storage
