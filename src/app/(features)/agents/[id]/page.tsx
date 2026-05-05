@@ -42,6 +42,7 @@ interface AgentFile {
   filename: string;
   usage_type: "instruction" | "reference";
   created_at: string;
+  updated_at: string;
 }
 
 export default function AgentEditorPage() {
@@ -218,10 +219,11 @@ export default function AgentEditorPage() {
       // Wait for all file vectorization and saving to finish
       await Promise.all(editPromises);
 
+      const now = new Date().toISOString();
       setFiles((prevFiles) =>
         prevFiles.map((f) =>
           pendingEdits[f.id]
-            ? { ...f, filename: pendingEdits[f.id].filename }
+            ? { ...f, filename: pendingEdits[f.id].filename, updated_at: now }
             : f,
         ),
       );
@@ -681,8 +683,11 @@ export default function AgentEditorPage() {
                                       </span>
                                       <span className="text-[10px] uppercase font-bold tracking-wider mt-1.5 text-slate-400">
                                         {new Date(
-                                          file.created_at,
-                                        ).toLocaleDateString()}
+                                          file.updated_at || file.created_at,
+                                        ).toLocaleString(undefined, {
+                                          dateStyle: "short",
+                                          timeStyle: "medium",
+                                        })}
                                         {hasUnsavedChanges && (
                                           <span className="text-amber-500 ml-1.5">
                                             - Unsaved changes
@@ -755,8 +760,11 @@ export default function AgentEditorPage() {
                                       </span>
                                       <span className="text-[10px] uppercase font-bold tracking-wider mt-1.5 text-slate-400">
                                         {new Date(
-                                          file.created_at,
-                                        ).toLocaleDateString()}
+                                          file.updated_at || file.created_at,
+                                        ).toLocaleString(undefined, {
+                                          dateStyle: "short",
+                                          timeStyle: "medium",
+                                        })}
                                         {hasUnsavedChanges && (
                                           <span className="text-amber-500 ml-1.5">
                                             - Unsaved changes
