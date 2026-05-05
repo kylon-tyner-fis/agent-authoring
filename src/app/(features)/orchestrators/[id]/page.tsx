@@ -93,9 +93,14 @@ export default function OrchestratorEditorPage({
       project_id: orchestrator.project_id || currentProject?.id || "",
     };
 
+    const url = isNew
+      ? "/api/orchestrators"
+      : `/api/orchestrators/${id}?projectId=${currentProject?.id}`;
+    const method = isNew ? "POST" : "PUT";
+
     try {
-      const res = await fetch("/api/orchestrators", {
-        method: "POST",
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(finalOrchestrator),
       });

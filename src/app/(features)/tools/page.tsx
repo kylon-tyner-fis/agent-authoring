@@ -4,17 +4,23 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Wrench, Plus, Trash2, Code2, Loader2 } from "lucide-react";
 import { ToolConfig } from "@/src/lib/types/constants";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 export default function ToolsDashboard() {
   const router = useRouter();
+  const { currentProject } = useProject();
   const [tools, setTools] = useState<ToolConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!currentProject) return;
+
     const fetchTools = async () => {
       try {
-        const res = await fetch("/api/tools");
-        const data = await res.json();
+        const toolsRes = await fetch(
+          `/api/tools?projectId=${currentProject.id}`,
+        );
+        const data = await toolsRes.json();
         if (data.tools) setTools(data.tools);
       } catch (error) {
         console.error("Failed to fetch tools", error);
@@ -23,13 +29,15 @@ export default function ToolsDashboard() {
       }
     };
     fetchTools();
-  }, []);
+  }, [currentProject]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(`Delete tool ${id}?`)) return;
+  const handleDelete = async (deletingId: string) => {
+    if (!currentProject || !confirm(`Delete tool ${deletingId}?`)) return;
     try {
-      await fetch(`/api/tools/${id}`, { method: "DELETE" });
-      setTools(tools.filter((t) => t.id !== id));
+      await fetch(`/api/skills/${deletingId}?projectId=${currentProject.id}`, {
+        method: "DELETE",
+      });
+      setTools(tools.filter((t) => t.id !== deletingId));
     } catch (error) {
       console.error("Failed to delete tool", error);
     }

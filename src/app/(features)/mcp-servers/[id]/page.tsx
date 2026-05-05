@@ -39,7 +39,6 @@ export default function MCPServerEditorPage({
       health_url: server.health_url,
       auth_type: server.auth_type,
       status: server.status,
-      // Intentionally omitting auth_token for safety
     };
     try {
       await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
@@ -52,12 +51,19 @@ export default function MCPServerEditorPage({
 
   useEffect(() => {
     const fetchServer = async () => {
+      if (!currentProject?.id) {
+        setIsLoading(false);
+        return;
+      }
+
       if (isNew) {
         setIsLoading(false);
         return;
       }
       try {
-        const res = await fetch(`/api/mcp-servers/${id}`);
+        const res = await fetch(
+          `/api/mcp-servers/${id}?projectId=${currentProject.id}`,
+        );
         const data = await res.json();
         if (data.server) setServer(data.server);
       } catch (error) {
@@ -67,7 +73,7 @@ export default function MCPServerEditorPage({
       }
     };
     fetchServer();
-  }, [id, isNew]);
+  }, [id, isNew, currentProject?.id]);
 
   const handleSave = async () => {
     setIsSaving(true);

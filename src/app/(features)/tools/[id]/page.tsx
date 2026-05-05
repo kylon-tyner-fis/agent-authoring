@@ -107,15 +107,22 @@ export default function ToolEditorPage({
 
   useEffect(() => {
     const fetchData = async () => {
+      // 1. Check for currentProject
+      if (!currentProject?.id) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
         if (isNew) {
           setIsLoading(false);
           return;
         }
 
-        const toolData = await fetch(`/api/tools/${id}`).then((res) =>
-          res.json(),
-        );
+        // 2. Append projectId to fetch
+        const toolData = await fetch(
+          `/api/tools/${id}?projectId=${currentProject.id}`,
+        ).then((res) => res.json());
 
         if (toolData?.tool) {
           setTool(toolData.tool);
@@ -130,7 +137,7 @@ export default function ToolEditorPage({
     };
 
     fetchData();
-  }, [id, isNew]);
+  }, [id, isNew, currentProject?.id]);
 
   const handleSave = async () => {
     setIsSaving(true);

@@ -53,9 +53,16 @@ export default function GlobalDashboard() {
             fetch(`/api/agents?projectId=${currentProject.id}`, fetchOpts).then(
               (res) => res.json(),
             ),
-            fetch("/api/skills", fetchOpts).then((res) => res.json()),
-            fetch("/api/tools", fetchOpts).then((res) => res.json()),
-            fetch("/api/mcp-servers", fetchOpts).then((res) => res.json()),
+            fetch(`/api/skills?projectId=${currentProject.id}`, fetchOpts).then(
+              (res) => res.json(),
+            ),
+            fetch(`/api/tools?projectId=${currentProject.id}`, fetchOpts).then(
+              (res) => res.json(),
+            ),
+            fetch(
+              `/api/mcp-servers?projectId=${currentProject.id}`,
+              fetchOpts,
+            ).then((res) => res.json()),
           ]);
 
         setCounts({
