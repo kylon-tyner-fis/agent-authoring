@@ -48,7 +48,8 @@ export async function PUT(
     const body = await req.json();
 
     // Extract the exact fields we want to update (prevents trying to update read-only fields like id or created_at)
-    const { name, description, system_prompt, skills, sub_agents } = body;
+    const { name, description, system_prompt, skills, sub_agents, project_id } =
+      body;
 
     const { data, error } = await supabase
       .from("agents")
@@ -58,6 +59,7 @@ export async function PUT(
         system_prompt,
         skills,
         sub_agents,
+        project_id,
         updated_at: new Date().toISOString(), // Keep track of when it was last edited
       })
       .eq("id", id)

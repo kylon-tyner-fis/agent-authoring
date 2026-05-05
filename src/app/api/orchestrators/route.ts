@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,9 +31,31 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const orchestrator = await req.json();
+    const normalizedId =
+      typeof orchestrator.id === "string" && orchestrator.id.trim().length > 0
+        ? orchestrator.id.trim()
+        : randomUUID();
+    const normalizedProjectId =
+      typeof orchestrator.project_id === "string"
+        ? orchestrator.project_id.trim()
+        : "";
+
+    if (!normalizedProjectId) {
+      return NextResponse.json(
+        { error: "project_id is required to save an orchestrator." },
+        { status: 400 },
+      );
+    }
+
+    const payload = {
+      ...orchestrator,
+      id: normalizedId,
+      project_id: normalizedProjectId,
+    };
+
     const { data, error } = await supabase
       .from("orchestrators")
-      .upsert([orchestrator], { onConflict: "id" })
+      .upsert([payload], { onConflict: "id" })
       .select()
       .single();
 

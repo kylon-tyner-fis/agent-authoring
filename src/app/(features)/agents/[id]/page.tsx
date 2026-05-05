@@ -19,9 +19,11 @@ import {
 import { useToast } from "@/src/components/layout/Toast";
 import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 interface AgentConfig {
   id?: string;
+  project_id?: string;
   name: string;
   description: string;
   system_prompt: string;
@@ -45,6 +47,7 @@ interface AgentFile {
 export default function AgentEditorPage() {
   const params = useParams();
   const router = useRouter();
+  const { currentProject } = useProject();
   const { addToast } = useToast();
   const isNew = params.id === "new";
   const id = isNew ? null : (params.id as string);
@@ -87,6 +90,11 @@ export default function AgentEditorPage() {
   // --- DATA FETCHING ---
   useEffect(() => {
     async function fetchData() {
+      if (!currentProject?.id) {
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
         // Fetch dependencies (skills)
@@ -116,7 +124,7 @@ export default function AgentEditorPage() {
     }
 
     fetchData();
-  }, [id, isNew]);
+  }, [currentProject?.id, id, isNew]);
 
   const handleCopyConfig = async () => {
     try {
@@ -151,7 +159,10 @@ export default function AgentEditorPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(agent),
+        body: JSON.stringify({
+          ...agent,
+          project_id: agent.project_id || currentProject?.id || "",
+        }),
       });
 
       // Safely parse the response
