@@ -70,14 +70,28 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { data, error } = await supabase
+    const projectId = new URL(req.url).searchParams.get("projectId");
+
+    if (!projectId) {
+      return NextResponse.json(
+        { error: "projectId is required" },
+        { status: 400 },
+      );
+    }
+
+    let query = supabase
       .from("skills")
       .select(
         "id, name, version, description, provider, model_name, updated_at",
-      )
-      .order("updated_at", { ascending: false });
+      );
+
+    query = query.eq("project_id", projectId);
+
+    const { data, error } = await query.order("updated_at", {
+      ascending: false,
+    });
 
     if (error) throw error;
     return NextResponse.json({ skills: data });

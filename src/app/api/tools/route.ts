@@ -6,12 +6,24 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { data, error } = await supabase
+    const projectId = new URL(req.url).searchParams.get("projectId");
+
+    if (!projectId) {
+      return NextResponse.json(
+        { error: "projectId is required" },
+        { status: 400 },
+      );
+    }
+
+    let query = supabase
       .from("tools") // <-- Updated table
-      .select("*")
-      .order("name", { ascending: true });
+      .select("*");
+
+    query = query.eq("project_id", projectId);
+
+    const { data, error } = await query.order("name", { ascending: true });
 
     if (error) throw error;
     return NextResponse.json({ tools: data }); // <-- Updated key
