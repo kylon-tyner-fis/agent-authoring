@@ -337,10 +337,11 @@ export const ConfigPanel = ({
         <option value="any" />
       </datalist>
 
-      {/* Renders immediately and animates in sync with the layout */}
       <EditorTopPanel
         backUrl="/skills"
-        backLabel="Back to Skills"
+        title={config.name || "Untitled Skill"}
+        subtitle="Configure workflow logic, model behavior, and state"
+        icon={Network}
         onCopy={handleCopyConfig}
         isCopied={isCopied}
         onTest={handleOpenPlayground}

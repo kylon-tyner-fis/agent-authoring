@@ -26,6 +26,7 @@ export default function MCPServerEditorPage({
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopyConfig = async () => {
@@ -67,6 +68,8 @@ export default function MCPServerEditorPage({
 
   const handleSave = async () => {
     setIsSaving(true);
+    setSaveSuccess(false);
+
     const finalId = server.id || uuidv4();
     const finalServer = { ...server, id: finalId };
 
@@ -78,6 +81,8 @@ export default function MCPServerEditorPage({
       });
 
       if (res.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
         router.push("/mcp-servers");
       }
     } catch (error) {
@@ -91,12 +96,17 @@ export default function MCPServerEditorPage({
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
       <EditorTopPanel
         backUrl="/mcp-servers"
-        backLabel="Back to Servers"
+        title={
+          isNew ? "Create MCP Server" : server.name || "Untitled MCP Server"
+        }
+        subtitle="Configure server connection, health, and authentication"
+        icon={Server}
         onCopy={handleCopyConfig}
         isCopied={isCopied}
         onSave={handleSave}
         saveLabel="Save Server Config"
         isSaving={isSaving}
+        saveSuccess={saveSuccess}
         themeColor="cyan"
       />
       {isLoading ? (
