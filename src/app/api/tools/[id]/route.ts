@@ -12,14 +12,29 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const url = new URL(req.url);
+    const projectId = url.searchParams.get("projectId");
+    if (!projectId) {
+      return NextResponse.json(
+        { error: "Missing required query param: projectId" },
+        { status: 400 },
+      );
+    }
+
     const { data, error } = await supabase
       .from("tools")
       .select("*")
       .eq("id", id)
-      .single(); // <-- Updated table
+      .eq("project_id", projectId)
+      .single();
 
-    if (error) throw error;
-    return NextResponse.json({ tool: data }); // <-- Updated key
+    if (error) {
+      if (error.code === "PGRST116") {
+        return NextResponse.json({ error: "Tool not found" }, { status: 404 });
+      }
+      throw error;
+    }
+    return NextResponse.json({ tool: data });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -31,8 +46,26 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { error } = await supabase.from("tools").delete().eq("id", id); // <-- Updated table
+    const url = new URL(req.url);
+    const projectId = url.searchParams.get("projectId");
+    if (!projectId) {
+      return NextResponse.json(
+        { error: "Missing required query param: projectId" },
+        { status: 400 },
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("tools")
+      .delete()
+      .eq("id", id)
+      .eq("project_id", projectId)
+      .select("id")
+      .maybeSingle();
     if (error) throw error;
+    if (!data) {
+      return NextResponse.json({ error: "Tool not found" }, { status: 404 });
+    }
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
