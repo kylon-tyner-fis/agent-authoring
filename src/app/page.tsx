@@ -209,8 +209,8 @@ export default function GlobalDashboard() {
             </>
           ) : (
             <>
-              <div className="w-12 h-12 rounded-full bg-fuchsia-50 flex items-center justify-center shrink-0">
-                <Activity className="w-6 h-6 text-fuchsia-500" />
+              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                <Activity className="w-6 h-6 text-emerald-500" />
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 mt-1.5">
