@@ -20,16 +20,7 @@ import { useToast } from "@/src/components/layout/Toast";
 import { EditorTopPanel } from "@/src/components/layout/EditorTopPanel";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
 import { useProject } from "@/src/lib/contexts/ProjectContext";
-
-interface AgentConfig {
-  id?: string;
-  project_id?: string;
-  name: string;
-  description: string;
-  system_prompt: string;
-  skills: string[];
-  sub_agents: string[];
-}
+import { AgentConfig } from "@/src/lib/types/constants";
 
 interface Skill {
   id: string;
@@ -55,11 +46,12 @@ export default function AgentEditorPage() {
 
   // --- CORE STATE ---
   const [agent, setAgent] = useState<AgentConfig>({
+    id: "",
+    project_id: "",
     name: "",
     description: "",
-    system_prompt: "", // Kept in state for backend compatibility, but hidden from UI
+    system_prompt: "",
     skills: [],
-    sub_agents: [],
   });
 
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
@@ -427,7 +419,6 @@ export default function AgentEditorPage() {
   const referenceFiles = files.filter((f) => f.usage_type === "reference");
 
   const playgroundConfig = {
-    project_id: "",
     status: "active" as const,
     ...agent,
     id: agent.id || id || "",

@@ -53,7 +53,6 @@ export async function POST(req: Request) {
       name: config.name,
       description: config.description,
       skills: [],
-      status: config.status,
       system_prompt: config.system_prompt,
     };
 

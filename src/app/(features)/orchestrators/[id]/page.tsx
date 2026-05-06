@@ -26,7 +26,6 @@ export default function OrchestratorEditorPage({
     name: "",
     description: "",
     agents: [],
-    status: "active",
     system_prompt: "",
   });
 

@@ -80,8 +80,7 @@ export async function POST(
       project_id: orchConfig.project_id,
       name: orchConfig.name,
       description: orchConfig.description,
-      skills: [], // Orchestrators don't use skills directly
-      status: orchConfig.status,
+      skills: [],
       system_prompt: orchConfig.system_prompt,
     };
 
