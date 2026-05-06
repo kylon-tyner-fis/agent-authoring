@@ -100,12 +100,13 @@ export interface CompiledManifest {
  * Used by the UI playground and upstream APIs to track real-time agent reasoning.
  */
 export interface ManifestExecutionReporter {
-  onNodeStart?: (nodeName: string) => void;
+  onNodeStart?: (nodeName: string, modelName?: string) => void;
   onNodeEnd?: (
     nodeName: string,
     stateUpdates: GraphState,
     reasoning?: string,
     fullState?: GraphState,
+    modelName?: string,
   ) => void;
   onEdgeTraversal?: (
     sourceName: string,

@@ -1,6 +1,7 @@
 import { PromptTemplate } from "@langchain/core/prompts";
 import { mapSchemaToZod } from "../../utils/schema-mapper";
 import { ManifestNode, NodeContext, GraphState } from "../types";
+import { ChatOpenAI } from "@langchain/openai";
 
 /**
  * Creates a Tool Node for the LangGraph workflow.
@@ -44,15 +45,33 @@ export function createToolNode(node: ManifestNode, context: NodeContext) {
       )
     : null;
 
-  let structuredToolLlm: ReturnType<typeof llm.withStructuredOutput> | null =
-    null;
+  // 1. Check if an override exists
+  const customModelConfig = node.data.model_config as any;
+  let activeLlm = llm; // Default to the global LLM passed in via context
+
+  // 2. Instantiate a localized LLM if the user provided an override
+  if (customModelConfig && customModelConfig.model_name) {
+    console.log(
+      `[DEBUG] Node '${node.id}' overriding global LLM with ${customModelConfig.model_name}`,
+    );
+    activeLlm = new ChatOpenAI({
+      modelName: customModelConfig.model_name,
+      temperature: customModelConfig.temperature ?? 0.7,
+      maxTokens: customModelConfig.max_tokens ?? 4096,
+    }) as any;
+  }
+
+  let structuredToolLlm: ReturnType<
+    typeof activeLlm.withStructuredOutput
+  > | null = null;
 
   if (tool) {
     const toolZodSchema = mapSchemaToZod(tool.output_schema);
     const safeToolName =
       tool.name?.replace(/[^a-zA-Z0-9_-]/g, "_") || "tool_execution";
 
-    structuredToolLlm = llm
+    // 3. Bind the tool schema to the active LLM (either global or local)
+    structuredToolLlm = activeLlm
       .withStructuredOutput(toolZodSchema, { name: safeToolName })
       .withRetry({ stopAfterAttempt: 3 });
   }
@@ -61,7 +80,9 @@ export function createToolNode(node: ManifestNode, context: NodeContext) {
     if (state.__error__) return {};
     if (!tool || !prompt || !structuredToolLlm) return {};
 
-    reporter?.onNodeStart?.(nodeLabel);
+    const usedModel =
+      customModelConfig?.model_name || manifest.engine.model.model_name;
+    reporter?.onNodeStart?.(nodeLabel, usedModel);
 
     const localInputs: GraphState = {};
 
@@ -119,10 +140,16 @@ export function createToolNode(node: ManifestNode, context: NodeContext) {
     }
 
     // 6. Finalize
-    reporter?.onNodeEnd?.(nodeLabel, stateUpdates, undefined, {
-      ...state,
-      ...stateUpdates,
-    });
+    reporter?.onNodeEnd?.(
+      nodeLabel,
+      stateUpdates,
+      undefined,
+      {
+        ...state,
+        ...stateUpdates,
+      },
+      usedModel,
+    );
 
     const outgoingEdges = edges.filter((e) => e.source === node.id);
     if (outgoingEdges.length === 1 && !outgoingEdges[0].data?.label?.trim()) {

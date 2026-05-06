@@ -85,13 +85,19 @@ type HistoryEvent =
   | { type: "message"; content: string }
   | { type: "skill_start"; skillName: string; args: any }
   | { type: "skill_end"; skillName: string; result: any }
-  | { type: "skill_node_start"; skillName: string; nodeId: string }
+  | {
+      type: "skill_node_start";
+      skillName: string;
+      nodeId: string;
+      modelName?: string;
+    }
   | {
       type: "skill_node_end";
       skillName: string;
       nodeId: string;
       updates: any;
       fullState?: any;
+      modelName?: string;
     }
   | {
       type: "skill_edge_traversal";
@@ -147,6 +153,7 @@ export const AgentPlayground = ({
   const [isSimulating, setIsSimulating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEvent[]>([]);
+  const [activeModel, setActiveModel] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [threadId] = useState(() => uuidv4());
   const [isCopied, setIsCopied] = useState(false);
@@ -166,9 +173,12 @@ export const AgentPlayground = ({
         trace += `**System Completed:** ${h.skillName}\n`;
         trace += `Result:\n\`\`\`json\n${JSON.stringify(h.result, null, 2)}\n\`\`\`\n\n`;
       } else if (h.type === "skill_node_start") {
-        trace += `**Node Started:** ${h.nodeId} (in ${h.skillName})\n\n`;
+        trace += `**Node Started:** ${h.nodeId} (in ${h.skillName})\n`;
+        if (h.modelName) trace += `Model Used: ${h.modelName}\n`;
+        trace += `\n`;
       } else if (h.type === "skill_node_end") {
         trace += `**Node Completed:** ${h.nodeId} (in ${h.skillName})\n`;
+        if (h.modelName) trace += `Model Used: ${h.modelName}\n`;
         trace += `State Updates:\n\`\`\`json\n${JSON.stringify(h.updates, null, 2)}\n\`\`\`\n\n`;
       } else if (h.type === "skill_edge_traversal") {
         trace += `**Edge Traversal:** ${h.source} -> ${h.target}\n`;
@@ -271,6 +281,7 @@ export const AgentPlayground = ({
                 { type: "message", content: "" },
               ]);
             } else if (event.type === "skill_end") {
+              setActiveModel(null);
               setHistory((prev) => [
                 ...prev,
                 {
@@ -281,15 +292,18 @@ export const AgentPlayground = ({
                 { type: "message", content: "" },
               ]);
             } else if (event.type === "skill_node_start") {
+              setActiveModel(event.modelName || null);
               setHistory((prev) => [
                 ...prev,
                 {
                   type: "skill_node_start",
                   skillName: event.skillName,
                   nodeId: event.nodeId,
+                  modelName: event.modelName,
                 },
               ]);
             } else if (event.type === "skill_node_end") {
+              setActiveModel(null);
               setHistory((prev) => [
                 ...prev,
                 {
@@ -298,6 +312,7 @@ export const AgentPlayground = ({
                   nodeId: event.nodeId,
                   updates: event.updates,
                   fullState: event.fullState,
+                  modelName: event.modelName,
                 },
               ]);
             } else if (event.type === "skill_edge_traversal") {
@@ -333,6 +348,7 @@ export const AgentPlayground = ({
                 },
               ]);
             } else if (event.type === "error") {
+              setActiveModel(null);
               throw new Error(event.error);
             }
           }
@@ -478,14 +494,21 @@ export const AgentPlayground = ({
                 className="flex flex-col gap-1.5 ml-14 my-2 animate-in fade-in w-[80%]"
               >
                 <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                  <div className="bg-slate-50 border-b border-gray-200 px-4 py-2 flex items-center gap-2">
-                    <Network className="w-4 h-4 text-slate-500" />
-                    <h3 className="font-semibold text-slate-700 m-0 text-[11px] uppercase tracking-wide">
-                      Graph Node Completed:{" "}
-                      <span className="text-violet-600 font-bold">
-                        {item.nodeId}
+                  <div className="bg-slate-50 border-b border-gray-200 px-4 py-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Network className="w-4 h-4 text-slate-500" />
+                      <h3 className="font-semibold text-slate-700 m-0 text-[11px] uppercase tracking-wide">
+                        Graph Node Completed:{" "}
+                        <span className="text-violet-600 font-bold">
+                          {item.nodeId}
+                        </span>
+                      </h3>
+                    </div>
+                    {item.modelName && (
+                      <span className="text-[10px] font-mono bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
+                        {item.modelName}
                       </span>
-                    </h3>
+                    )}
                   </div>
                   <div className="p-3 overflow-x-auto">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -616,7 +639,9 @@ export const AgentPlayground = ({
           <div className="flex gap-3 text-gray-400 items-center animate-pulse pl-11 mt-4">
             <Loader2 className={`w-5 h-5 animate-spin ${theme.spinner}`} />
             <span className={`text-sm font-semibold ${theme.spinner}`}>
-              Processing...
+              {activeModel
+                ? `Processing with ${activeModel}...`
+                : "Processing..."}
             </span>
           </div>
         )}

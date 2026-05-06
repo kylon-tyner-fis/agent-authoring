@@ -39,6 +39,7 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
+  Cpu,
 } from "lucide-react";
 import { ToolConfig, MCPServerConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
@@ -50,6 +51,11 @@ import { TriggerNode } from "../canvas/nodes/TriggerNode";
 import { WorkflowNode } from "../canvas/nodes/WorkflowNode";
 import { MCPNode } from "../canvas/nodes/MCPNode"; // NEW
 import { McpClient } from "@/src/lib/api-clients/mcp-client";
+
+const SUPPORTED_PROVIDERS = ["openai"];
+const SUPPORTED_MODELS: Record<string, string[]> = {
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-5.4-nano"],
+};
 
 const nodeTypes = {
   tool: WorkflowNode,
@@ -931,6 +937,154 @@ const CanvasEditor = forwardRef<
                   {/* LLM TOOL INSPECTOR */}
                   {selectedNode.type === "tool" && activeTool && (
                     <>
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-purple-600 mb-2">
+                          <Cpu className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            AI Engine Override
+                          </h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          By default, this node uses the Skill's global AI
+                          Engine. Enable override to specify a different model
+                          for this step.
+                        </p>
+
+                        {!selectedNode.data.model_config ? (
+                          <button
+                            onClick={() =>
+                              handleNodeChange("model_config", {
+                                provider: "openai",
+                                model_name: "gpt-4o-mini",
+                                temperature: 0.7,
+                                max_tokens: 4096,
+                              })
+                            }
+                            className="flex gap-2 py-1.5 px-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Enable Model Override
+                          </button>
+                        ) : (
+                          <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Custom Engine
+                              </span>
+                              <button
+                                onClick={() =>
+                                  handleNodeChange("model_config", undefined)
+                                }
+                                className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:underline"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-semibold text-gray-600">
+                                Provider
+                              </label>
+                              <select
+                                value={
+                                  (selectedNode.data.model_config as any)
+                                    .provider
+                                }
+                                onChange={(e) =>
+                                  handleNodeChange("model_config", {
+                                    ...(selectedNode.data.model_config as any),
+                                    provider: e.target.value,
+                                    model_name:
+                                      SUPPORTED_MODELS[e.target.value][0],
+                                  })
+                                }
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none bg-white text-slate-900"
+                              >
+                                {SUPPORTED_PROVIDERS.map((p) => (
+                                  <option key={p} value={p}>
+                                    {p}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-semibold text-gray-600">
+                                Model Name
+                              </label>
+                              <select
+                                value={
+                                  (selectedNode.data.model_config as any)
+                                    .model_name
+                                }
+                                onChange={(e) =>
+                                  handleNodeChange("model_config", {
+                                    ...(selectedNode.data.model_config as any),
+                                    model_name: e.target.value,
+                                  })
+                                }
+                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none bg-white text-slate-900"
+                              >
+                                {SUPPORTED_MODELS[
+                                  (selectedNode.data.model_config as any)
+                                    .provider
+                                ]?.map((m) => (
+                                  <option key={m} value={m}>
+                                    {m}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold text-gray-600">
+                                  Temp
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="2"
+                                  step="0.1"
+                                  value={
+                                    (selectedNode.data.model_config as any)
+                                      .temperature
+                                  }
+                                  onChange={(e) =>
+                                    handleNodeChange("model_config", {
+                                      ...(selectedNode.data
+                                        .model_config as any),
+                                      temperature:
+                                        parseFloat(e.target.value) || 0,
+                                    })
+                                  }
+                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none bg-white font-mono text-slate-900"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold text-gray-600">
+                                  Max Tokens
+                                </label>
+                                <input
+                                  type="number"
+                                  min="256"
+                                  step="1"
+                                  value={
+                                    (selectedNode.data.model_config as any)
+                                      .max_tokens
+                                  }
+                                  onChange={(e) =>
+                                    handleNodeChange("model_config", {
+                                      ...(selectedNode.data
+                                        .model_config as any),
+                                      max_tokens:
+                                        parseInt(e.target.value) || 256,
+                                    })
+                                  }
+                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none bg-white font-mono text-slate-900"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <div className="pt-4 border-t border-slate-100 space-y-3">
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                           Node-Specific Instructions

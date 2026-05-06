@@ -44,10 +44,10 @@ export async function POST(req: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         const reporter = {
-          onNodeStart: (nodeId: string) => {
+          onNodeStart: (nodeId: string, modelName?: string) => {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "node_start", node: nodeId })}\n\n`,
+                `data: ${JSON.stringify({ type: "node_start", node: nodeId, modelName })}\n\n`,
               ),
             );
           },
@@ -56,10 +56,11 @@ export async function POST(req: Request) {
             stateUpdates: any,
             reasoning?: string,
             fullState?: any,
+            modelName?: string,
           ) => {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "node_end", node: nodeId, stateUpdates, reasoning, fullState })}\n\n`,
+                `data: ${JSON.stringify({ type: "node_end", node: nodeId, stateUpdates, reasoning, fullState, modelName })}\n\n`,
               ),
             );
           },

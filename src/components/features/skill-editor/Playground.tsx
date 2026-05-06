@@ -70,7 +70,13 @@ const MarkdownComponents = {
 };
 
 type HistoryEvent =
-  | { type: "node_end"; node: string; updates: any; fullState?: any }
+  | {
+      type: "node_end";
+      node: string;
+      updates: any;
+      fullState?: any;
+      modelName?: string;
+    }
   | {
       type: "edge_traversal";
       source: string;
@@ -107,6 +113,8 @@ export const Playground = ({
   const [threadId] = useState(() => uuidv4());
   const [interruptedNode, setInterruptedNode] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+
+  const [activeModel, setActiveModel] = useState<string | null>(null);
 
   const handleCopyTrace = async () => {
     let trace = "## Skill Execution Trace\n\n";
@@ -214,7 +222,9 @@ export const Playground = ({
 
             if (event.type === "node_start") {
               onActiveNodeChange?.(event.node);
+              setActiveModel(event.modelName || null);
             } else if (event.type === "node_end") {
+              setActiveModel(null);
               const nodeName =
                 config.orchestration?.nodes?.find(
                   (n: any) => n.id === event.node,
@@ -226,6 +236,7 @@ export const Playground = ({
                   node: nodeName,
                   updates: event.stateUpdates,
                   fullState: event.fullState,
+                  modelName: event.modelName,
                 },
               ]);
             } else if (event.type === "edge_traversal") {
@@ -266,6 +277,7 @@ export const Playground = ({
                 },
               ]);
             } else if (event.type === "interrupt") {
+              setActiveModel(null);
               setInterruptedNode(event.node);
               onActiveNodeChange?.(event.node);
               setMessages((prev) => [
@@ -277,6 +289,7 @@ export const Playground = ({
               ]);
               setActiveTab("chat");
             } else if (event.type === "final") {
+              setActiveModel(null);
               onActiveNodeChange?.(null);
               const formattedJson = JSON.stringify(event.result, null, 2);
               setMessages((prev) => [
@@ -288,6 +301,7 @@ export const Playground = ({
               ]);
               setActiveTab("chat");
             } else if (event.type === "error") {
+              setActiveModel(null);
               throw new Error(event.error);
             }
           }
@@ -415,14 +429,21 @@ export const Playground = ({
                     key={i}
                     className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2"
                   >
-                    <div className="bg-slate-50 border-b border-gray-200 px-4 py-2.5 flex items-center gap-2">
-                      <Network className="w-4 h-4 text-slate-500" />
-                      <h3 className="font-semibold text-slate-700 m-0 text-xs uppercase tracking-wide">
-                        Node Completed:{" "}
-                        <span className="text-purple-600 font-bold">
-                          {history.node}
+                    <div className="bg-slate-50 border-b border-gray-200 px-4 py-2.5 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Network className="w-4 h-4 text-slate-500" />
+                        <h3 className="font-semibold text-slate-700 m-0 text-xs uppercase tracking-wide">
+                          Node Completed:{" "}
+                          <span className="text-purple-600 font-bold">
+                            {history.node}
+                          </span>
+                        </h3>
+                      </div>
+                      {history.modelName && (
+                        <span className="text-[10px] font-mono bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
+                          {history.modelName}
                         </span>
-                      </h3>
+                      )}
                     </div>
                     <div className="p-4 overflow-x-auto space-y-4">
                       <div>
@@ -550,7 +571,9 @@ export const Playground = ({
               ></path>
             </svg>
             <span className="text-sm font-semibold text-indigo-500">
-              Agent Processing...
+              {activeModel
+                ? `Processing with ${activeModel}...`
+                : "Agent Processing..."}
             </span>
           </div>
         )}

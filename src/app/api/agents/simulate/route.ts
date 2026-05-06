@@ -52,10 +52,14 @@ export async function POST(req: Request) {
                 `data: ${JSON.stringify({ type: "skill_end", skillName, result })}\n\n`,
               ),
             ),
-          onSkillNodeStart: (skillName: string, nodeId: string) =>
+          onSkillNodeStart: (
+            skillName: string,
+            nodeId: string,
+            modelName?: string,
+          ) =>
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "skill_node_start", skillName, nodeId })}\n\n`,
+                `data: ${JSON.stringify({ type: "skill_node_start", skillName, nodeId, modelName })}\n\n`,
               ),
             ),
           onSkillNodeEnd: (
@@ -64,10 +68,11 @@ export async function POST(req: Request) {
             updates: any,
             reasoning?: string,
             fullState?: any,
+            modelName?: string,
           ) =>
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "skill_node_end", skillName, nodeId, updates, reasoning, fullState })}\n\n`,
+                `data: ${JSON.stringify({ type: "skill_node_end", skillName, nodeId, updates, reasoning, fullState, modelName })}\n\n`,
               ),
             ),
           onSkillEdgeTraversal: (
