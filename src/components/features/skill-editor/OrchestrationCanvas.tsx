@@ -562,7 +562,7 @@ const CanvasEditor = forwardRef<
             <p
               className={`text-[10px] font-bold text-slate-400 uppercase tracking-wider`}
             >
-              {isPaletteOpen ? "Tool Palette" : "Node Palette"}
+              Node Palette
             </p>
             <button
               onClick={() => setIsPaletteOpen(!isPaletteOpen)}
@@ -580,7 +580,7 @@ const CanvasEditor = forwardRef<
             <div className="space-y-1.5 animate-in fade-in duration-200">
               {/* LLM Tools */}
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
-                LLM Actions
+                Tools
               </p>
               {toolsList.map((tool) => (
                 <div
