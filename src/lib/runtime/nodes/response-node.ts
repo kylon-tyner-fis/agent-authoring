@@ -46,7 +46,8 @@ export function createResponseNode(node: ManifestNode, context: NodeContext) {
   }
 
   return async (state: GraphState): Promise<GraphState> => {
-    reporter?.onNodeStart?.(nodeLabel);
+    const usedModel = manifest.engine.model.model_name;
+    reporter?.onNodeStart?.(nodeLabel, usedModel);
 
     const responsePayload: GraphState = {};
 
@@ -91,6 +92,7 @@ export function createResponseNode(node: ManifestNode, context: NodeContext) {
           { __final_payload__: finalParsed },
           "Formatted final response via LLM",
           { ...state, __final_payload__: finalParsed },
+          usedModel,
         );
 
         return { __final_payload__: finalParsed };
@@ -109,6 +111,7 @@ export function createResponseNode(node: ManifestNode, context: NodeContext) {
       { __final_payload__: responsePayload },
       "Returned raw final response",
       { ...state, __final_payload__: responsePayload },
+      usedModel,
     );
 
     return { __final_payload__: responsePayload };

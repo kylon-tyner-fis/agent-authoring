@@ -1,5 +1,5 @@
 import { Handle, Position, NodeProps, type Node } from "@xyflow/react";
-import { Bot, Hand, ChevronRight, Wrench } from "lucide-react";
+import { Bot, Hand, ChevronRight, Wrench, Cpu } from "lucide-react";
 import { NodeMapping } from "./NodeMapping";
 
 export type WorkflowNodeData = {
@@ -10,6 +10,12 @@ export type WorkflowNodeData = {
   output_mapping?: Record<string, string>;
   custom_instructions?: string;
   active?: boolean;
+  model_config?: {
+    provider: string;
+    model_name: string;
+    temperature: number;
+    max_tokens: number;
+  };
 };
 
 export type WorkflowNodeType = Node<WorkflowNodeData, "tool" | "interrupt">;
@@ -100,8 +106,19 @@ export function WorkflowNode({
       <div className="p-3 bg-white rounded-b-xl min-h-[60px] flex flex-col gap-3">
         {type === "tool" ? (
           <>
-            <div className="flex items-center gap-1 text-sm font-mono text-slate-400 bg-slate-50 px-1.5 py-1 rounded border border-slate-100 self-start">
-              <Wrench className="w-3 h-3" /> {data.toolId}
+            <div className="flex flex-wrap items-center gap-1.5 self-start">
+              <div className="flex items-center gap-1 text-sm font-mono text-slate-400 bg-slate-50 px-1.5 py-1 rounded border border-slate-100">
+                <Wrench className="w-3 h-3" /> {data.toolId}
+              </div>
+
+              {data.model_config && (
+                <div
+                  className="flex items-center gap-1 text-[10px] font-mono text-purple-600 bg-purple-50 px-1.5 py-1 rounded border border-purple-200"
+                  title="Custom AI Engine Override"
+                >
+                  <Cpu className="w-3 h-3" /> {data.model_config.model_name}
+                </div>
+              )}
             </div>
 
             {(hasInputs || hasOutputs) && (

@@ -24,13 +24,18 @@ export interface AgentExecutionReporter {
   onMessageChunk?: (chunk: string) => void;
   onSkillStart?: (skillName: string, args: Record<string, unknown>) => void;
   onSkillEnd?: (skillName: string, result: unknown) => void;
-  onSkillNodeStart?: (skillName: string, nodeName: string) => void;
+  onSkillNodeStart?: (
+    skillName: string,
+    nodeName: string,
+    modelName?: string,
+  ) => void;
   onSkillNodeEnd?: (
     skillName: string,
     nodeName: string,
     stateUpdates: Record<string, unknown>,
     reasoning?: string,
     fullState?: Record<string, unknown>,
+    modelName?: string,
   ) => void;
   onSkillEdgeTraversal?: (
     skillName: string,
@@ -107,15 +112,20 @@ function buildSkillTools(
             `${threadId}_${skill.id}_${uniqueExecutionId}`,
             undefined,
             {
-              onNodeStart: (nodeName) =>
-                reporter?.onSkillNodeStart?.(skill.name || skill.id, nodeName),
-              onNodeEnd: (nodeName, updates, reasoning, fullState) =>
+              onNodeStart: (nodeName, modelName) =>
+                reporter?.onSkillNodeStart?.(
+                  skill.name || skill.id,
+                  nodeName,
+                  modelName,
+                ),
+              onNodeEnd: (nodeName, updates, reasoning, fullState, modelName) =>
                 reporter?.onSkillNodeEnd?.(
                   skill.name || skill.id,
                   nodeName,
                   updates,
                   reasoning,
                   fullState,
+                  modelName,
                 ),
               onEdgeTraversal: (src, tgt, cond, reason) =>
                 reporter?.onSkillEdgeTraversal?.(
