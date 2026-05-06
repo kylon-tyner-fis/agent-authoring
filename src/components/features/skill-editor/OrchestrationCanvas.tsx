@@ -37,6 +37,8 @@ import {
   Database,
   Server,
   Loader2,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { ToolConfig, MCPServerConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
@@ -155,6 +157,8 @@ const CanvasEditor = forwardRef<
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
   const [dragPreview, setDragPreview] = useState<{
     x: number;
     y: number;
@@ -553,7 +557,13 @@ const CanvasEditor = forwardRef<
   );
 
   return (
-    <div className="flex h-full w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-inner relative">
+    <div
+      className={
+        isFullScreen
+          ? "fixed inset-0 z-[100] flex bg-white"
+          : "flex h-full w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-inner relative"
+      }
+    >
       <div className="flex-1 h-full relative border-r border-slate-200 overflow-hidden bg-slate-50">
         <div
           className={`absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 transition-all ${isPaletteOpen ? "w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar" : "w-auto"}`}
@@ -700,8 +710,23 @@ const CanvasEditor = forwardRef<
             type: "shiftEdge",
             markerEnd: { type: MarkerType.ArrowClosed },
           }}
+          minZoom={0.1}
+          maxZoom={4}
           fitView
         >
+          <div className="absolute top-4 right-4 z-50">
+            <button
+              onClick={() => setIsFullScreen(!isFullScreen)}
+              className="p-2 bg-white rounded-lg shadow-md border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
+              title={isFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
+            >
+              {isFullScreen ? (
+                <Minimize2 className="w-5 h-5" />
+              ) : (
+                <Maximize2 className="w-5 h-5" />
+              )}
+            </button>
+          </div>
           {dragPreview && (
             <div
               className="absolute pointer-events-none border-2 border-dashed border-slate-400 rounded-xl bg-slate-200/50 z-50 flex items-center justify-center animate-pulse"
@@ -722,7 +747,6 @@ const CanvasEditor = forwardRef<
           <Controls className="bg-white border-slate-200 shadow-sm mb-4 ml-4" />
         </ReactFlow>
       </div>
-
       {(selectedNode || selectedEdge) && (
         <div className="w-[340px] h-full bg-white flex flex-col shrink-0 border-l border-slate-200">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
