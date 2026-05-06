@@ -42,7 +42,7 @@ type Tab = "identity" | "engine" | "schema" | "orchestration";
 
 const SUPPORTED_PROVIDERS = ["openai", "anthropic"];
 const SUPPORTED_MODELS: Record<string, string[]> = {
-  openai: ["gpt-4o-mini", "gpt-4o"],
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-5.4-nano"],
   anthropic: ["claude-3-5-sonnet-20240620", "claude-3-haiku"],
 };
 
