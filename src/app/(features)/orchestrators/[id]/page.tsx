@@ -69,9 +69,9 @@ export default function OrchestratorEditorPage({
         if (agentsData.agents) setAvailableAgents(agentsData.agents);
 
         if (!isNew) {
-          const orchData = await fetch(`/api/orchestrators/${id}`).then((res) =>
-            res.json(),
-          );
+          const orchData = await fetch(
+            `/api/orchestrators/${id}?projectId=${currentProject.id}`,
+          ).then((res) => res.json());
           if (orchData.orchestrator) setOrchestrator(orchData.orchestrator);
         }
       } catch (error) {
@@ -214,24 +214,6 @@ export default function OrchestratorEditorPage({
                       className="w-full p-3 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500 min-h-[150px] bg-slate-50 text-slate-900"
                       placeholder="e.g. You are the lead Orchestrator responsible for..."
                     />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-600">
-                      Status
-                    </label>
-                    <select
-                      value={orchestrator.status}
-                      onChange={(e) =>
-                        setOrchestrator({
-                          ...orchestrator,
-                          status: e.target.value as "active" | "inactive",
-                        })
-                      }
-                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-sky-500 bg-white"
-                    >
-                      <option value="active">🟢 Active</option>
-                      <option value="inactive">⚪ Inactive</option>
-                    </select>
                   </div>
                 </div>
               </div>

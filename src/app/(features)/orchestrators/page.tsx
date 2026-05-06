@@ -85,11 +85,6 @@ export default function OrchestratorsDashboard() {
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">
                       <span className="truncate">{orchestrator.name}</span>
-                      <span
-                        className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${orchestrator.status === "active" ? "bg-green-50 text-green-600 border-green-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}
-                      >
-                        {orchestrator.status}
-                      </span>
                     </h3>
                     <p className="text-sm text-slate-500 mt-1 line-clamp-1">
                       {orchestrator.description}

@@ -129,7 +129,6 @@ export interface AgentConfig {
   name: string;
   description: string;
   skills: string[];
-  status: "active" | "inactive";
   system_prompt?: string;
 }
 
@@ -139,7 +138,6 @@ export interface OrchestratorConfig {
   name: string;
   description: string;
   agents: string[];
-  status: "active" | "inactive";
   system_prompt?: string;
 }
 
