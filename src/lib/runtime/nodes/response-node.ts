@@ -1,6 +1,8 @@
 import { PromptTemplate } from "@langchain/core/prompts";
 import { mapSchemaToZod } from "../../utils/schema-mapper";
 import { ManifestNode, NodeContext, GraphState } from "../types";
+import { generateAndUploadExport } from "../utils/file-exporter";
+import { ChatOpenAI } from "@langchain/openai";
 
 /**
  * Creates a Response Node for the LangGraph workflow.
@@ -28,6 +30,7 @@ export function createResponseNode(node: ManifestNode, context: NodeContext) {
   >;
   const expectedOutputKeys = Object.keys(expectedPayloadSchema);
   const extMap = (node.data.extraction_mapping || {}) as Record<string, string>;
+  const fileExports = (node.data.exports as any[]) || [];
 
   // Pre-compile LLM formatter and prompt template if instructions are present
   let formatterPrompt: PromptTemplate | null = null;
@@ -61,12 +64,77 @@ export function createResponseNode(node: ManifestNode, context: NodeContext) {
     // If no explicit schema is defined, dump all non-system state variables into the output
     if (expectedOutputKeys.length === 0) {
       const rest = { ...state };
-
       delete rest.__final_payload__;
       delete rest.__error__;
       delete rest.__human_feedback__;
-
       Object.assign(responsePayload, rest);
+    }
+
+    if (fileExports.length > 0) {
+      reporter?.onNodeStart?.(nodeLabel, "File Exporter Engine");
+
+      for (const exp of fileExports) {
+        if (!exp.source_variable || !exp.target_variable) continue;
+
+        try {
+          let sourceData = state[exp.source_variable];
+          if (!sourceData) continue;
+
+          // SMART PDF INTERCEPTION: If it's a PDF and the source is an object/array, format it to Markdown first!
+          if (
+            exp.format === "pdf" &&
+            typeof sourceData === "object" &&
+            sourceData !== null
+          ) {
+            reporter?.onNodeStart?.(nodeLabel, "Formatting PDF Layout...");
+
+            // We use a fast, cheap model for this formatting step
+            const layoutModel = new ChatOpenAI({
+              modelName: "gpt-4o-mini",
+              temperature: 0.1,
+            });
+
+            const layoutPrompt = PromptTemplate.fromTemplate(`
+              You are an expert document designer. Your job is to take the following JSON data and convert it into a beautiful, readable Markdown document.
+              
+              {layout_instructions}
+              
+              Return ONLY the raw Markdown text. Do not wrap it in \`\`\`markdown code blocks.
+              
+              JSON DATA:
+              {json_data}
+            `);
+
+            const formattedPrompt = await layoutPrompt.format({
+              layout_instructions: exp.layout_instructions
+                ? `Please follow these specific layout instructions carefully:\n${exp.layout_instructions}`
+                : "Format this cleanly with appropriate headers (H1, H2), bullet points, and bold text where it makes sense.",
+              json_data: JSON.stringify(sourceData, null, 2),
+            });
+
+            const layoutResponse = await layoutModel.invoke(formattedPrompt);
+            // Replace the raw JSON with the beautiful Markdown string!
+            sourceData = layoutResponse.content;
+          }
+
+          // Generate and upload
+          const fileUrl = await generateAndUploadExport(
+            exp.format,
+            sourceData,
+            manifest.metadata.skill_id,
+          );
+
+          // Inject the URL directly into the response payload
+          responsePayload[exp.target_variable] = fileUrl;
+        } catch (err) {
+          console.error(
+            `[DEBUG] Failed to generate ${exp.format} export:`,
+            err,
+          );
+          responsePayload[exp.target_variable] =
+            `Error generating file: ${String(err)}`;
+        }
+      }
     }
 
     // 3. Formatting: If custom instructions exist, use the LLM to synthesize the final payload
