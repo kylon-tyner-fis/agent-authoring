@@ -37,9 +37,8 @@ import {
   Database,
   Server,
   Loader2,
-  Maximize2,
-  Minimize2,
   Cpu,
+  FileText,
 } from "lucide-react";
 import { ToolConfig, MCPServerConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
@@ -49,12 +48,13 @@ import { ShiftEdge } from "../canvas/edges/ShiftEdge";
 import { ResponseNode } from "../canvas/nodes/ResponseNode";
 import { TriggerNode } from "../canvas/nodes/TriggerNode";
 import { WorkflowNode } from "../canvas/nodes/WorkflowNode";
-import { MCPNode } from "../canvas/nodes/MCPNode"; // NEW
+import { MCPNode } from "../canvas/nodes/MCPNode";
 import { McpClient } from "@/src/lib/api-clients/mcp-client";
 
-const SUPPORTED_PROVIDERS = ["openai"];
+const SUPPORTED_PROVIDERS = ["openai", "anthropic"];
 const SUPPORTED_MODELS: Record<string, string[]> = {
   openai: ["gpt-4o-mini", "gpt-4o", "gpt-5.4-nano"],
+  anthropic: ["claude-3-5-sonnet-20240620", "claude-3-haiku"],
 };
 
 const nodeTypes = {
@@ -62,7 +62,7 @@ const nodeTypes = {
   interrupt: WorkflowNode,
   trigger: TriggerNode,
   response: ResponseNode,
-  mcp_node: MCPNode, // NEW
+  mcp_node: MCPNode,
 };
 const edgeTypes = { shiftEdge: ShiftEdge };
 
@@ -77,7 +77,7 @@ export interface OrchestrationCanvasProps {
   initialData?: any;
   globalStateSchema?: Record<string, string>;
   availableTools?: ToolConfig[];
-  availableServers?: MCPServerConfig[]; // NEW
+  availableServers?: MCPServerConfig[];
   activeNodeId?: string | null;
 }
 
@@ -164,7 +164,6 @@ const CanvasEditor = forwardRef<
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
-
   const [dragPreview, setDragPreview] = useState<{
     x: number;
     y: number;
@@ -174,7 +173,6 @@ const CanvasEditor = forwardRef<
   const [inspectorSchema, setInspectorSchema] = useState<SchemaNode[]>([]);
   const [lastLoadedNodeId, setLastLoadedNodeId] = useState<string | null>(null);
 
-  // NEW: MCP Server Tools State
   const [mcpToolsCache, setMcpToolsCache] = useState<Record<string, any[]>>({});
   const [isLoadingMcp, setIsLoadingMcp] = useState(false);
 
@@ -203,6 +201,17 @@ const CanvasEditor = forwardRef<
   }, [props.initialData, setViewport]);
 
   useEffect(() => {
+    if (isFullScreen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [isFullScreen]);
+
+  useEffect(() => {
     if (selectedNodeId !== lastLoadedNodeId) {
       const node = nodes.find((n) => n.id === selectedNodeId);
       if (node?.type === "trigger") {
@@ -211,11 +220,9 @@ const CanvasEditor = forwardRef<
         setInspectorSchema(parseSchema(node.data.response_payload || {}));
       } else if (node?.type === "mcp_node" && node.data.serverId) {
         console.log(`[ORCHESTRATION DEBUG] Found MCP Node ${node.data}`);
-        // Fetch MCP tools for the inspector dynamically
         const serverId = node.data.serverId as string;
         if (!mcpToolsCache[serverId]) {
           setIsLoadingMcp(true);
-          // Assuming your mock API handles listing
           const serverConfig = serversList.find((s) => s.id === serverId);
           if (serverConfig) {
             const client = new McpClient(serverConfig);
@@ -413,6 +420,7 @@ const CanvasEditor = forwardRef<
           label: "Response",
           response_payload: {},
           extraction_mapping: {},
+          exports: [],
         };
       }
 
@@ -546,7 +554,6 @@ const CanvasEditor = forwardRef<
       ? toolsList.find((t) => t.id === selectedNode.data.toolId)
       : null;
 
-  // Get active MCP tool context
   const activeServerId =
     selectedNode?.type === "mcp_node"
       ? (selectedNode.data.serverId as string)
@@ -720,19 +727,6 @@ const CanvasEditor = forwardRef<
           maxZoom={4}
           fitView
         >
-          <div className="absolute top-4 right-4 z-50">
-            <button
-              onClick={() => setIsFullScreen(!isFullScreen)}
-              className="p-2 bg-white rounded-lg shadow-md border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
-              title={isFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
-            >
-              {isFullScreen ? (
-                <Minimize2 className="w-5 h-5" />
-              ) : (
-                <Maximize2 className="w-5 h-5" />
-              )}
-            </button>
-          </div>
           {dragPreview && (
             <div
               className="absolute pointer-events-none border-2 border-dashed border-slate-400 rounded-xl bg-slate-200/50 z-50 flex items-center justify-center animate-pulse"
@@ -753,6 +747,7 @@ const CanvasEditor = forwardRef<
           <Controls className="bg-white border-slate-200 shadow-sm mb-4 ml-4" />
         </ReactFlow>
       </div>
+
       {(selectedNode || selectedEdge) && (
         <div className="w-[340px] h-full bg-white flex flex-col shrink-0 border-l border-slate-200">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
@@ -938,6 +933,30 @@ const CanvasEditor = forwardRef<
                   {selectedNode.type === "tool" && activeTool && (
                     <>
                       <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Node-Specific Instructions
+                        </label>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-1">
+                          Add extra context or rules that only apply to this
+                          specific step.
+                        </p>
+                        <textarea
+                          placeholder="e.g. Only return bullet points for this step..."
+                          value={
+                            (selectedNode.data.custom_instructions as string) ||
+                            ""
+                          }
+                          onChange={(e) =>
+                            handleNodeChange(
+                              "custom_instructions",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-amber-500 text-slate-900 min-h-[100px] bg-slate-50"
+                        />
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
                         <div className="flex items-center gap-2 text-purple-600 mb-2">
                           <Cpu className="w-4 h-4" />
                           <h3 className="text-xs font-bold uppercase tracking-wider">
@@ -960,10 +979,9 @@ const CanvasEditor = forwardRef<
                                 max_tokens: 4096,
                               })
                             }
-                            className="flex gap-2 py-1.5 px-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition-colors"
+                            className="w-full py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition-colors"
                           >
-                            <Plus className="w-4 h-4" />
-                            Enable Model Override
+                            + Enable Model Override
                           </button>
                         ) : (
                           <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -1084,29 +1102,6 @@ const CanvasEditor = forwardRef<
                             </div>
                           </div>
                         )}
-                      </div>
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Node-Specific Instructions
-                        </label>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-1">
-                          Add extra context or rules that only apply to this
-                          specific step.
-                        </p>
-                        <textarea
-                          placeholder="e.g. Only return bullet points for this step..."
-                          value={
-                            (selectedNode.data.custom_instructions as string) ||
-                            ""
-                          }
-                          onChange={(e) =>
-                            handleNodeChange(
-                              "custom_instructions",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-amber-500 text-slate-900 min-h-[100px] bg-slate-50"
-                        />
                       </div>
 
                       <div className="pt-4 border-t border-slate-100 space-y-3">
@@ -1484,6 +1479,170 @@ const CanvasEditor = forwardRef<
                             </div>
                           );
                         })}
+                      </div>
+
+                      {/* NEW: File Exports */}
+                      <div className="pt-4 border-t border-slate-100 space-y-3">
+                        <div className="flex items-center gap-2 text-rose-600 mb-2">
+                          <FileText className="w-4 h-4" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider">
+                            File Exports
+                          </h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                          Generate downloadable files from state variables. The
+                          URLs will be injected into the final JSON payload.
+                        </p>
+
+                        {/* List of active exports */}
+                        {((selectedNode.data.exports as any[]) || []).map(
+                          (exp, index) => (
+                            <div
+                              key={exp.id}
+                              className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3 mb-2 relative group animate-in fade-in"
+                            >
+                              <button
+                                onClick={() => {
+                                  const newExports = [
+                                    ...((selectedNode.data.exports as any[]) ||
+                                      []),
+                                  ];
+                                  newExports.splice(index, 1);
+                                  handleNodeChange("exports", newExports);
+                                }}
+                                className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remove Export"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <div className="space-y-1.5 pr-6">
+                                <label className="text-[10px] font-semibold text-gray-600">
+                                  Format
+                                </label>
+                                <select
+                                  value={exp.format}
+                                  onChange={(e) => {
+                                    const newExports = [
+                                      ...((selectedNode.data
+                                        .exports as any[]) || []),
+                                    ];
+                                    newExports[index] = {
+                                      ...exp,
+                                      format: e.target.value,
+                                    };
+                                    handleNodeChange("exports", newExports);
+                                  }}
+                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-rose-500 bg-white text-slate-900"
+                                >
+                                  <option value="pdf">
+                                    PDF Document (.pdf)
+                                  </option>
+                                  <option value="csv">CSV Data (.csv)</option>
+                                  <option value="txt">Plain Text (.txt)</option>
+                                  <option value="md">Markdown (.md)</option>
+                                </select>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold text-gray-600">
+                                  Source Variable
+                                </label>
+                                <select
+                                  value={exp.source_variable}
+                                  onChange={(e) => {
+                                    const newExports = [
+                                      ...((selectedNode.data
+                                        .exports as any[]) || []),
+                                    ];
+                                    newExports[index] = {
+                                      ...exp,
+                                      source_variable: e.target.value,
+                                    };
+                                    handleNodeChange("exports", newExports);
+                                  }}
+                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-rose-500 bg-white text-slate-900"
+                                >
+                                  <option value="">
+                                    -- Select Data Source --
+                                  </option>
+                                  {stateKeys.map((k) => (
+                                    <option key={k} value={k}>
+                                      {k}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* NEW: Optional Layout Instructions (Only show for PDF) */}
+                              {exp.format === "pdf" && (
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-semibold text-gray-600">
+                                    Layout Instructions (Optional)
+                                  </label>
+                                  <textarea
+                                    placeholder="e.g. Use a large title, bold the correct answers..."
+                                    value={exp.layout_instructions || ""}
+                                    onChange={(e) => {
+                                      const newExports = [
+                                        ...((selectedNode.data
+                                          .exports as any[]) || []),
+                                      ];
+                                      newExports[index] = {
+                                        ...exp,
+                                        layout_instructions: e.target.value,
+                                      };
+                                      handleNodeChange("exports", newExports);
+                                    }}
+                                    className="w-full p-2 text-xs border border-slate-300 rounded outline-none focus:border-rose-500 bg-white text-slate-900 min-h-[60px]"
+                                  />
+                                </div>
+                              )}
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold text-gray-600">
+                                  Target Output Key
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. download_url"
+                                  value={exp.target_variable}
+                                  onChange={(e) => {
+                                    const newExports = [
+                                      ...((selectedNode.data
+                                        .exports as any[]) || []),
+                                    ];
+                                    newExports[index] = {
+                                      ...exp,
+                                      target_variable: e.target.value,
+                                    };
+                                    handleNodeChange("exports", newExports);
+                                  }}
+                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-rose-500 bg-white font-mono text-slate-900"
+                                />
+                              </div>
+                            </div>
+                          ),
+                        )}
+
+                        {/* Add Export Button */}
+                        <button
+                          onClick={() => {
+                            const newExports = [
+                              ...((selectedNode.data.exports as any[]) || []),
+                            ];
+                            newExports.push({
+                              id: crypto.randomUUID(),
+                              format: "pdf",
+                              source_variable: "",
+                              target_variable: "",
+                            });
+                            handleNodeChange("exports", newExports);
+                          }}
+                          className="w-full py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition-colors flex items-center justify-center gap-1 shadow-sm mt-2"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add File Export
+                        </button>
                       </div>
                     </>
                   )}
