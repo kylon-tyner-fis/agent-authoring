@@ -121,7 +121,7 @@ export function createResponseNode(node: ManifestNode, context: NodeContext) {
           const fileUrl = await generateAndUploadExport(
             exp.format,
             sourceData,
-            manifest.id,
+            manifest.metadata.skill_id,
           );
 
           // Inject the URL directly into the response payload

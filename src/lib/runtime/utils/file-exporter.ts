@@ -3,7 +3,7 @@ import pdfMakeModule from "pdfmake";
 import { marked } from "marked";
 
 // Safely unwrap the mutable CommonJS object
-const pdfmake: any = pdfMakeModule.default || pdfMakeModule;
+const pdfmake: any = pdfMakeModule;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -75,7 +75,7 @@ function markdownToPdfMake(markdown: string): any[] {
         break;
       case "blockquote":
         content.push({
-          text: parseInline(token.tokens[0]?.tokens || []),
+          text: parseInline((token.tokens?.[0] as any).tokens || []),
           italics: true,
           color: "#64748b",
           margin: [20, 0, 0, 10],
