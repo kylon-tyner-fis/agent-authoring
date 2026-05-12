@@ -9,12 +9,13 @@ import {
   Save,
   CheckCircle2,
   LucideIcon,
+  UploadCloud,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export interface EditorTopPanelProps {
   backUrl: string;
-  backLabel?: string; // Optional if using title/subtitle
+  backLabel?: string;
   title?: string;
   subtitle?: string;
   icon?: LucideIcon;
@@ -26,6 +27,9 @@ export interface EditorTopPanelProps {
   saveLabel?: string;
   isSaving: boolean;
   saveSuccess?: boolean;
+  onPublish?: () => void;
+  isPublishing?: boolean;
+  publishSuccess?: boolean;
   themeColor?:
     | "emerald"
     | "sky"
@@ -35,6 +39,7 @@ export interface EditorTopPanelProps {
     | "slate"
     | "fuchsia"
     | "indigo";
+  version?: number | string;
 }
 
 export const EditorTopPanel = ({
@@ -51,7 +56,11 @@ export const EditorTopPanel = ({
   saveLabel = "Save",
   isSaving,
   saveSuccess,
+  onPublish,
+  isPublishing,
+  publishSuccess,
   themeColor = "emerald",
+  version,
 }: EditorTopPanelProps) => {
   const router = useRouter();
 
@@ -183,11 +192,11 @@ export const EditorTopPanel = ({
 
         <button
           onClick={onSave}
-          disabled={isSaving}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm ${
+          disabled={isSaving || isPublishing}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${
             saveSuccess
-              ? "bg-green-100 text-green-700 border border-green-200"
-              : `text-white ${theme.bg} ${theme.hoverBg}`
+              ? "bg-green-100 text-green-700"
+              : `bg-slate-100 text-slate-700 hover:bg-slate-200`
           }`}
         >
           {isSaving ? (
@@ -197,8 +206,30 @@ export const EditorTopPanel = ({
           ) : (
             <Save className="w-4 h-4" />
           )}
-          {saveSuccess ? "Published" : saveLabel}
+          {saveSuccess ? "Saved" : "Save Draft"}
         </button>
+
+        {/* PUBLISH BUTTON (Primary) */}
+        {onPublish && (
+          <button
+            onClick={onPublish}
+            disabled={isSaving || isPublishing}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm ${
+              publishSuccess
+                ? "bg-green-500 text-white"
+                : `text-white ${theme.bg} ${theme.hoverBg}`
+            }`}
+          >
+            {isPublishing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : publishSuccess ? (
+              <CheckCircle2 className="w-4 h-4" />
+            ) : (
+              <UploadCloud className="w-4 h-4" />
+            )}
+            {publishSuccess ? "Published Live" : `Publish Version ${version}`}
+          </button>
+        )}
       </div>
     </div>
   );

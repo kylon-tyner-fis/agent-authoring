@@ -95,6 +95,7 @@ export interface OrchestrationConfig {
 export interface SkillConfig {
   id: string;
   project_id: string;
+  parent_id?: string;
   name: string;
   version: string;
   description: string;
@@ -109,6 +110,8 @@ export interface SkillConfig {
   interrupts?: Record<string, InterruptConfig>;
   orchestration?: OrchestrationConfig;
   compiled_manifest?: any;
+  versions?: SkillConfig[];
+  status?: "draft" | "published" | "archived";
 }
 
 export interface Message {
@@ -145,7 +148,8 @@ export const DEFAULT_SKILL_CONFIG: SkillConfig = {
   id: "",
   project_id: "",
   name: "",
-  version: "1.0.0",
+  version: "1",
+  status: "draft",
   description: "",
   model: {
     provider: "openai",

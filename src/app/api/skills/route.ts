@@ -1,3 +1,6 @@
+// src/app/api/skills/route.ts
+// Replace the GET function with the following:
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
@@ -52,13 +55,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!normalizedProjectId) {
-      return NextResponse.json(
-        { error: "Missing required field: project_id" },
-        { status: 400 },
-      );
-    }
-
     // Fetch dependencies scoped to project
     const [toolsResponse, serversResponse] = await Promise.all([
       supabase.from("tools").select("*").eq("project_id", normalizedProjectId),
@@ -90,7 +86,6 @@ export async function POST(req: Request) {
       project_id: normalizedProjectId,
     };
 
-    // 3. Save the orchestration config to the renamed 'skills' table
     if (missing_tool_ids.length > 0 || missing_mcp_server_ids.length > 0) {
       return NextResponse.json(
         {
@@ -102,14 +97,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Generate manifest from project-scoped dependencies only
     const compiledManifest = generateManifest(
       config,
       projectTools,
       projectServers,
     );
 
-    // Persist skill and enforce project invariant
     const { data, error } = await supabase
       .from("skills")
       .upsert(
@@ -120,13 +113,11 @@ export async function POST(req: Request) {
             name: payload.name,
             version: payload.version,
             description: payload.description,
-            provider: payload.model.provider,
-            model_name: payload.model.model_name,
-            temperature: payload.model.temperature,
-            max_tokens: payload.model.max_tokens,
+            model: payload.model,
             mcp_servers: payload.mcp_servers,
             system_prompt: payload.system_prompt,
             state_schema: payload.state_schema,
+            custom_types: payload.custom_types,
             graph: payload.graph,
             subgraphs: payload.subgraphs,
             persistence: payload.persistence,
@@ -152,31 +143,78 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const projectId = new URL(req.url).searchParams.get("projectId");
+    const url = new URL(req.url);
+    const projectId = url.searchParams.get("projectId");
+    const statusFilter = url.searchParams.get("status");
 
-    if (!projectId) {
+    if (!projectId)
       return NextResponse.json(
         { error: "projectId is required" },
         { status: 400 },
       );
-    }
 
     const query = supabase
       .from("skills")
       .select(
-        "id, name, version, description, provider, model_name, updated_at",
+        "id, name, version, description, model, updated_at, status, parent_id",
       )
+      .eq("project_id", projectId)
+      .order("updated_at", { ascending: false });
+
+    if (statusFilter === "published") {
+      const { data, error } = await query.eq("status", "published");
+      if (error) throw error;
+      return NextResponse.json({ skills: data });
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // --- UPDATED: Fetch agent IDs and Names ---
+    const { data: agents } = await supabase
+      .from("agents")
+      .select("id, name, skills")
       .eq("project_id", projectId);
 
-    const { data, error } = await query.order("updated_at", {
-      ascending: false,
+    const usedSkillIds = new Set<string>();
+    const skillUsageMap: Record<string, { id: string; name: string }[]> = {};
+
+    if (agents) {
+      agents.forEach((agent: any) => {
+        if (Array.isArray(agent.skills)) {
+          agent.skills.forEach((id: string) => {
+            usedSkillIds.add(id);
+            if (!skillUsageMap[id]) skillUsageMap[id] = [];
+            skillUsageMap[id].push({ id: agent.id, name: agent.name });
+          });
+        }
+      });
+    }
+
+    const heads = data.filter((s) => s.parent_id === null);
+    const groupedSkills = heads.map((head) => {
+      const snapshots = data.filter((s) => s.parent_id === head.id);
+      snapshots.sort((a, b) => b.version.localeCompare(a.version));
+
+      const processedSnapshots = snapshots.map((snap) => ({
+        ...snap,
+        in_use: usedSkillIds.has(snap.id),
+        used_by: skillUsageMap[snap.id] || [],
+      }));
+
+      const isHeadUsed = usedSkillIds.has(head.id);
+      const isAnySnapshotUsed = processedSnapshots.some((v) => v.in_use);
+
+      return {
+        ...head,
+        in_use: isHeadUsed || isAnySnapshotUsed,
+        used_by: skillUsageMap[head.id] || [],
+        versions: processedSnapshots,
+      };
     });
 
-    if (error) throw error;
-    return NextResponse.json({ skills: data });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.log("ERROR", error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ skills: groupedSkills });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

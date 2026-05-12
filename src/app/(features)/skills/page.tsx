@@ -2,16 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Loader2, Network } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Loader2,
+  Network,
+  Brain,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Bot,
+} from "lucide-react";
 import { useProject } from "@/src/lib/contexts/ProjectContext";
+import { ModelConfig } from "@/src/lib/types/constants";
 
 interface SkillListItem {
   id: string;
   name: string;
   version: string;
   description: string;
-  model_name: string;
+  model: ModelConfig;
   updated_at: string;
+  in_use?: boolean;
+  used_by?: { id: string; name: string }[];
+  versions?: SkillListItem[];
 }
 
 export default function SkillsDashboard() {
@@ -20,6 +34,12 @@ export default function SkillsDashboard() {
   const [skills, setSkills] = useState<SkillListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const toggleExpand = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
 
   useEffect(() => {
     if (!currentProject) return;
@@ -45,9 +65,21 @@ export default function SkillsDashboard() {
     if (!deletingId || !currentProject) return;
 
     try {
-      await fetch(`/api/skills/${deletingId}?projectId=${currentProject.id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/skills/${deletingId}?projectId=${currentProject.id}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to delete skill");
+        setDeletingId(null);
+        return;
+      }
+
       setSkills(skills.filter((s) => s.id !== deletingId));
     } catch (error) {
       console.error("Failed to delete skill", error);
@@ -88,47 +120,247 @@ export default function SkillsDashboard() {
               <p className="text-slate-900 font-bold">No skills found</p>
             </div>
           ) : (
-            skills.map((skill) => (
-              <div
-                key={skill.id}
-                className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-6 min-w-0 flex-1">
-                  <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-violet-50 border-violet-200">
-                    <Network className="w-5 h-5 text-violet-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2 min-w-0">
-                      <span className="truncate">{skill.name}</span>
-                      <span className="text-sm bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono border border-slate-200">
-                        v{skill.version}
-                      </span>
-                    </h3>
-                    <p className="text-sm text-slate-500 mt-1 line-clamp-1">
-                      {skill.description}
-                    </p>
-                  </div>
-                </div>
+            skills.map((skill) => {
+              const displayVersions =
+                skill.versions?.filter((v, index) => index < 3 || v.in_use) ||
+                [];
+              const archivedCount =
+                (skill.versions?.length || 0) - displayVersions.length;
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    onClick={() => router.push(`/skills/${skill.id}`)}
-                    className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
-                  >
-                    Edit Skill
-                  </button>
-                  <button
-                    onClick={() => setDeletingId(skill.id)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+              return (
+                <div
+                  key={skill.id}
+                  className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all"
+                >
+                  {/* --- MAIN CARD HEADER (The active Draft) --- */}
+                  <div className="p-5 flex items-center justify-between bg-white relative z-10 group">
+                    <div className="flex items-center gap-6 min-w-0 flex-1">
+                      <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center border bg-violet-50 border-violet-200">
+                        <Network className="w-5 h-5 text-violet-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-bold text-slate-900 text-lg truncate">
+                            {skill.name}
+                          </h3>
+                          <span className="text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">
+                            v{skill.version}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-slate-500 mt-1 line-clamp-1">
+                          {skill.description}
+                        </p>
+
+                        <div className="flex items-center gap-4 mt-3">
+                          <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                            <Brain className="w-3.5 h-3.5" />
+                            <span>
+                              {skill.model?.model_name || "No model set"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>
+                              {new Date(skill.updated_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* --- AGGREGATED AGENT USAGE FOR ENTIRE SKILL FAMILY --- */}
+                        {(() => {
+                          // 1. Collect draft users
+                          const draftUsers = (skill.used_by || []).map((a) => ({
+                            ...a,
+                            versionLabel: "Draft",
+                          }));
+
+                          // 2. Collect all published version users
+                          const publishedUsers = (skill.versions || []).flatMap(
+                            (v) =>
+                              (v.used_by || []).map((a) => ({
+                                ...a,
+                                versionLabel: `v${v.version}`,
+                              })),
+                          );
+
+                          // 3. Combine them
+                          const allUsers = [...draftUsers, ...publishedUsers];
+
+                          if (allUsers.length === 0) return null;
+
+                          return (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <Bot className="w-3.5 h-3.5 text-fuchsia-500 shrink-0" />
+                              <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                                Used by:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {allUsers.map((agent, idx) => (
+                                  <button
+                                    // Use index in key just in case an agent is assigned to multiple versions somehow
+                                    key={`${agent.id}-${idx}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      router.push(`/agents/${agent.id}`);
+                                    }}
+                                    className="flex items-center gap-1.5 text-[10px] font-semibold text-fuchsia-700 bg-fuchsia-50 hover:bg-fuchsia-100 hover:border-fuchsia-300 transition-colors cursor-pointer border border-fuchsia-200 pl-2 pr-1 py-0.5 rounded max-w-[180px]"
+                                    title={`Edit ${agent.name}`}
+                                  >
+                                    <span className="truncate">
+                                      {agent.name}
+                                    </span>
+                                    <span className="bg-white border border-fuchsia-100 text-fuchsia-500 px-1 rounded-sm text-[8px] uppercase tracking-wider shrink-0">
+                                      {agent.versionLabel}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      {displayVersions.length > 0 && (
+                        <button
+                          onClick={() => toggleExpand(skill.id)}
+                          className={`px-3 py-2 text-sm font-semibold rounded-lg flex items-center gap-1 transition-colors ${
+                            expandedId === skill.id
+                              ? "bg-slate-100 text-slate-900"
+                              : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {displayVersions.length} Published Versions{" "}
+                          {expandedId === skill.id ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => router.push(`/skills/${skill.id}`)}
+                        className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors whitespace-nowrap shadow-sm"
+                      >
+                        Edit Skill
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (skill.in_use) {
+                            alert(
+                              "Cannot delete an active skill. Please remove it from all Agents first.",
+                            );
+                            return;
+                          }
+                          setDeletingId(skill.id);
+                        }}
+                        className={`p-2 rounded-lg transition-colors ${
+                          skill.in_use
+                            ? "text-slate-300 cursor-not-allowed"
+                            : "text-slate-400 hover:text-red-600 hover:bg-red-50"
+                        }`}
+                        title={
+                          skill.in_use
+                            ? "Cannot delete while in use by an Agent"
+                            : "Delete Skill"
+                        }
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* --- EXPANDED VERSIONS LIST --- */}
+                  {expandedId === skill.id && displayVersions.length > 0 && (
+                    <div className="bg-slate-50 border-t border-slate-100 p-4 space-y-2 animate-in fade-in slide-in-from-top-2">
+                      <div className="flex items-center justify-between mb-3 px-2">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Published History
+                        </p>
+                      </div>
+
+                      {displayVersions.map((version) => (
+                        <div
+                          key={version.id}
+                          className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 shadow-sm ml-8"
+                        >
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`w-2 h-2 rounded-full ${
+                                    version.in_use
+                                      ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse"
+                                      : "bg-slate-300"
+                                  }`}
+                                ></div>
+
+                                <span className="font-mono text-sm font-bold text-slate-700 flex items-center gap-2">
+                                  v{version.version}
+                                </span>
+                              </div>
+                              <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5" />{" "}
+                                {new Date(
+                                  version.updated_at || "",
+                                ).toLocaleString()}
+                              </span>
+                            </div>
+
+                            {/* AGENT USAGE INDICATOR FOR SNAPSHOT */}
+                            {version.used_by && version.used_by.length > 0 && (
+                              <div className="flex items-center gap-1.5 mt-1 ml-5">
+                                <Bot className="w-3 h-3 text-fuchsia-500" />
+                                <span className="text-[10px] text-slate-500 font-medium">
+                                  Used by:
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {version.used_by.map((agent) => (
+                                    <button
+                                      key={agent.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        router.push(`/agents/${agent.id}`);
+                                      }}
+                                      className="text-[9px] font-semibold text-fuchsia-700 bg-fuchsia-50 hover:bg-fuchsia-100 hover:border-fuchsia-300 transition-colors cursor-pointer border border-fuchsia-200 px-1.5 py-0.5 rounded truncate max-w-[150px]"
+                                      title={`Edit ${agent.name}`}
+                                    >
+                                      {agent.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() => router.push(`/skills/${version.id}`)}
+                            className="px-4 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+                          >
+                            View Snapshot
+                          </button>
+                        </div>
+                      ))}
+
+                      {archivedCount > 0 && (
+                        <p className="text-xs text-slate-400 italic text-center pt-2">
+                          + {archivedCount} older unused{" "}
+                          {archivedCount === 1 ? "version" : "versions"}{" "}
+                          archived.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
+
       {deletingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full animate-in zoom-in-95">
