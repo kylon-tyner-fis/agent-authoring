@@ -9,6 +9,7 @@ interface SchemaViewerProps {
   setNodes: (nodes: SchemaNode[]) => void;
   title?: string;
   addButtonText?: string;
+  readOnly?: boolean; // ADDED
 }
 
 const ReadOnlyNode = ({
@@ -56,6 +57,7 @@ export const SchemaViewer = ({
   setNodes,
   title = "Schema Editor",
   addButtonText,
+  readOnly = false, // Extracted
 }: SchemaViewerProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -67,12 +69,14 @@ export const SchemaViewer = ({
           <div className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
             <Braces className="w-4 h-4 text-fuchsia-500" /> Schema Overview
           </div>
-          <button
-            onClick={() => setIsOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-md hover:bg-slate-100 transition-colors text-slate-700 shadow-sm"
-          >
-            <Maximize2 className="w-3.5 h-3.5 text-slate-500" /> Edit Schema
-          </button>
+          {!readOnly && (
+            <button
+              onClick={() => setIsOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-md hover:bg-slate-100 transition-colors text-slate-700 shadow-sm"
+            >
+              <Maximize2 className="w-3.5 h-3.5 text-slate-500" /> Edit Schema
+            </button>
+          )}
         </div>
 
         {nodes.length === 0 ? (
@@ -88,8 +92,8 @@ export const SchemaViewer = ({
         )}
       </div>
 
-      {/* Modal */}
-      {isOpen && (
+      {/* Modal - only rendered if not readOnly */}
+      {isOpen && !readOnly && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 overflow-hidden">
             {/* Header */}

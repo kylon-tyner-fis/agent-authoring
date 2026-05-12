@@ -110,6 +110,7 @@ export async function POST(req: Request) {
     );
 
     // Persist skill and enforce project invariant
+    // Replace the manual mapping in the upsert block
     const { data, error } = await supabase
       .from("skills")
       .upsert(
@@ -120,13 +121,11 @@ export async function POST(req: Request) {
             name: payload.name,
             version: payload.version,
             description: payload.description,
-            provider: payload.model.provider,
-            model_name: payload.model.model_name,
-            temperature: payload.model.temperature,
-            max_tokens: payload.model.max_tokens,
+            model: payload.model, // Store the whole object
             mcp_servers: payload.mcp_servers,
             system_prompt: payload.system_prompt,
             state_schema: payload.state_schema,
+            custom_types: payload.custom_types, // Ensure this is included
             graph: payload.graph,
             subgraphs: payload.subgraphs,
             persistence: payload.persistence,
@@ -152,31 +151,69 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const projectId = new URL(req.url).searchParams.get("projectId");
+    const url = new URL(req.url);
+    const projectId = url.searchParams.get("projectId");
+    const statusFilter = url.searchParams.get("status"); // NEW: Get status param
 
-    if (!projectId) {
+    if (!projectId)
       return NextResponse.json(
         { error: "projectId is required" },
         { status: 400 },
       );
-    }
 
     const query = supabase
       .from("skills")
       .select(
-        "id, name, version, description, provider, model_name, updated_at",
+        "id, name, version, description, model, updated_at, status, parent_id",
       )
-      .eq("project_id", projectId);
+      .eq("project_id", projectId)
+      .order("updated_at", { ascending: false });
 
-    const { data, error } = await query.order("updated_at", {
-      ascending: false,
+    // --- NEW: If requesting published skills (for the Agent Editor) ---
+    if (statusFilter === "published") {
+      const { data, error } = await query.eq("status", "published");
+      if (error) throw error;
+      return NextResponse.json({ skills: data }); // Return flat list of snapshots
+    }
+
+    // --- EXISTING: Dashboard Grouping Logic (Drafts + Nested History) ---
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const { data: agents } = await supabase
+      .from("agents")
+      .select("skills")
+      .eq("project_id", projectId);
+    const usedSkillIds = new Set<string>();
+    if (agents) {
+      agents.forEach((agent: any) => {
+        if (Array.isArray(agent.skills))
+          agent.skills.forEach((id: string) => usedSkillIds.add(id));
+      });
+    }
+
+    const heads = data.filter((s) => s.parent_id === null);
+    const groupedSkills = heads.map((head) => {
+      const snapshots = data.filter((s) => s.parent_id === head.id);
+      snapshots.sort((a, b) => b.version.localeCompare(a.version));
+
+      const processedSnapshots = snapshots.map((snap) => ({
+        ...snap,
+        in_use: usedSkillIds.has(snap.id),
+      }));
+
+      const isHeadUsed = usedSkillIds.has(head.id);
+      const isAnySnapshotUsed = processedSnapshots.some((v) => v.in_use);
+
+      return {
+        ...head,
+        in_use: isHeadUsed || isAnySnapshotUsed,
+        versions: processedSnapshots,
+      };
     });
 
-    if (error) throw error;
-    return NextResponse.json({ skills: data });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.log("ERROR", error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ skills: groupedSkills });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

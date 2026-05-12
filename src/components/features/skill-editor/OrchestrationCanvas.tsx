@@ -79,6 +79,7 @@ export interface OrchestrationCanvasProps {
   availableTools?: ToolConfig[];
   availableServers?: MCPServerConfig[];
   activeNodeId?: string | null;
+  readOnly?: boolean; // ADDED
 }
 
 const flattenSchemaKeys = (schema: any, prefix = ""): string[] => {
@@ -155,6 +156,7 @@ const CanvasEditor = forwardRef<
   const startingEdges = props.initialData?.edges || [];
   const toolsList = props.availableTools || [];
   const serversList = props.availableServers || [];
+  const isReadOnly = !!props.readOnly; // Extracted
 
   const [nodes, setNodes, onNodesChange] = useNodesState(startingNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(startingEdges);
@@ -219,7 +221,6 @@ const CanvasEditor = forwardRef<
       } else if (node?.type === "response") {
         setInspectorSchema(parseSchema(node.data.response_payload || {}));
       } else if (node?.type === "mcp_node" && node.data.serverId) {
-        console.log(`[ORCHESTRATION DEBUG] Found MCP Node ${node.data}`);
         const serverId = node.data.serverId as string;
         if (!mcpToolsCache[serverId]) {
           setIsLoadingMcp(true);
@@ -264,6 +265,7 @@ const CanvasEditor = forwardRef<
 
   const onConnect = useCallback(
     (params: Connection) => {
+      if (isReadOnly) return;
       const { source, target } = params;
       const sourceNode = nodes.find((n) => n.id === source);
       const targetNode = nodes.find((n) => n.id === target);
@@ -296,11 +298,12 @@ const CanvasEditor = forwardRef<
         ),
       );
     },
-    [nodes, setEdges, addToast],
+    [nodes, setEdges, addToast, isReadOnly],
   );
 
   const onNodeDragStart = useCallback(
     (_event: React.MouseEvent, _node: Node, currentNodes: Node[]) => {
+      if (isReadOnly) return;
       const draggedNodeIds = new Set(currentNodes.map((n) => n.id));
       setEdges((eds) =>
         eds.map((edge) => {
@@ -315,10 +318,11 @@ const CanvasEditor = forwardRef<
         }),
       );
     },
-    [setEdges],
+    [setEdges, isReadOnly],
   );
 
   const deleteSelected = () => {
+    if (isReadOnly) return;
     if (selectedNodeId) {
       setNodes((nds) => nds.filter((n) => n.id !== selectedNodeId));
       setEdges((eds) =>
@@ -338,6 +342,7 @@ const CanvasEditor = forwardRef<
     nodeType: string,
     itemId?: string,
   ) => {
+    if (isReadOnly) return;
     event.dataTransfer.setData("application/reactflow", nodeType);
     if (itemId) event.dataTransfer.setData("application/itemId", itemId);
     event.dataTransfer.effectAllowed = "move";
@@ -345,6 +350,7 @@ const CanvasEditor = forwardRef<
 
   const onDragOver = useCallback(
     (event: React.DragEvent) => {
+      if (isReadOnly) return;
       event.preventDefault();
 
       const hasReactFlowData = event.dataTransfer.types.includes(
@@ -361,11 +367,12 @@ const CanvasEditor = forwardRef<
 
       setDragPreview({ x: snappedX, y: snappedY, type: "generic" });
     },
-    [screenToFlowPosition],
+    [screenToFlowPosition, isReadOnly],
   );
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
+      if (isReadOnly) return;
       event.preventDefault();
       setDragPreview(null);
       const type = event.dataTransfer.getData("application/reactflow");
@@ -433,14 +440,22 @@ const CanvasEditor = forwardRef<
 
       setNodes((nds) => nds.concat(newNode));
     },
-    [screenToFlowPosition, setNodes, addToast, nodes, toolsList, serversList],
+    [
+      screenToFlowPosition,
+      setNodes,
+      addToast,
+      nodes,
+      toolsList,
+      serversList,
+      isReadOnly,
+    ],
   );
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
 
   const handleNodeChange = (field: string, value: any) => {
-    if (!selectedNodeId) return;
+    if (isReadOnly || !selectedNodeId) return;
     setNodes((nds) =>
       nds.map((n) =>
         n.id === selectedNodeId
@@ -452,6 +467,7 @@ const CanvasEditor = forwardRef<
 
   const handleNodesChange = useCallback(
     (changes: any[]) => {
+      if (isReadOnly) return;
       onNodesChange(changes);
       changes.forEach((change) => {
         if (change.type === "remove" && change.id === selectedNodeId) {
@@ -459,7 +475,7 @@ const CanvasEditor = forwardRef<
         }
       });
     },
-    [onNodesChange, selectedNodeId],
+    [onNodesChange, selectedNodeId, isReadOnly],
   );
 
   const handleMappingChange = (
@@ -471,13 +487,14 @@ const CanvasEditor = forwardRef<
     key: string,
     value: string | string[],
   ) => {
-    if (!selectedNodeId || !selectedNode) return;
+    if (isReadOnly || !selectedNodeId || !selectedNode) return;
     const currentMapping =
       (selectedNode.data[type] as Record<string, string>) || {};
     handleNodeChange(type, { ...currentMapping, [key]: value });
   };
 
   const handleSchemaChange = (newNodes: SchemaNode[]) => {
+    if (isReadOnly) return;
     setInspectorSchema(newNodes);
     const compiled = compileSchema(newNodes);
 
@@ -538,7 +555,7 @@ const CanvasEditor = forwardRef<
   };
 
   const handleEdgeChange = (field: string, value: any) => {
-    if (!selectedEdgeId) return;
+    if (isReadOnly || !selectedEdgeId) return;
     setEdges((eds) =>
       eds.map((e) =>
         e.id === selectedEdgeId
@@ -578,132 +595,140 @@ const CanvasEditor = forwardRef<
       }
     >
       <div className="flex-1 h-full relative border-r border-slate-200 overflow-hidden bg-slate-50">
-        <div
-          className={`absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 transition-all ${isPaletteOpen ? "w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar" : "w-auto"}`}
-        >
-          <div className="flex items-center justify-between mb-1 px-1 gap-6">
-            <p
-              className={`text-[10px] font-bold text-slate-400 uppercase tracking-wider`}
-            >
-              Node Palette
-            </p>
-            <button
-              onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-              className="p-1 rounded transition-colors text-slate-400 hover:bg-slate-100"
-            >
-              {isPaletteOpen ? (
-                <ChevronUp className="w-3 h-3" />
-              ) : (
-                <ChevronDown className="w-3 h-3" />
-              )}
-            </button>
-          </div>
-
-          {isPaletteOpen && (
-            <div className="space-y-1.5 animate-in fade-in duration-200">
-              {/* LLM Tools */}
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
-                Tools
+        {/* Hide Palette entirely in read-only mode for a cleaner view */}
+        {!isReadOnly && (
+          <div
+            className={`absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 transition-all ${isPaletteOpen ? "w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar" : "w-auto"}`}
+          >
+            <div className="flex items-center justify-between mb-1 px-1 gap-6">
+              <p
+                className={`text-[10px] font-bold text-slate-400 uppercase tracking-wider`}
+              >
+                Node Palette
               </p>
-              {toolsList.map((tool) => (
-                <div
-                  key={tool.id}
-                  className="p-2 border border-amber-200 bg-white text-amber-700 rounded cursor-grab flex flex-col gap-1 hover:bg-amber-50 transition-colors shadow-sm"
-                  onDragStart={(e) => onDragStart(e, "tool", tool.id)}
-                  draggable
-                >
-                  <div className="flex items-center gap-2">
-                    <Code2 className="w-3.5 h-3.5 shrink-0" />
-                    <span className="text-xs font-semibold truncate">
-                      {tool.name}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {toolsList.length === 0 && (
-                <p className="text-xs text-slate-400 px-1 italic">
-                  No tools found.
-                </p>
-              )}
+              <button
+                onClick={() => setIsPaletteOpen(!isPaletteOpen)}
+                className="p-1 rounded transition-colors text-slate-400 hover:bg-slate-100"
+              >
+                {isPaletteOpen ? (
+                  <ChevronUp className="w-3 h-3" />
+                ) : (
+                  <ChevronDown className="w-3 h-3" />
+                )}
+              </button>
+            </div>
 
-              {/* MCP Servers */}
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
-                External APIs (MCP)
-              </p>
-              {serversList.map((server) => (
-                <div
-                  key={server.id}
-                  className="p-2 border border-emerald-200 bg-white text-emerald-700 rounded cursor-grab flex flex-col gap-1 hover:bg-emerald-50 transition-colors shadow-sm"
-                  onDragStart={(e) => onDragStart(e, "mcp_node", server.id)}
-                  draggable
-                >
-                  <div className="flex items-center gap-2">
-                    <Database className="w-3.5 h-3.5 shrink-0" />
-                    <span className="text-xs font-semibold truncate">
-                      {server.name}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {serversList.length === 0 && (
-                <p className="text-xs text-slate-400 px-1 italic">
-                  No servers found.
-                </p>
-              )}
-
-              {/* API Contract & Control */}
-              <div className="mt-4 pt-2 border-t border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
-                  API Contract
-                </p>
-                <div
-                  className="p-2 border border-sky-200 bg-white text-sky-700 rounded cursor-grab flex items-center gap-2 hover:bg-sky-50 transition-colors shadow-sm mb-1.5"
-                  onDragStart={(e) => onDragStart(e, "trigger")}
-                  draggable
-                >
-                  <Zap className="w-3.5 h-3.5 shrink-0" />
-                  <span className="text-xs font-semibold">Trigger (Input)</span>
-                </div>
-                <div
-                  className="p-2 border border-purple-200 bg-white text-purple-700 rounded cursor-grab flex items-center gap-2 hover:bg-purple-50 transition-colors shadow-sm mb-4"
-                  onDragStart={(e) => onDragStart(e, "response")}
-                  draggable
-                >
-                  <Flag className="w-3.5 h-3.5 shrink-0" />
-                  <span className="text-xs font-semibold">
-                    Response (Output)
-                  </span>
-                </div>
-
+            {isPaletteOpen && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                {/* LLM Tools */}
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
-                  Flow Control
+                  Tools
                 </p>
-                <div
-                  className="p-2 border border-orange-200 bg-white text-orange-700 rounded cursor-grab flex items-center gap-2 hover:bg-orange-50 transition-colors shadow-sm"
-                  onDragStart={(e) => onDragStart(e, "interrupt")}
-                  draggable
-                >
-                  <Hand className="w-3.5 h-3.5 shrink-0" />
-                  <span className="text-xs font-semibold">
-                    Interrupt (Wait)
-                  </span>
+                {toolsList.map((tool) => (
+                  <div
+                    key={tool.id}
+                    className="p-2 border border-amber-200 bg-white text-amber-700 rounded cursor-grab flex flex-col gap-1 hover:bg-amber-50 transition-colors shadow-sm"
+                    onDragStart={(e) => onDragStart(e, "tool", tool.id)}
+                    draggable
+                  >
+                    <div className="flex items-center gap-2">
+                      <Code2 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="text-xs font-semibold truncate">
+                        {tool.name}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {toolsList.length === 0 && (
+                  <p className="text-xs text-slate-400 px-1 italic">
+                    No tools found.
+                  </p>
+                )}
+
+                {/* MCP Servers */}
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
+                  External APIs (MCP)
+                </p>
+                {serversList.map((server) => (
+                  <div
+                    key={server.id}
+                    className="p-2 border border-emerald-200 bg-white text-emerald-700 rounded cursor-grab flex flex-col gap-1 hover:bg-emerald-50 transition-colors shadow-sm"
+                    onDragStart={(e) => onDragStart(e, "mcp_node", server.id)}
+                    draggable
+                  >
+                    <div className="flex items-center gap-2">
+                      <Database className="w-3.5 h-3.5 shrink-0" />
+                      <span className="text-xs font-semibold truncate">
+                        {server.name}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {serversList.length === 0 && (
+                  <p className="text-xs text-slate-400 px-1 italic">
+                    No servers found.
+                  </p>
+                )}
+
+                {/* API Contract & Control */}
+                <div className="mt-4 pt-2 border-t border-slate-200">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
+                    API Contract
+                  </p>
+                  <div
+                    className="p-2 border border-sky-200 bg-white text-sky-700 rounded cursor-grab flex items-center gap-2 hover:bg-sky-50 transition-colors shadow-sm mb-1.5"
+                    onDragStart={(e) => onDragStart(e, "trigger")}
+                    draggable
+                  >
+                    <Zap className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs font-semibold">
+                      Trigger (Input)
+                    </span>
+                  </div>
+                  <div
+                    className="p-2 border border-purple-200 bg-white text-purple-700 rounded cursor-grab flex items-center gap-2 hover:bg-purple-50 transition-colors shadow-sm mb-4"
+                    onDragStart={(e) => onDragStart(e, "response")}
+                    draggable
+                  >
+                    <Flag className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs font-semibold">
+                      Response (Output)
+                    </span>
+                  </div>
+
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
+                    Flow Control
+                  </p>
+                  <div
+                    className="p-2 border border-orange-200 bg-white text-orange-700 rounded cursor-grab flex items-center gap-2 hover:bg-orange-50 transition-colors shadow-sm"
+                    onDragStart={(e) => onDragStart(e, "interrupt")}
+                    draggable
+                  >
+                    <Hand className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs font-semibold">
+                      Interrupt (Wait)
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={handleNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeDragStart={onNodeDragStart}
+          onNodesChange={isReadOnly ? undefined : handleNodesChange}
+          onEdgesChange={isReadOnly ? undefined : onEdgesChange}
+          onConnect={isReadOnly ? undefined : onConnect}
+          onNodeDragStart={isReadOnly ? undefined : onNodeDragStart}
+          nodesDraggable={!isReadOnly}
+          nodesConnectable={!isReadOnly}
+          elementsSelectable={true} // Allow clicking to inspect
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
+          onDrop={isReadOnly ? undefined : onDrop}
+          onDragOver={isReadOnly ? undefined : onDragOver}
           onDragLeave={() => setDragPreview(null)}
           onNodeClick={(_, node) => {
             setSelectedNodeId(node.id);
@@ -727,7 +752,7 @@ const CanvasEditor = forwardRef<
           maxZoom={4}
           fitView
         >
-          {dragPreview && (
+          {dragPreview && !isReadOnly && (
             <div
               className="absolute pointer-events-none border-2 border-dashed border-slate-400 rounded-xl bg-slate-200/50 z-50 flex items-center justify-center animate-pulse"
               style={{
@@ -757,12 +782,14 @@ const CanvasEditor = forwardRef<
                 {selectedNode ? "Node Settings" : "Edge Settings"}
               </h2>
             </div>
-            <button
-              onClick={deleteSelected}
-              className="text-red-400 hover:text-red-600 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {!isReadOnly && (
+              <button
+                onClick={deleteSelected}
+                className="text-red-400 hover:text-red-600 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="p-5 flex-1 overflow-y-auto custom-scrollbar">
@@ -775,11 +802,16 @@ const CanvasEditor = forwardRef<
                     </label>
                     <input
                       type="text"
+                      disabled={isReadOnly}
                       value={selectedNode.data.label as string}
                       onChange={(e) =>
                         handleNodeChange("label", e.target.value)
                       }
-                      className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-sky-500 font-mono text-slate-900"
+                      className={`w-full p-2 text-sm border rounded outline-none font-mono ${
+                        isReadOnly
+                          ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                          : "border-slate-300 focus:border-sky-500 text-slate-900 bg-white"
+                      }`}
                     />
                   </div>
 
@@ -801,12 +833,17 @@ const CanvasEditor = forwardRef<
                           </p>
                         ) : (
                           <select
+                            disabled={isReadOnly}
                             value={(selectedNode.data.toolName as string) || ""}
                             onChange={(e) => {
                               handleNodeChange("toolName", e.target.value);
                               handleNodeChange("input_mapping", {}); // reset mappings
                             }}
-                            className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                            className={`w-full p-2.5 text-sm border rounded outline-none ${
+                              isReadOnly
+                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                : "border-slate-300 focus:border-emerald-500 bg-white"
+                            }`}
                           >
                             <option value="">-- Choose an action --</option>
                             {availableMcpTools.map((t) => (
@@ -856,6 +893,7 @@ const CanvasEditor = forwardRef<
                                     {inputKey}
                                   </span>
                                   <select
+                                    disabled={isReadOnly}
                                     value={currentVal}
                                     onChange={(e) =>
                                       handleMappingChange(
@@ -864,7 +902,11 @@ const CanvasEditor = forwardRef<
                                         e.target.value,
                                       )
                                     }
-                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                                    className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                      isReadOnly
+                                        ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                        : "border-slate-300 focus:border-emerald-500 bg-white"
+                                    }`}
                                   >
                                     <option value="">
                                       -- Select State Variable --
@@ -896,6 +938,7 @@ const CanvasEditor = forwardRef<
                                 mcp_response
                               </span>
                               <select
+                                disabled={isReadOnly}
                                 value={
                                   (
                                     selectedNode.data.output_mapping as Record<
@@ -911,7 +954,11 @@ const CanvasEditor = forwardRef<
                                     e.target.value,
                                   )
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-emerald-500 bg-white"
+                                className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                  isReadOnly
+                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                    : "border-slate-300 focus:border-emerald-500 bg-white"
+                                }`}
                               >
                                 <option value="">
                                   -- Select Target State --
@@ -941,6 +988,7 @@ const CanvasEditor = forwardRef<
                           specific step.
                         </p>
                         <textarea
+                          disabled={isReadOnly}
                           placeholder="e.g. Only return bullet points for this step..."
                           value={
                             (selectedNode.data.custom_instructions as string) ||
@@ -952,7 +1000,11 @@ const CanvasEditor = forwardRef<
                               e.target.value,
                             )
                           }
-                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-amber-500 text-slate-900 min-h-[100px] bg-slate-50"
+                          className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${
+                            isReadOnly
+                              ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                              : "border-slate-300 focus:border-amber-500 bg-slate-50 text-slate-900"
+                          }`}
                         />
                       </div>
 
@@ -970,39 +1022,44 @@ const CanvasEditor = forwardRef<
                         </p>
 
                         {!selectedNode.data.model_config ? (
-                          <button
-                            onClick={() =>
-                              handleNodeChange("model_config", {
-                                provider: "openai",
-                                model_name: "gpt-4o-mini",
-                                temperature: 0.7,
-                                max_tokens: 4096,
-                              })
-                            }
-                            className="w-full py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition-colors"
-                          >
-                            + Enable Model Override
-                          </button>
+                          !isReadOnly && (
+                            <button
+                              onClick={() =>
+                                handleNodeChange("model_config", {
+                                  provider: "openai",
+                                  model_name: "gpt-4o-mini",
+                                  temperature: 0.7,
+                                  max_tokens: 4096,
+                                })
+                              }
+                              className="w-full py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition-colors"
+                            >
+                              + Enable Model Override
+                            </button>
+                          )
                         ) : (
                           <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                             <div className="flex justify-between items-center">
                               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                                 Custom Engine
                               </span>
-                              <button
-                                onClick={() =>
-                                  handleNodeChange("model_config", undefined)
-                                }
-                                className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:underline"
-                              >
-                                Remove
-                              </button>
+                              {!isReadOnly && (
+                                <button
+                                  onClick={() =>
+                                    handleNodeChange("model_config", undefined)
+                                  }
+                                  className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:underline"
+                                >
+                                  Remove
+                                </button>
+                              )}
                             </div>
                             <div className="space-y-1.5">
                               <label className="text-[10px] font-semibold text-gray-600">
                                 Provider
                               </label>
                               <select
+                                disabled={isReadOnly}
                                 value={
                                   (selectedNode.data.model_config as any)
                                     .provider
@@ -1015,7 +1072,11 @@ const CanvasEditor = forwardRef<
                                       SUPPORTED_MODELS[e.target.value][0],
                                   })
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none bg-white text-slate-900"
+                                className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                  isReadOnly
+                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                    : "border-slate-300 bg-white text-slate-900"
+                                }`}
                               >
                                 {SUPPORTED_PROVIDERS.map((p) => (
                                   <option key={p} value={p}>
@@ -1029,6 +1090,7 @@ const CanvasEditor = forwardRef<
                                 Model Name
                               </label>
                               <select
+                                disabled={isReadOnly}
                                 value={
                                   (selectedNode.data.model_config as any)
                                     .model_name
@@ -1039,7 +1101,11 @@ const CanvasEditor = forwardRef<
                                     model_name: e.target.value,
                                   })
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none bg-white text-slate-900"
+                                className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                  isReadOnly
+                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                    : "border-slate-300 bg-white text-slate-900"
+                                }`}
                               >
                                 {SUPPORTED_MODELS[
                                   (selectedNode.data.model_config as any)
@@ -1058,6 +1124,7 @@ const CanvasEditor = forwardRef<
                                 </label>
                                 <input
                                   type="number"
+                                  disabled={isReadOnly}
                                   min="0"
                                   max="2"
                                   step="0.1"
@@ -1073,7 +1140,11 @@ const CanvasEditor = forwardRef<
                                         parseFloat(e.target.value) || 0,
                                     })
                                   }
-                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none bg-white font-mono text-slate-900"
+                                  className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${
+                                    isReadOnly
+                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                      : "border-slate-300 bg-white text-slate-900"
+                                  }`}
                                 />
                               </div>
                               <div className="space-y-1.5">
@@ -1082,6 +1153,7 @@ const CanvasEditor = forwardRef<
                                 </label>
                                 <input
                                   type="number"
+                                  disabled={isReadOnly}
                                   min="256"
                                   step="1"
                                   value={
@@ -1096,7 +1168,11 @@ const CanvasEditor = forwardRef<
                                         parseInt(e.target.value) || 256,
                                     })
                                   }
-                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none bg-white font-mono text-slate-900"
+                                  className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${
+                                    isReadOnly
+                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                      : "border-slate-300 bg-white text-slate-900"
+                                  }`}
                                 />
                               </div>
                             </div>
@@ -1157,6 +1233,7 @@ const CanvasEditor = forwardRef<
                                         className="flex items-center gap-1.5"
                                       >
                                         <select
+                                          disabled={isReadOnly}
                                           value={val}
                                           onChange={(e) => {
                                             const newArr = Array.isArray(
@@ -1173,7 +1250,11 @@ const CanvasEditor = forwardRef<
                                               newArr,
                                             );
                                           }}
-                                          className="flex-1 p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-amber-500 bg-white text-slate-900"
+                                          className={`flex-1 p-1.5 text-xs border rounded outline-none ${
+                                            isReadOnly
+                                              ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                              : "border-slate-300 focus:border-amber-500 bg-white text-slate-900"
+                                          }`}
                                         >
                                           <option value="">
                                             -- Select State Variable --
@@ -1184,46 +1265,53 @@ const CanvasEditor = forwardRef<
                                             </option>
                                           ))}
                                         </select>
-                                        <button
-                                          onClick={() => {
-                                            const newArr = (
-                                              Array.isArray(currentVal)
-                                                ? currentVal
-                                                : [currentVal]
-                                            ).filter((_, i) => i !== idx);
-                                            handleMappingChange(
-                                              "input_mapping",
-                                              inputKey,
-                                              newArr,
-                                            );
-                                          }}
-                                          className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
+                                        {!isReadOnly && (
+                                          <button
+                                            onClick={() => {
+                                              const newArr = (
+                                                Array.isArray(currentVal)
+                                                  ? currentVal
+                                                  : [currentVal]
+                                              ).filter((_, i) => i !== idx);
+                                              handleMappingChange(
+                                                "input_mapping",
+                                                inputKey,
+                                                newArr,
+                                              );
+                                            }}
+                                            className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
                                       </div>
                                     ))}
-                                    <button
-                                      onClick={() => {
-                                        const newArr = Array.isArray(currentVal)
-                                          ? [...currentVal, ""]
-                                          : currentVal
-                                            ? [currentVal, ""]
-                                            : [""];
-                                        handleMappingChange(
-                                          "input_mapping",
-                                          inputKey,
-                                          newArr,
-                                        );
-                                      }}
-                                      className="text-[10px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 py-1"
-                                    >
-                                      <Plus className="w-3 h-3" /> Add mapped
-                                      variable
-                                    </button>
+                                    {!isReadOnly && (
+                                      <button
+                                        onClick={() => {
+                                          const newArr = Array.isArray(
+                                            currentVal,
+                                          )
+                                            ? [...currentVal, ""]
+                                            : currentVal
+                                              ? [currentVal, ""]
+                                              : [""];
+                                          handleMappingChange(
+                                            "input_mapping",
+                                            inputKey,
+                                            newArr,
+                                          );
+                                        }}
+                                        className="text-[10px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 py-1"
+                                      >
+                                        <Plus className="w-3 h-3" /> Add mapped
+                                        variable
+                                      </button>
+                                    )}
                                   </div>
                                 ) : (
                                   <select
+                                    disabled={isReadOnly}
                                     value={currentVal || ""}
                                     onChange={(e) =>
                                       handleMappingChange(
@@ -1232,7 +1320,11 @@ const CanvasEditor = forwardRef<
                                         e.target.value,
                                       )
                                     }
-                                    className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-amber-500 bg-white"
+                                    className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                      isReadOnly
+                                        ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                        : "border-slate-300 focus:border-amber-500 bg-white"
+                                    }`}
                                   >
                                     <option value="">
                                       -- Select State Variable --
@@ -1276,6 +1368,7 @@ const CanvasEditor = forwardRef<
                                   {outputKey}
                                 </span>
                                 <select
+                                  disabled={isReadOnly}
                                   value={currentVal}
                                   onChange={(e) =>
                                     handleMappingChange(
@@ -1284,7 +1377,11 @@ const CanvasEditor = forwardRef<
                                       e.target.value,
                                     )
                                   }
-                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-amber-500 bg-white"
+                                  className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                    isReadOnly
+                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                      : "border-slate-300 focus:border-amber-500 bg-white"
+                                  }`}
                                 >
                                   <option value="">
                                     -- Select Target State --
@@ -1310,6 +1407,7 @@ const CanvasEditor = forwardRef<
                           Node-Specific Instructions
                         </label>
                         <textarea
+                          disabled={isReadOnly}
                           placeholder="e.g. If the user doesn't specify a language, default to Spanish..."
                           value={
                             (selectedNode.data.custom_instructions as string) ||
@@ -1321,7 +1419,11 @@ const CanvasEditor = forwardRef<
                               e.target.value,
                             )
                           }
-                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-sky-500 text-slate-900 min-h-[100px] bg-slate-50"
+                          className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${
+                            isReadOnly
+                              ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                              : "border-slate-300 focus:border-sky-500 bg-slate-50 text-slate-900"
+                          }`}
                         />
                       </div>
                       <div className="pt-4 border-t border-slate-100 space-y-3">
@@ -1336,6 +1438,7 @@ const CanvasEditor = forwardRef<
                           nodes={inspectorSchema}
                           setNodes={handleSchemaChange}
                           addButtonText="Add Input Field"
+                          readOnly={isReadOnly} // <-- Lock SchemaViewer
                         />
                       </div>
 
@@ -1367,6 +1470,7 @@ const CanvasEditor = forwardRef<
                                 {payloadKey}
                               </span>
                               <select
+                                disabled={isReadOnly}
                                 value={currentVal}
                                 onChange={(e) =>
                                   handleMappingChange(
@@ -1375,7 +1479,11 @@ const CanvasEditor = forwardRef<
                                     e.target.value,
                                   )
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-sky-500 bg-white"
+                                className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                  isReadOnly
+                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                    : "border-slate-300 focus:border-sky-500 bg-white"
+                                }`}
                               >
                                 <option value="">
                                   -- Select State Variable --
@@ -1400,6 +1508,7 @@ const CanvasEditor = forwardRef<
                           Node-Specific Instructions
                         </label>
                         <textarea
+                          disabled={isReadOnly}
                           placeholder="e.g. Summarize the output in 3 concise bullet points..."
                           value={
                             (selectedNode.data.custom_instructions as string) ||
@@ -1411,7 +1520,11 @@ const CanvasEditor = forwardRef<
                               e.target.value,
                             )
                           }
-                          className="w-full p-2.5 text-sm border border-slate-300 rounded outline-none focus:border-purple-500 text-slate-900 min-h-[100px] bg-slate-50"
+                          className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${
+                            isReadOnly
+                              ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                              : "border-slate-300 focus:border-purple-500 bg-slate-50 text-slate-900"
+                          }`}
                         />
                       </div>
 
@@ -1427,6 +1540,7 @@ const CanvasEditor = forwardRef<
                           nodes={inspectorSchema}
                           setNodes={handleSchemaChange}
                           addButtonText="Add Output Field"
+                          readOnly={isReadOnly} // <-- Lock SchemaViewer
                         />
                       </div>
 
@@ -1457,6 +1571,7 @@ const CanvasEditor = forwardRef<
                                 {payloadKey}
                               </span>
                               <select
+                                disabled={isReadOnly}
                                 value={currentVal}
                                 onChange={(e) =>
                                   handleMappingChange(
@@ -1465,7 +1580,11 @@ const CanvasEditor = forwardRef<
                                     e.target.value,
                                   )
                                 }
-                                className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-purple-500 bg-white text-slate-900"
+                                className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                  isReadOnly
+                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                    : "border-slate-300 focus:border-purple-500 bg-white text-slate-900"
+                                }`}
                               >
                                 <option value="">
                                   -- Select State Variable --
@@ -1481,7 +1600,7 @@ const CanvasEditor = forwardRef<
                         })}
                       </div>
 
-                      {/* NEW: File Exports */}
+                      {/* File Exports */}
                       <div className="pt-4 border-t border-slate-100 space-y-3">
                         <div className="flex items-center gap-2 text-rose-600 mb-2">
                           <FileText className="w-4 h-4" />
@@ -1501,26 +1620,29 @@ const CanvasEditor = forwardRef<
                               key={exp.id}
                               className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3 mb-2 relative group animate-in fade-in"
                             >
-                              <button
-                                onClick={() => {
-                                  const newExports = [
-                                    ...((selectedNode.data.exports as any[]) ||
-                                      []),
-                                  ];
-                                  newExports.splice(index, 1);
-                                  handleNodeChange("exports", newExports);
-                                }}
-                                className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Remove Export"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {!isReadOnly && (
+                                <button
+                                  onClick={() => {
+                                    const newExports = [
+                                      ...((selectedNode.data
+                                        .exports as any[]) || []),
+                                    ];
+                                    newExports.splice(index, 1);
+                                    handleNodeChange("exports", newExports);
+                                  }}
+                                  className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Remove Export"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
 
                               <div className="space-y-1.5 pr-6">
                                 <label className="text-[10px] font-semibold text-gray-600">
                                   Format
                                 </label>
                                 <select
+                                  disabled={isReadOnly}
                                   value={exp.format}
                                   onChange={(e) => {
                                     const newExports = [
@@ -1533,7 +1655,11 @@ const CanvasEditor = forwardRef<
                                     };
                                     handleNodeChange("exports", newExports);
                                   }}
-                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-rose-500 bg-white text-slate-900"
+                                  className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                    isReadOnly
+                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                      : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
+                                  }`}
                                 >
                                   <option value="pdf">
                                     PDF Document (.pdf)
@@ -1549,6 +1675,7 @@ const CanvasEditor = forwardRef<
                                   Source Variable
                                 </label>
                                 <select
+                                  disabled={isReadOnly}
                                   value={exp.source_variable}
                                   onChange={(e) => {
                                     const newExports = [
@@ -1561,7 +1688,11 @@ const CanvasEditor = forwardRef<
                                     };
                                     handleNodeChange("exports", newExports);
                                   }}
-                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-rose-500 bg-white text-slate-900"
+                                  className={`w-full p-1.5 text-xs border rounded outline-none ${
+                                    isReadOnly
+                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                      : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
+                                  }`}
                                 >
                                   <option value="">
                                     -- Select Data Source --
@@ -1574,13 +1705,13 @@ const CanvasEditor = forwardRef<
                                 </select>
                               </div>
 
-                              {/* NEW: Optional Layout Instructions (Only show for PDF) */}
                               {exp.format === "pdf" && (
                                 <div className="space-y-1.5">
                                   <label className="text-[10px] font-semibold text-gray-600">
                                     Layout Instructions (Optional)
                                   </label>
                                   <textarea
+                                    disabled={isReadOnly}
                                     placeholder="e.g. Use a large title, bold the correct answers..."
                                     value={exp.layout_instructions || ""}
                                     onChange={(e) => {
@@ -1594,7 +1725,11 @@ const CanvasEditor = forwardRef<
                                       };
                                       handleNodeChange("exports", newExports);
                                     }}
-                                    className="w-full p-2 text-xs border border-slate-300 rounded outline-none focus:border-rose-500 bg-white text-slate-900 min-h-[60px]"
+                                    className={`w-full p-2 text-xs border rounded outline-none min-h-[60px] ${
+                                      isReadOnly
+                                        ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                        : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
+                                    }`}
                                   />
                                 </div>
                               )}
@@ -1605,6 +1740,7 @@ const CanvasEditor = forwardRef<
                                 </label>
                                 <input
                                   type="text"
+                                  disabled={isReadOnly}
                                   placeholder="e.g. download_url"
                                   value={exp.target_variable}
                                   onChange={(e) => {
@@ -1618,31 +1754,36 @@ const CanvasEditor = forwardRef<
                                     };
                                     handleNodeChange("exports", newExports);
                                   }}
-                                  className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-rose-500 bg-white font-mono text-slate-900"
+                                  className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${
+                                    isReadOnly
+                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                      : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
+                                  }`}
                                 />
                               </div>
                             </div>
                           ),
                         )}
 
-                        {/* Add Export Button */}
-                        <button
-                          onClick={() => {
-                            const newExports = [
-                              ...((selectedNode.data.exports as any[]) || []),
-                            ];
-                            newExports.push({
-                              id: crypto.randomUUID(),
-                              format: "pdf",
-                              source_variable: "",
-                              target_variable: "",
-                            });
-                            handleNodeChange("exports", newExports);
-                          }}
-                          className="w-full py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition-colors flex items-center justify-center gap-1 shadow-sm mt-2"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Add File Export
-                        </button>
+                        {!isReadOnly && (
+                          <button
+                            onClick={() => {
+                              const newExports = [
+                                ...((selectedNode.data.exports as any[]) || []),
+                              ];
+                              newExports.push({
+                                id: crypto.randomUUID(),
+                                format: "pdf",
+                                source_variable: "",
+                                target_variable: "",
+                              });
+                              handleNodeChange("exports", newExports);
+                            }}
+                            className="w-full py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition-colors flex items-center justify-center gap-1 shadow-sm mt-2"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add File Export
+                          </button>
+                        )}
                       </div>
                     </>
                   )}
@@ -1661,6 +1802,7 @@ const CanvasEditor = forwardRef<
                             human_input
                           </span>
                           <select
+                            disabled={isReadOnly}
                             value={
                               (
                                 selectedNode.data.output_mapping as Record<
@@ -1676,7 +1818,11 @@ const CanvasEditor = forwardRef<
                                 e.target.value,
                               )
                             }
-                            className="w-full p-1.5 text-xs border border-slate-300 rounded outline-none focus:border-orange-500 bg-white"
+                            className={`w-full p-1.5 text-xs border rounded outline-none ${
+                              isReadOnly
+                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                : "border-slate-300 focus:border-orange-500 bg-white"
+                            }`}
                           >
                             <option value="">-- Select Target State --</option>
                             {stateKeys.map((k) => (
@@ -1706,10 +1852,15 @@ const CanvasEditor = forwardRef<
                   </label>
                   <input
                     type="text"
+                    disabled={isReadOnly}
                     placeholder="e.g. priority == 'high'"
                     value={(selectedEdge.data?.label as string) || ""}
                     onChange={(e) => handleEdgeChange("label", e.target.value)}
-                    className="w-full p-2 text-sm border border-slate-300 rounded outline-none focus:border-orange-500 font-mono text-slate-900"
+                    className={`w-full p-2 text-sm border rounded outline-none font-mono ${
+                      isReadOnly
+                        ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                        : "border-slate-300 focus:border-orange-500 text-slate-900"
+                    }`}
                   />
                 </div>
               </div>

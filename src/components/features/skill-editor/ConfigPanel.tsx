@@ -35,7 +35,7 @@ interface ConfigPanelProps {
   availableServers: MCPServerConfig[];
   activeNodeId?: string | null;
   onOpenPlayground: () => void;
-  isLoading?: boolean; // ADDED
+  isLoading?: boolean;
 }
 
 type Tab = "identity" | "engine" | "schema" | "orchestration";
@@ -53,16 +53,30 @@ export const ConfigPanel = ({
   availableTools,
   availableServers,
   onOpenPlayground,
-  isLoading, // ADDED
+  isLoading,
 }: ConfigPanelProps) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("identity");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Read-Only Guard
+  const isReadOnly = config.status === "published";
 
   const canvasRef = useRef<OrchestrationCanvasRef>(null);
   const { addToast } = useToast();
+
+  const handleFieldChange = (updates: Partial<SkillConfig>) => {
+    if (isReadOnly) return; // Safety check
+    setConfig((prev) => ({
+      ...prev,
+      ...updates,
+      status: "draft", // Any change turns a 'published' config back into a 'draft'
+    }));
+  };
 
   const parseConfigToNodes = (schema: any): SchemaNode[] => {
     if (!schema) return [];
@@ -96,10 +110,8 @@ export const ConfigPanel = ({
     });
   };
 
-  // Start with empty nodes so we don't accidentally parse empty loading states
   const [schemaNodes, setSchemaNodes] = useState<SchemaNode[]>([]);
 
-  // Only parse the data into the local state once loading finishes
   useEffect(() => {
     if (!isLoading) {
       setSchemaNodes(parseConfigToNodes(config.state_schema));
@@ -108,7 +120,7 @@ export const ConfigPanel = ({
   }, [isLoading]);
 
   useEffect(() => {
-    if (isLoading) return; // Prevent wiping out config while loading
+    if (isLoading) return;
 
     const compileNodes = (nodes: SchemaNode[]): any => {
       const result: any = {};
@@ -130,7 +142,13 @@ export const ConfigPanel = ({
       return result;
     };
 
-    setConfig((prev) => ({ ...prev, state_schema: compileNodes(schemaNodes) }));
+    setConfig((prev) => {
+      const newSchema = compileNodes(schemaNodes);
+      if (JSON.stringify(prev?.state_schema) === JSON.stringify(newSchema)) {
+        return prev;
+      }
+      return { ...prev, state_schema: newSchema, status: "draft" };
+    });
   }, [schemaNodes, setConfig, isLoading]);
 
   const syncCanvasToConfig = () => {
@@ -147,6 +165,7 @@ export const ConfigPanel = ({
 
       setConfig((prev) => ({
         ...prev,
+        status: "draft",
         mcp_servers: requiredServers,
         orchestration: {
           nodes: latestCanvasData.nodes,
@@ -180,7 +199,6 @@ export const ConfigPanel = ({
 
     const semanticNodes = rawNodes.map((n: any) => {
       const { active, ...cleanData } = n.data || {};
-
       let actionName;
       if (n.type === "tool" && cleanData.toolId) {
         actionName = availableTools.find(
@@ -191,13 +209,7 @@ export const ConfigPanel = ({
           (s) => s.id === cleanData.serverId,
         )?.name;
       }
-
-      return {
-        id: n.id,
-        type: n.type,
-        actionName,
-        ...cleanData,
-      };
+      return { id: n.id, type: n.type, actionName, ...cleanData };
     });
 
     const semanticEdges = rawEdges.map((e: any) => ({
@@ -208,10 +220,7 @@ export const ConfigPanel = ({
 
     const snapshot = {
       ...config,
-      graph: {
-        nodes: semanticNodes,
-        edges: semanticEdges,
-      },
+      graph: { nodes: semanticNodes, edges: semanticEdges },
     };
 
     delete snapshot.orchestration;
@@ -223,6 +232,82 @@ export const ConfigPanel = ({
       setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy to clipboard", err);
+    }
+  };
+
+  const handlePublishSkill = async () => {
+    setIsPublishing(true);
+    setPublishSuccess(false);
+
+    try {
+      let latestCanvasData = null;
+      let mcpServers = config.mcp_servers || [];
+
+      if (activeTab === "orchestration" && canvasRef.current) {
+        latestCanvasData = canvasRef.current.getCanvasData();
+        mcpServers = Array.from(
+          new Set(
+            (latestCanvasData.nodes || [])
+              .filter((n: any) => n.type === "mcp_node" && n.data?.serverId)
+              .map((n: any) => n.data.serverId),
+          ),
+        ) as string[];
+      } else {
+        latestCanvasData = config.orchestration;
+      }
+
+      if (latestCanvasData) {
+        const canvasNodes = latestCanvasData.nodes || [];
+        if (
+          !canvasNodes.some((n: any) => n.type === "trigger") ||
+          !canvasNodes.some((n: any) => n.type === "response")
+        ) {
+          addToast(
+            "Your graph must have at least one Trigger and one Response node to publish.",
+            "error",
+          );
+          setIsPublishing(false);
+          return;
+        }
+      }
+
+      const finalConfig = {
+        ...config,
+        mcp_servers: mcpServers,
+        status: "published",
+        ...(latestCanvasData && {
+          orchestration: {
+            nodes: latestCanvasData.nodes,
+            edges: latestCanvasData.edges,
+            viewport: latestCanvasData.viewport,
+          },
+        }),
+      };
+
+      const response = await fetch(
+        `/api/skills/${config.id || "new"}/publish`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(finalConfig),
+        },
+      );
+
+      if (!response.ok) throw new Error(`Publish failed: ${response.status}`);
+      const data = await response.json();
+
+      setConfig(data.skill);
+      setPublishSuccess(true);
+      addToast(
+        `Version ${data.skill.version} published successfully!`,
+        "success",
+      );
+      setTimeout(() => setPublishSuccess(false), 3000);
+    } catch (error) {
+      addToast("Failed to publish skill.", "error");
+      console.error(error);
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -249,10 +334,7 @@ export const ConfigPanel = ({
 
       if (latestCanvasData) {
         const canvasNodes = latestCanvasData.nodes || [];
-        const hasTrigger = canvasNodes.some((n: any) => n.type === "trigger");
-        const hasResponse = canvasNodes.some((n: any) => n.type === "response");
-
-        if (!hasTrigger) {
+        if (!canvasNodes.some((n: any) => n.type === "trigger")) {
           addToast(
             "Your graph is missing a Trigger (API Input) node.",
             "error",
@@ -260,7 +342,7 @@ export const ConfigPanel = ({
           setIsSaving(false);
           return;
         }
-        if (!hasResponse) {
+        if (!canvasNodes.some((n: any) => n.type === "response")) {
           addToast(
             "Your graph is missing a Response (API Output) node.",
             "error",
@@ -275,6 +357,7 @@ export const ConfigPanel = ({
       const finalConfig = {
         ...config,
         id: finalId,
+        status: "draft",
         mcp_servers: mcpServers,
         persistence: {
           ...config.persistence,
@@ -314,8 +397,10 @@ export const ConfigPanel = ({
   const updatePersistence = (
     updates: Partial<NonNullable<SkillConfig["persistence"]>>,
   ) => {
+    if (isReadOnly) return;
     setConfig((prev) => ({
       ...prev,
+      status: "draft",
       persistence: {
         checkpointer: "postgresSaver",
         ttl_seconds: prev.persistence?.ttl_seconds || 3600,
@@ -340,17 +425,19 @@ export const ConfigPanel = ({
       <EditorTopPanel
         backUrl="/skills"
         title={config.name || "Untitled Skill"}
-        subtitle="Configure workflow logic, model behavior, and state"
         icon={Network}
         onCopy={handleCopyConfig}
         isCopied={isCopied}
         onTest={handleOpenPlayground}
         testLabel="Test Skill"
-        onSave={handleSaveSkill}
-        saveLabel="Save Skill"
-        isSaving={isSaving || !!isLoading}
+        onSave={isReadOnly ? undefined : handleSaveSkill}
         saveSuccess={saveSuccess}
+        isPublishing={isPublishing}
+        publishSuccess={publishSuccess}
         themeColor="violet"
+        onPublish={isReadOnly ? undefined : handlePublishSkill}
+        isSaving={isSaving || !!isLoading}
+        subtitle={`Version ${config.version} | ${isReadOnly ? "LIVE (Read-Only)" : "DRAFT"}`}
       />
 
       {isLoading ? (
@@ -400,26 +487,26 @@ export const ConfigPanel = ({
                       </label>
                       <input
                         type="text"
+                        disabled={isReadOnly}
                         value={config.name || ""}
                         onChange={(e) =>
-                          setConfig({ ...config, name: e.target.value })
+                          handleFieldChange({ name: e.target.value })
                         }
                         placeholder="e.g. Generate Content"
-                        className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono"
+                        className={`w-full p-2.5 text-sm border border-gray-200 rounded-lg font-mono ${
+                          isReadOnly
+                            ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                            : "bg-slate-50 text-slate-500"
+                        }`}
                       />
                     </div>
                     <div className="space-y-1.5 col-span-3">
                       <label className="text-xs font-semibold text-gray-600">
-                        Version
+                        Current Version
                       </label>
-                      <input
-                        type="text"
-                        value={config.version || ""}
-                        onChange={(e) =>
-                          setConfig({ ...config, version: e.target.value })
-                        }
-                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none font-mono bg-gray-50 text-center text-slate-900"
-                      />
+                      <div className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-500 font-mono text-center">
+                        v{config.version}
+                      </div>
                     </div>
                     <div className="space-y-1.5 col-span-12">
                       <label className="text-xs font-semibold text-gray-600">
@@ -427,11 +514,16 @@ export const ConfigPanel = ({
                       </label>
                       <input
                         type="text"
+                        disabled={isReadOnly}
                         value={config.description || ""}
                         onChange={(e) =>
-                          setConfig({ ...config, description: e.target.value })
+                          handleFieldChange({ description: e.target.value })
                         }
-                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none bg-gray-50 text-slate-900"
+                        className={`w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none ${
+                          isReadOnly
+                            ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                            : "bg-gray-50 text-slate-900"
+                        }`}
                       />
                     </div>
                   </div>
@@ -453,11 +545,16 @@ export const ConfigPanel = ({
                     </label>
                     <textarea
                       rows={6}
+                      disabled={isReadOnly}
                       value={config.system_prompt || ""}
                       onChange={(e) =>
-                        setConfig({ ...config, system_prompt: e.target.value })
+                        handleFieldChange({ system_prompt: e.target.value })
                       }
-                      className="w-full p-3 border border-gray-300 rounded-lg outline-none min-h-[150px] text-sm bg-gray-50 text-slate-900"
+                      className={`w-full p-3 border border-gray-300 rounded-lg outline-none min-h-[150px] text-sm ${
+                        isReadOnly
+                          ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                          : "bg-gray-50 text-slate-900"
+                      }`}
                     />
                   </div>
                 </div>
@@ -477,10 +574,10 @@ export const ConfigPanel = ({
                         Provider
                       </label>
                       <select
+                        disabled={isReadOnly}
                         value={config.model.provider}
                         onChange={(e) =>
-                          setConfig({
-                            ...config,
+                          handleFieldChange({
                             model: {
                               ...config.model,
                               provider: e.target.value,
@@ -492,7 +589,11 @@ export const ConfigPanel = ({
                             },
                           })
                         }
-                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 text-slate-900"
+                        className={`w-full p-2.5 text-sm border border-gray-300 rounded-lg ${
+                          isReadOnly
+                            ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                            : "bg-gray-50 text-slate-900"
+                        }`}
                       >
                         {SUPPORTED_PROVIDERS.map((p) => (
                           <option key={p} value={p}>
@@ -506,17 +607,21 @@ export const ConfigPanel = ({
                         Model Name
                       </label>
                       <select
+                        disabled={isReadOnly}
                         value={config.model.model_name}
                         onChange={(e) =>
-                          setConfig({
-                            ...config,
+                          handleFieldChange({
                             model: {
                               ...config.model,
                               model_name: e.target.value,
                             },
                           })
                         }
-                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 text-slate-900"
+                        className={`w-full p-2.5 text-sm border border-gray-300 rounded-lg ${
+                          isReadOnly
+                            ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                            : "bg-gray-50 text-slate-900"
+                        }`}
                       >
                         {SUPPORTED_MODELS[
                           config.model.provider as keyof typeof SUPPORTED_MODELS
@@ -540,38 +645,42 @@ export const ConfigPanel = ({
                         </div>
                         <input
                           type="number"
+                          disabled={isReadOnly}
                           min="0"
                           max="2"
                           step="0.1"
                           value={config.model.temperature}
                           onChange={(e) =>
-                            setConfig({
-                              ...config,
+                            handleFieldChange({
                               model: {
                                 ...config.model,
                                 temperature: parseFloat(e.target.value) || 0,
                               },
                             })
                           }
-                          className="text-sm font-mono bg-white px-2 py-1 rounded border border-gray-300 w-20"
+                          className={`text-sm font-mono px-2 py-1 rounded border border-gray-300 w-20 ${
+                            isReadOnly
+                              ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                              : "bg-white"
+                          }`}
                         />
                       </div>
                       <input
                         type="range"
+                        disabled={isReadOnly}
                         min="0"
                         max="2"
                         step="0.1"
                         value={config.model.temperature}
                         onChange={(e) =>
-                          setConfig({
-                            ...config,
+                          handleFieldChange({
                             model: {
                               ...config.model,
                               temperature: parseFloat(e.target.value),
                             },
                           })
                         }
-                        className="w-full accent-purple-600"
+                        className={`w-full ${isReadOnly ? "opacity-50 cursor-not-allowed" : "accent-purple-600"}`}
                       />
 
                       <div className="flex items-center justify-between mb-3 mt-8">
@@ -585,38 +694,42 @@ export const ConfigPanel = ({
                         </div>
                         <input
                           type="number"
+                          disabled={isReadOnly}
                           min="256"
                           max="8192"
                           step="1"
                           value={config.model.max_tokens}
                           onChange={(e) =>
-                            setConfig({
-                              ...config,
+                            handleFieldChange({
                               model: {
                                 ...config.model,
                                 max_tokens: parseInt(e.target.value) || 256,
                               },
                             })
                           }
-                          className="text-sm font-mono bg-white px-2 py-1 rounded border border-gray-300 w-24"
+                          className={`text-sm font-mono px-2 py-1 rounded border border-gray-300 w-24 ${
+                            isReadOnly
+                              ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                              : "bg-white"
+                          }`}
                         />
                       </div>
                       <input
                         type="range"
+                        disabled={isReadOnly}
                         min="256"
                         max="8192"
                         step="256"
                         value={config.model.max_tokens}
                         onChange={(e) =>
-                          setConfig({
-                            ...config,
+                          handleFieldChange({
                             model: {
                               ...config.model,
                               max_tokens: parseInt(e.target.value),
                             },
                           })
                         }
-                        className="w-full accent-purple-600"
+                        className={`w-full ${isReadOnly ? "opacity-50 cursor-not-allowed" : "accent-purple-600"}`}
                       />
                     </div>
                   </div>
@@ -638,9 +751,10 @@ export const ConfigPanel = ({
                       </label>
                       <input
                         type="text"
+                        disabled
                         value="postgresSaver"
                         readOnly
-                        className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-50 text-slate-900 font-mono cursor-not-allowed"
+                        className="w-full p-2.5 text-sm border border-gray-200 rounded-lg bg-slate-100 text-slate-400 font-mono cursor-not-allowed"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -649,13 +763,18 @@ export const ConfigPanel = ({
                       </label>
                       <input
                         type="number"
+                        disabled={isReadOnly}
                         value={config.persistence?.ttl_seconds || ""}
                         onChange={(e) =>
                           updatePersistence({
                             ttl_seconds: parseInt(e.target.value) || 0,
                           })
                         }
-                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 font-mono text-slate-900"
+                        className={`w-full p-2.5 text-sm border border-gray-300 rounded-lg font-mono ${
+                          isReadOnly
+                            ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                            : "bg-gray-50 text-slate-900"
+                        }`}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -664,13 +783,18 @@ export const ConfigPanel = ({
                       </label>
                       <input
                         type="number"
+                        disabled={isReadOnly}
                         value={config.persistence?.store_ttl || ""}
                         onChange={(e) =>
                           updatePersistence({
                             store_ttl: parseInt(e.target.value) || 0,
                           })
                         }
-                        className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50 font-mono text-slate-900"
+                        className={`w-full p-2.5 text-sm border border-gray-300 rounded-lg font-mono ${
+                          isReadOnly
+                            ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                            : "bg-gray-50 text-slate-900"
+                        }`}
                       />
                     </div>
                   </div>
@@ -693,6 +817,7 @@ export const ConfigPanel = ({
                   nodes={schemaNodes}
                   setNodes={setSchemaNodes}
                   addButtonText="Add State Variable"
+                  readOnly={isReadOnly} // <-- Passed down
                 />
               </div>
             )}
@@ -712,6 +837,7 @@ export const ConfigPanel = ({
                   availableTools={availableTools}
                   availableServers={availableServers}
                   activeNodeId={activeNodeId}
+                  readOnly={isReadOnly} // <-- Passed down
                 />
               </div>
             )}
