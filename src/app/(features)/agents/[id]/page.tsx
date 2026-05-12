@@ -25,9 +25,10 @@ import { AgentConfig } from "@/src/lib/types/constants";
 interface Skill {
   id: string;
   name: string;
-  version: string; // <-- ADDED: Need this to display the version correctly
+  version: string;
   description: string;
   parent_id?: string;
+  versions?: Skill[];
 }
 
 interface AgentFile {
@@ -83,32 +84,14 @@ export default function AgentEditorPage() {
   const instructionRef = useRef<HTMLInputElement>(null);
   const referenceRef = useRef<HTMLInputElement>(null);
 
-  const groupedSkills = useMemo(() => {
-    const groups: Record<string, Skill[]> = {};
-
-    availableSkills.forEach((skill) => {
-      const key = skill.parent_id || skill.name;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(skill);
-    });
-
-    // Sort versions descending within each group (e.g. 1.0.2 -> 1.0.1)
-    Object.values(groups).forEach((group) => {
-      group.sort((a, b) => b.version.localeCompare(a.version));
-    });
-
-    return Object.values(groups);
-  }, [availableSkills]);
-
-  const toggleSkillFamily = (family: Skill[], currentlyAssignedId?: string) => {
+  const toggleSkillFamily = (family: Skill, currentlyAssignedId?: string) => {
     setAgent((prev) => {
       let newSkills = [...prev.skills];
       if (currentlyAssignedId) {
-        // Unassign
         newSkills = newSkills.filter((id) => id !== currentlyAssignedId);
       } else {
-        // Assign the newest version by default
-        newSkills.push(family[0].id);
+        // Assign the Draft by default when checking the box
+        newSkills.push(family.id);
       }
       return { ...prev, skills: newSkills };
     });
@@ -130,9 +113,8 @@ export default function AgentEditorPage() {
       }
       setIsLoading(true);
       try {
-        // <-- UPDATED: Now requests ONLY published snapshots
         const skillsRes = await fetch(
-          `/api/skills?projectId=${currentProject.id}&status=published`,
+          `/api/skills?projectId=${currentProject.id}`,
         );
         const skillsData = await skillsRes.json();
         if (skillsData.skills) setAvailableSkills(skillsData.skills);
@@ -161,10 +143,14 @@ export default function AgentEditorPage() {
 
   const handleCopyConfig = async () => {
     try {
+      const allFlatSkills = availableSkills.flatMap((f) => [
+        f,
+        ...(f.versions || []),
+      ]);
       const snapshot = {
         ...agent,
         skills: agent.skills.map(
-          (skillId) => availableSkills.find((s) => s.id === skillId) || skillId,
+          (skillId) => allFlatSkills.find((s) => s.id === skillId) || skillId,
         ),
         files,
         pendingEdits,
@@ -849,61 +835,63 @@ export default function AgentEditorPage() {
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto pr-2">
-                {groupedSkills.map((family) => {
-                  const latestSkill = family[0];
+                {/* 5. Map directly over availableSkills instead of groupedSkills */}
+                {availableSkills.map((family) => {
+                  // Find if the Draft OR any of its Published Versions are assigned
+                  const assignedSkillId = [
+                    family.id,
+                    ...(family.versions?.map((v) => v.id) || []),
+                  ].find((id) => agent.skills.includes(id));
 
-                  // Find if ANY version from this family is currently assigned to the agent
-                  const assignedSkill = family.find((s) =>
-                    agent.skills.includes(s.id),
-                  );
-                  const isAssigned = !!assignedSkill;
+                  const isAssigned = !!assignedSkillId;
 
                   return (
                     <div
-                      key={latestSkill.parent_id || latestSkill.name}
+                      key={family.id}
                       className={`flex flex-col p-4 border rounded-xl transition-all ${
                         isAssigned
                           ? "border-fuchsia-500 bg-fuchsia-50/50 ring-1 ring-fuchsia-500/20"
                           : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                       }`}
                     >
-                      {/* Main Checkbox & Label */}
                       <label className="flex items-start gap-3 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={isAssigned}
                           onChange={() =>
-                            toggleSkillFamily(family, assignedSkill?.id)
+                            toggleSkillFamily(family, assignedSkillId)
                           }
                           className="mt-1 rounded text-fuchsia-600 focus:ring-fuchsia-500 border-slate-300 w-4 h-4 transition-colors cursor-pointer"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-slate-800 text-sm truncate">
-                            {latestSkill.name}
+                            {family.name}
                           </div>
                           <div className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
-                            {latestSkill.description}
+                            {family.description}
                           </div>
                         </div>
                       </label>
 
-                      {/* Dynamic Version Selector (Only shows when checked) */}
                       {isAssigned && (
                         <div className="mt-3 ml-7 pt-3 border-t border-fuchsia-500/10 flex items-center justify-between animate-in fade-in slide-in-from-top-1">
                           <span className="text-[10px] font-bold text-fuchsia-700 uppercase tracking-wider">
                             Assigned Version
                           </span>
                           <select
-                            value={assignedSkill.id}
+                            value={assignedSkillId}
                             onChange={(e) =>
                               changeSkillVersion(
-                                assignedSkill.id,
+                                assignedSkillId,
                                 e.target.value,
                               )
                             }
                             className="p-1.5 text-xs border border-fuchsia-200 rounded outline-none focus:border-fuchsia-500 bg-white text-slate-700 font-mono shadow-sm cursor-pointer"
                           >
-                            {family.map((s) => (
+                            {/* Render the Draft option at the top */}
+                            <option value={family.id}>Draft (Latest)</option>
+                            {/* Render all published snapshots below it */}
+                            {family.versions?.map((s) => (
                               <option key={s.id} value={s.id}>
                                 v{s.version}
                               </option>
@@ -915,10 +903,10 @@ export default function AgentEditorPage() {
                   );
                 })}
 
-                {groupedSkills.length === 0 && (
+                {availableSkills.length === 0 && (
                   <div className="col-span-full py-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
                     <p className="text-sm text-slate-500 italic">
-                      No published skills available.
+                      No skills available in this project.
                     </p>
                   </div>
                 )}
