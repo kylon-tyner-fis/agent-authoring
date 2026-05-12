@@ -39,6 +39,7 @@ export interface EditorTopPanelProps {
     | "slate"
     | "fuchsia"
     | "indigo";
+  version?: number | string;
 }
 
 export const EditorTopPanel = ({
@@ -59,6 +60,7 @@ export const EditorTopPanel = ({
   isPublishing,
   publishSuccess,
   themeColor = "emerald",
+  version,
 }: EditorTopPanelProps) => {
   const router = useRouter();
 
@@ -225,7 +227,7 @@ export const EditorTopPanel = ({
             ) : (
               <UploadCloud className="w-4 h-4" />
             )}
-            {publishSuccess ? "Published Live" : "Publish Version"}
+            {publishSuccess ? "Published Live" : `Publish Version ${version}`}
           </button>
         )}
       </div>

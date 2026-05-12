@@ -10,10 +10,8 @@ const supabase = createClient(
 );
 
 function bumpVersion(v: string) {
-  const parts = v.split(".");
-  return parts.length === 3
-    ? `${parts[0]}.${parts[1]}.${parseInt(parts[2]) + 1}`
-    : "1.0.0";
+  const num = parseInt(v, 10);
+  return isNaN(num) ? "1" : (num + 1).toString();
 }
 
 export async function POST(
@@ -57,7 +55,7 @@ export async function POST(
     if (snapshotError) throw snapshotError;
 
     // 4. UPDATE THE HEAD (Keep ID, Increment Version, Status: Draft)
-    const nextVersion = bumpVersion(config.version || "1.0.0");
+    const nextVersion = bumpVersion(config.version || "1");
     const { data: updatedHead, error: headError } = await supabase
       .from("skills")
       .update({

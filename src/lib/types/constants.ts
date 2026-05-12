@@ -148,7 +148,7 @@ export const DEFAULT_SKILL_CONFIG: SkillConfig = {
   id: "",
   project_id: "",
   name: "",
-  version: "1.0.0",
+  version: "1",
   status: "draft",
   description: "",
   model: {

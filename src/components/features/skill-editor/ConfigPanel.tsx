@@ -430,7 +430,7 @@ export const ConfigPanel = ({
         isCopied={isCopied}
         onTest={handleOpenPlayground}
         testLabel="Test Skill"
-        onSave={isReadOnly ? undefined : handleSaveSkill}
+        onSave={isReadOnly ? () => {} : handleSaveSkill}
         saveSuccess={saveSuccess}
         isPublishing={isPublishing}
         publishSuccess={publishSuccess}
@@ -438,6 +438,7 @@ export const ConfigPanel = ({
         onPublish={isReadOnly ? undefined : handlePublishSkill}
         isSaving={isSaving || !!isLoading}
         subtitle={`Version ${config.version} | ${isReadOnly ? "LIVE (Read-Only)" : "DRAFT"}`}
+        version={config.version}
       />
 
       {isLoading ? (
