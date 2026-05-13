@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { generateManifest } from "@/src/lib/runtime/manifest-compiler";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -94,6 +95,76 @@ export async function DELETE(
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const url = new URL(req.url);
+    const projectId = url.searchParams.get("projectId");
+
+    if (!projectId) {
+      return NextResponse.json({ error: "Missing projectId" }, { status: 400 });
+    }
+
+    // 1. Fetch the EXISTING skill record to get current model/settings
+    const { data: existingSkill, error: fetchError } = await supabase
+      .from("skills")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !existingSkill) {
+      return NextResponse.json({ error: "Skill not found" }, { status: 404 });
+    }
+
+    // 2. Merge updates into a complete config object for the compiler
+    // This ensures 'model', 'mcp_servers', etc., are not undefined
+    const updatedConfig = {
+      ...existingSkill,
+      ...body, // Overwrites name, description, orchestration, etc.
+    };
+
+    // 3. Fetch latest dependencies to re-compile the manifest
+    const [toolsRes, serversRes] = await Promise.all([
+      supabase.from("tools").select("*").eq("project_id", projectId),
+      supabase.from("mcp_servers").select("*").eq("project_id", projectId),
+    ]);
+
+    // 4. Generate the compiled manifest using the fully merged config
+    const compiledManifest = generateManifest(
+      updatedConfig,
+      toolsRes.data || [],
+      serversRes.data || [],
+    );
+
+    // 5. Update the database
+    const { data, error } = await supabase
+      .from("skills")
+      .update({
+        name: updatedConfig.name,
+        description: updatedConfig.description,
+        orchestration: updatedConfig.orchestration,
+        system_prompt: updatedConfig.system_prompt,
+        compiled_manifest: compiledManifest,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("project_id", projectId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, skill: data });
+  } catch (error: any) {
+    console.error("Workspace Skill Update Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

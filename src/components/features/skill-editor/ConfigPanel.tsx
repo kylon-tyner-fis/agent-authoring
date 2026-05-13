@@ -21,7 +21,7 @@ import {
 import {
   OrchestrationCanvas,
   OrchestrationCanvasRef,
-} from "./OrchestrationCanvas";
+} from "../canvas/OrchestrationCanvas";
 import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "../../shared/json-tools/SchemaViewer";

@@ -39,16 +39,17 @@ import {
   Loader2,
   Cpu,
   FileText,
+  X,
 } from "lucide-react";
 import { ToolConfig, MCPServerConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "../../shared/json-tools/SchemaViewer";
-import { ShiftEdge } from "../canvas/edges/ShiftEdge";
-import { ResponseNode } from "../canvas/nodes/ResponseNode";
-import { TriggerNode } from "../canvas/nodes/TriggerNode";
-import { WorkflowNode } from "../canvas/nodes/WorkflowNode";
-import { MCPNode } from "../canvas/nodes/MCPNode";
+import { ShiftEdge } from "./edges/ShiftEdge";
+import { ResponseNode } from "./nodes/ResponseNode";
+import { TriggerNode } from "./nodes/TriggerNode";
+import { WorkflowNode } from "./nodes/WorkflowNode";
+import { MCPNode } from "./nodes/MCPNode";
 import { McpClient } from "@/src/lib/api-clients/mcp-client";
 
 const SUPPORTED_PROVIDERS = ["openai", "anthropic"];
@@ -71,6 +72,7 @@ const ROW_HEIGHT = 200;
 
 export interface OrchestrationCanvasRef {
   getCanvasData: () => any;
+  clearSelection: () => void;
 }
 
 export interface OrchestrationCanvasProps {
@@ -79,7 +81,8 @@ export interface OrchestrationCanvasProps {
   availableTools?: ToolConfig[];
   availableServers?: MCPServerConfig[];
   activeNodeId?: string | null;
-  readOnly?: boolean; // ADDED
+  readOnly?: boolean;
+  onSelectionChange?: (hasSelection: boolean) => void;
 }
 
 const flattenSchemaKeys = (schema: any, prefix = ""): string[] => {
@@ -183,6 +186,10 @@ const CanvasEditor = forwardRef<
 
   useImperativeHandle(ref, () => ({
     getCanvasData: () => toObject(),
+    clearSelection: () => {
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+    },
   }));
 
   useEffect(() => {
@@ -591,130 +598,10 @@ const CanvasEditor = forwardRef<
       className={
         isFullScreen
           ? "fixed inset-0 z-[100] flex bg-white"
-          : "flex h-full w-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-inner relative"
+          : "relative h-full w-full bg-slate-50 rounded-xl overflow-hidden"
       }
     >
-      <div className="flex-1 h-full relative border-r border-slate-200 overflow-hidden bg-slate-50">
-        {/* Hide Palette entirely in read-only mode for a cleaner view */}
-        {!isReadOnly && (
-          <div
-            className={`absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/90 backdrop-blur p-3 rounded-lg shadow-xl border border-slate-200 transition-all ${isPaletteOpen ? "w-[220px] max-h-[80%] overflow-y-auto custom-scrollbar" : "w-auto"}`}
-          >
-            <div className="flex items-center justify-between mb-1 px-1 gap-6">
-              <p
-                className={`text-[10px] font-bold text-slate-400 uppercase tracking-wider`}
-              >
-                Node Palette
-              </p>
-              <button
-                onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-                className="p-1 rounded transition-colors text-slate-400 hover:bg-slate-100"
-              >
-                {isPaletteOpen ? (
-                  <ChevronUp className="w-3 h-3" />
-                ) : (
-                  <ChevronDown className="w-3 h-3" />
-                )}
-              </button>
-            </div>
-
-            {isPaletteOpen && (
-              <div className="space-y-1.5 animate-in fade-in duration-200">
-                {/* LLM Tools */}
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
-                  Tools
-                </p>
-                {toolsList.map((tool) => (
-                  <div
-                    key={tool.id}
-                    className="p-2 border border-amber-200 bg-white text-amber-700 rounded cursor-grab flex flex-col gap-1 hover:bg-amber-50 transition-colors shadow-sm"
-                    onDragStart={(e) => onDragStart(e, "tool", tool.id)}
-                    draggable
-                  >
-                    <div className="flex items-center gap-2">
-                      <Code2 className="w-3.5 h-3.5 shrink-0" />
-                      <span className="text-xs font-semibold truncate">
-                        {tool.name}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {toolsList.length === 0 && (
-                  <p className="text-xs text-slate-400 px-1 italic">
-                    No tools found.
-                  </p>
-                )}
-
-                {/* MCP Servers */}
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
-                  External APIs (MCP)
-                </p>
-                {serversList.map((server) => (
-                  <div
-                    key={server.id}
-                    className="p-2 border border-emerald-200 bg-white text-emerald-700 rounded cursor-grab flex flex-col gap-1 hover:bg-emerald-50 transition-colors shadow-sm"
-                    onDragStart={(e) => onDragStart(e, "mcp_node", server.id)}
-                    draggable
-                  >
-                    <div className="flex items-center gap-2">
-                      <Database className="w-3.5 h-3.5 shrink-0" />
-                      <span className="text-xs font-semibold truncate">
-                        {server.name}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {serversList.length === 0 && (
-                  <p className="text-xs text-slate-400 px-1 italic">
-                    No servers found.
-                  </p>
-                )}
-
-                {/* API Contract & Control */}
-                <div className="mt-4 pt-2 border-t border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
-                    API Contract
-                  </p>
-                  <div
-                    className="p-2 border border-sky-200 bg-white text-sky-700 rounded cursor-grab flex items-center gap-2 hover:bg-sky-50 transition-colors shadow-sm mb-1.5"
-                    onDragStart={(e) => onDragStart(e, "trigger")}
-                    draggable
-                  >
-                    <Zap className="w-3.5 h-3.5 shrink-0" />
-                    <span className="text-xs font-semibold">
-                      Trigger (Input)
-                    </span>
-                  </div>
-                  <div
-                    className="p-2 border border-purple-200 bg-white text-purple-700 rounded cursor-grab flex items-center gap-2 hover:bg-purple-50 transition-colors shadow-sm mb-4"
-                    onDragStart={(e) => onDragStart(e, "response")}
-                    draggable
-                  >
-                    <Flag className="w-3.5 h-3.5 shrink-0" />
-                    <span className="text-xs font-semibold">
-                      Response (Output)
-                    </span>
-                  </div>
-
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1 border-t border-slate-200 pt-2">
-                    Flow Control
-                  </p>
-                  <div
-                    className="p-2 border border-orange-200 bg-white text-orange-700 rounded cursor-grab flex items-center gap-2 hover:bg-orange-50 transition-colors shadow-sm"
-                    onDragStart={(e) => onDragStart(e, "interrupt")}
-                    draggable
-                  >
-                    <Hand className="w-3.5 h-3.5 shrink-0" />
-                    <span className="text-xs font-semibold">
-                      Interrupt (Wait)
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
+      <div className="absolute inset-0 z-0">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -733,14 +620,17 @@ const CanvasEditor = forwardRef<
           onNodeClick={(_, node) => {
             setSelectedNodeId(node.id);
             setSelectedEdgeId(null);
+            props.onSelectionChange?.(true);
           }}
           onEdgeClick={(_, edge) => {
             setSelectedEdgeId(edge.id);
             setSelectedNodeId(null);
+            props.onSelectionChange?.(true);
           }}
           onPaneClick={() => {
             setSelectedNodeId(null);
             setSelectedEdgeId(null);
+            props.onSelectionChange?.(false);
           }}
           snapToGrid={true}
           snapGrid={[COLUMN_WIDTH, ROW_HEIGHT]}
@@ -769,30 +659,52 @@ const CanvasEditor = forwardRef<
               </span>
             </div>
           )}
-          <Controls className="bg-white border-slate-200 shadow-sm mb-4 ml-4" />
+          <Controls
+            position="bottom-left"
+            style={{ margin: "16px" }}
+            className="bg-white border-slate-200 shadow-sm rounded-lg overflow-hidden"
+          />
         </ReactFlow>
       </div>
 
+      {/* Floating Node Inspector Card */}
       {(selectedNode || selectedEdge) && (
-        <div className="w-[340px] h-full bg-white flex flex-col shrink-0 border-l border-slate-200">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+        <div className="absolute right-4 top-[92px] bottom-4 w-[380px] z-50 flex flex-col bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/80 overflow-hidden animate-in slide-in-from-right-8 fade-in duration-300 ease-out">
+          {/* Inspector Header */}
+          <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <Settings2 className="w-4 h-4 text-slate-500" />
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-                {selectedNode ? "Node Settings" : "Edge Settings"}
+              <Settings2 className="w-4 h-4 text-violet-500" />
+              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                {selectedNode ? "Node Configuration" : "Edge Configuration"}
               </h2>
             </div>
-            {!isReadOnly && (
+            <div className="flex items-center gap-1">
+              {!isReadOnly && (
+                <button
+                  onClick={deleteSelected}
+                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                  title="Delete Selected"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <div className="w-px h-4 bg-slate-200 mx-1"></div>
               <button
-                onClick={deleteSelected}
-                className="text-red-400 hover:text-red-600 transition-colors"
+                onClick={() => {
+                  setSelectedNodeId(null);
+                  setSelectedEdgeId(null);
+                  props.onSelectionChange?.(false);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-md transition-colors"
+                title="Close Inspector"
               >
-                <Trash2 className="w-4 h-4" />
+                <X className="w-4 h-4" />{" "}
+                {/* Ensure X is imported from lucide-react! */}
               </button>
-            )}
+            </div>
           </div>
 
-          <div className="p-5 flex-1 overflow-y-auto custom-scrollbar">
+          <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-white/50">
             {selectedNode ? (
               <div className="space-y-6 animate-in fade-in">
                 <div className="space-y-4">
