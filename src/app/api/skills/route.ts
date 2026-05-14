@@ -164,6 +164,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const projectId = url.searchParams.get("projectId");
     const statusFilter = url.searchParams.get("status");
+    const rootId = url.searchParams.get("rootId");
 
     if (!projectId)
       return NextResponse.json(
@@ -171,13 +172,25 @@ export async function GET(req: Request) {
         { status: 400 },
       );
 
-    const query = supabase
+    let query = supabase
       .from("skills")
       .select(
         "id, name, version, description, model, updated_at, status, parent_id",
       )
       .eq("project_id", projectId)
       .order("updated_at", { ascending: false });
+
+    if (rootId) {
+      // First, find the root ID if the provided one is a snapshot
+      const { data: requestedSkill } = await supabase
+        .from("skills")
+        .select("id, parent_id")
+        .eq("id", rootId)
+        .single();
+      
+      const absoluteRootId = requestedSkill?.parent_id || rootId;
+      query = query.or(`id.eq.${absoluteRootId},parent_id.eq.${absoluteRootId}`);
+    }
 
     if (statusFilter === "published") {
       const { data, error } = await query.eq("status", "published");
@@ -187,6 +200,10 @@ export async function GET(req: Request) {
 
     const { data, error } = await query;
     if (error) throw error;
+
+    if (rootId) {
+      return NextResponse.json({ skills: data });
+    }
 
     // --- UPDATED: Fetch agent IDs and Names ---
     const { data: agents } = await supabase

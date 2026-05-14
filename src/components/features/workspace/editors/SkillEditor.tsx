@@ -1,11 +1,9 @@
 // src/components/features/workspace/editors/SkillEditor.tsx
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
-  Network,
   Save,
-  Loader2,
   Play,
   Settings as SettingsIcon,
   Blocks,
@@ -15,23 +13,26 @@ import {
   Code2,
   Database,
   ChevronDown,
+  ArrowRight,
+  UploadCloud,
+  CheckCircle2,
+  Loader2,
+  Network,
+  Check,
+  History,
 } from "lucide-react";
+import { Dropdown } from "@/src/components/ui/Dropdown";
 import { useProject } from "@/src/lib/contexts/ProjectContext";
 import { useWorkspace } from "@/src/lib/contexts/WorkspaceContext";
+import { SkillConfig, MCPServerConfig, DEFAULT_SKILL_CONFIG, Message } from "@/src/lib/types/constants";
 import { SkillSettings } from "./SkillSettings";
-import { Playground } from "@/src/components/features/skill-editor/Playground";
-import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
-import {
-  DEFAULT_SKILL_CONFIG,
-  MCPServerConfig,
-  Message,
-  SkillConfig,
-  ToolConfig,
-} from "@/src/lib/types/constants";
 import {
   OrchestrationCanvasRef,
   OrchestrationCanvas,
 } from "../../canvas/OrchestrationCanvas";
+import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
+import { useToast } from "@/src/components/layout/Toast";
+import { Playground } from "../../skill-editor/Playground";
 
 interface SkillEditorProps {
   id: string;
@@ -39,115 +40,83 @@ interface SkillEditorProps {
 
 type ActivePanel = "palette" | "settings" | null;
 
+
 export function SkillEditor({ id }: SkillEditorProps) {
   const { currentProject } = useProject();
-  const { refreshTree } = useWorkspace();
+  const { refreshTree, setSelectedNode, selectedNode } = useWorkspace();
+  const { addToast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState(false);
   const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
-  // Single state for mutual exclusivity
   const [activePanel, setActivePanel] = useState<ActivePanel>("palette");
-
-  const canvasRef = useRef<OrchestrationCanvasRef>(null);
   const [skillConfig, setSkillConfig] = useState<SkillConfig>({
     ...DEFAULT_SKILL_CONFIG,
     id,
-    project_id: currentProject?.id || "",
-    model: {
-      ...DEFAULT_SKILL_CONFIG.model,
-      model_name: "gpt-4o",
-    },
+    name: "New Skill",
   });
 
-  const [availableTools, setAvailableTools] = useState<ToolConfig[]>([]);
-  const [availableServers, setAvailableServers] = useState<MCPServerConfig[]>(
-    [],
-  );
+  const canvasRef = useRef<OrchestrationCanvasRef>(null);
+
+  const [availableTools, setAvailableTools] = useState<any[]>([]);
+  const [availableServers, setAvailableServers] = useState<MCPServerConfig[]>([]);
+
+  const isReadOnly = skillConfig.status === "published";
+  const headId = skillConfig.parent_id || skillConfig.id;
 
   const getCurrentCanvasData = () =>
     canvasRef.current?.getCanvasData() || skillConfig.orchestration;
 
-  const getMcpServerIds = (canvasData: unknown) => {
-    if (!canvasData || typeof canvasData !== "object")
-      return skillConfig.mcp_servers;
-
-    const nodes = (canvasData as { nodes?: unknown }).nodes;
-    if (!Array.isArray(nodes)) return skillConfig.mcp_servers;
-
-    return Array.from(
-      new Set(
-        nodes.flatMap((node) => {
-          if (!node || typeof node !== "object") return [];
-
-          const { type, data } = node as { type?: unknown; data?: unknown };
-          if (type !== "mcp_node" || !data || typeof data !== "object") {
-            return [];
-          }
-
-          const serverId = (data as { serverId?: unknown }).serverId;
-          return typeof serverId === "string" && serverId ? [serverId] : [];
-        }),
-      ),
-    );
-  };
-
-  const syncCanvasToSkillConfig = () => {
-    const currentCanvasData = getCurrentCanvasData();
-    if (!currentCanvasData) return skillConfig;
-
-    const nextConfig = {
-      ...skillConfig,
-      mcp_servers: getMcpServerIds(currentCanvasData),
-      state_schema:
-        canvasRef.current?.getInferredStateSchema() || skillConfig.state_schema,
-      orchestration: currentCanvasData,
-    };
-
-    setSkillConfig(nextConfig);
-    return nextConfig;
+  const getMcpServerIds = (canvasData: any) => {
+    const serverIds = new Set<string>();
+    const nodes = canvasData?.nodes || [];
+    nodes.forEach((n: any) => {
+      if (n.data?.serverId) serverIds.add(n.data.serverId);
+    });
+    return Array.from(serverIds);
   };
 
   useEffect(() => {
-    async function fetchSkillData() {
+    async function loadSkill() {
       if (!currentProject?.id) return;
       setIsLoading(true);
       try {
-        const res = await fetch(
-          `/api/skills/${id}?projectId=${currentProject.id}`,
-        );
-        const data = await res.json();
+        const skillRes = await fetch(`/api/skills/${id}?projectId=${currentProject.id}`);
+        const data = await skillRes.json();
 
-        const [toolsRes, serversRes] = await Promise.all([
+        const rootId = data.skill.parent_id || data.skill.id;
+        const [versionsRes, toolsRes, serversRes] = await Promise.all([
+          fetch(`/api/skills?projectId=${currentProject.id}&rootId=${rootId}`),
           fetch(`/api/tools?projectId=${currentProject.id}`),
           fetch(`/api/mcp-servers?projectId=${currentProject.id}`),
         ]);
 
-        // Restored the robust fallbacks here!
-        if (toolsRes.ok) {
-          const tData = await toolsRes.json();
-          setAvailableTools((tData.tools || tData.data || []) as ToolConfig[]);
-        }
-
-        if (serversRes.ok) {
-          const sData = await serversRes.json();
-          setAvailableServers(
-            (sData.mcp_servers ||
-              sData.servers ||
-              sData.data ||
-              []) as MCPServerConfig[],
-          );
-        }
+        const vData = await versionsRes.json();
+        const toolsData = await toolsRes.json();
+        const serversData = await serversRes.json();
 
         if (data.skill) {
+          const sortedVersions = (vData.skills || []).sort((a: any, b: any) => {
+            if (a.status === "draft") return -1;
+            if (b.status === "draft") return 1;
+            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          });
+
           setSkillConfig({
             ...DEFAULT_SKILL_CONFIG,
             ...data.skill,
+            versions: sortedVersions,
             id: data.skill.id || id,
             project_id: data.skill.project_id || currentProject.id,
+            status: data.skill.status || "draft",
+            parent_id: data.skill.parent_id || undefined,
+            version: data.skill.version || "1",
             model: {
               ...DEFAULT_SKILL_CONFIG.model,
               ...(data.skill.model || {
@@ -161,41 +130,47 @@ export function SkillEditor({ id }: SkillEditorProps) {
             orchestration: data.skill.orchestration || undefined,
           });
         }
+        setAvailableTools(toolsData.tools || []);
+        setAvailableServers(serversData.servers || []);
       } catch (error) {
-        console.error(error);
+        console.error("Failed to load skill", error);
+        addToast("Failed to load skill", "error");
       } finally {
         setIsLoading(false);
       }
     }
-    fetchSkillData();
+    loadSkill();
   }, [id, currentProject?.id]);
 
   const togglePanel = (panel: ActivePanel) => {
-    setActivePanel((current) => {
-      const nextPanel = current === panel ? null : panel;
-
-      // If we are opening a drawer, clear the canvas selection to close the Inspector
-      if (nextPanel !== null) {
-        canvasRef.current?.clearSelection();
-      }
-
-      return nextPanel;
-    });
+    setActivePanel((prev) => (prev === panel ? null : panel));
   };
 
-  const onDragStart = (
-    event: React.DragEvent,
-    nodeType: string,
-    itemId?: string,
-  ) => {
+  const onDragStart = (event: React.DragEvent, nodeType: string, dataId?: string) => {
     event.dataTransfer.setData("application/reactflow", nodeType);
-    if (itemId) event.dataTransfer.setData("application/itemId", itemId);
+    if (dataId) {
+      event.dataTransfer.setData("application/nodeId", dataId);
+    }
     event.dataTransfer.effectAllowed = "move";
   };
 
+  const syncCanvasToSkillConfig = () => {
+    const currentCanvasData = getCurrentCanvasData();
+    const mcpServers = getMcpServerIds(currentCanvasData);
+    const inferredStateSchema =
+      canvasRef.current?.getInferredStateSchema() || skillConfig.state_schema;
+    setSkillConfig((prev) => ({
+      ...prev,
+      mcp_servers: mcpServers,
+      state_schema: inferredStateSchema,
+      orchestration: currentCanvasData,
+    }));
+  };
+
   const handleSave = async () => {
-    if (!currentProject?.id) return;
+    if (!currentProject?.id || isReadOnly) return;
     setIsSaving(true);
+    setSaveSuccess(false);
     try {
       const currentCanvasData = getCurrentCanvasData();
       const mcpServers = getMcpServerIds(currentCanvasData);
@@ -211,6 +186,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
             mcp_servers: mcpServers,
             state_schema: inferredStateSchema,
             orchestration: currentCanvasData,
+            status: "draft",
           }),
         },
       );
@@ -220,14 +196,60 @@ export function SkillEditor({ id }: SkillEditorProps) {
           mcp_servers: mcpServers,
           state_schema: inferredStateSchema,
           orchestration: currentCanvasData,
+          status: "draft",
         }));
+        setSaveSuccess(true);
+        addToast("Draft saved successfully", "success");
+        setTimeout(() => setSaveSuccess(false), 3000);
         await refreshTree();
       }
     } catch (error) {
       console.error(error);
+      addToast("Failed to save draft", "error");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handlePublish = async () => {
+    if (!currentProject?.id || isReadOnly) return;
+    setIsPublishing(true);
+    setPublishSuccess(false);
+
+    try {
+      const currentCanvasData = getCurrentCanvasData();
+      const mcpServers = getMcpServerIds(currentCanvasData);
+      const inferredStateSchema = canvasRef.current?.getInferredStateSchema() || skillConfig.state_schema;
+
+      const res = await fetch(`/api/skills/${id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...skillConfig,
+          mcp_servers: mcpServers,
+          state_schema: inferredStateSchema,
+          orchestration: currentCanvasData,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Publish failed");
+      const data = await res.json();
+
+      setSkillConfig(data.skill);
+      setPublishSuccess(true);
+      addToast(`Version ${data.skill.version} published!`, "success");
+      setTimeout(() => setPublishSuccess(false), 3000);
+      await refreshTree();
+    } catch (error) {
+      console.error(error);
+      addToast("Failed to publish version", "error");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleGoToDraft = () => {
+    setSelectedNode({ id: headId, type: "skill", parentId: selectedNode?.parentId });
   };
 
   if (isLoading)
@@ -250,7 +272,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
             availableServers={availableServers}
             globalStateSchema={skillConfig.state_schema}
             activeNodeId={activeNodeId}
-            readOnly={false}
+            readOnly={isReadOnly}
             onSelectionChange={() => {
               setActivePanel(null);
             }}
@@ -258,46 +280,115 @@ export function SkillEditor({ id }: SkillEditorProps) {
         </div>
 
         {/* 2. Unified Command Center (Header + Trays) */}
-        <div className="absolute top-4 left-4 right-4 z-10 flex flex-col bg-violet-50 border border-violet-200 shadow-sm rounded-xl overflow-hidden transition-all">
+        {/* 2. Unified Command Center (Header + Trays) */}
+        <div className="absolute top-6 left-6 right-6 z-20 flex flex-col bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-slate-200/50 rounded-2xl overflow-hidden transition-all">
           {/* Header Row */}
-          <div className="flex items-center justify-between px-4 h-[60px] bg-violet-50 z-20 relative shrink-0">
-            <div className="flex items-center gap-3 flex-1">
-              <div className="p-2 bg-violet-100 text-violet-600 rounded-lg shrink-0">
+          <div className="flex items-center justify-between px-6 h-16 bg-white/40 z-20 relative shrink-0">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20 shrink-0">
                 <Network className="w-5 h-5" />
               </div>
-              <div className="flex-1 max-w-sm">
+              
+              <div className="flex flex-col min-w-0">
                 <input
                   type="text"
                   value={skillConfig.name}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    if (isReadOnly) return;
                     setSkillConfig((prev) => ({
                       ...prev,
                       name: e.target.value,
-                    }))
-                  }
-                  className="w-full bg-transparent font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/50 rounded px-1 -ml-1 text-lg placeholder:text-slate-400 truncate"
+                      status: "draft",
+                    }));
+                  }}
+                  disabled={isReadOnly}
+                  className={`bg-transparent font-bold text-base tracking-tight focus:outline-none focus:ring-0 placeholder:text-slate-300 truncate -ml-0.5 ${isReadOnly ? "text-slate-500 cursor-not-allowed" : "text-slate-900"}`}
+                  placeholder="Untitled Skill"
                 />
-                <p className="text-[10px] text-slate-500 font-mono leading-none mt-1 ml-0.5">
-                  ID: {id}
-                </p>
+                
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Dropdown
+                    trigger={(selected, isOpen) => (
+                      <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-all cursor-pointer
+                        ${isOpen 
+                          ? "bg-violet-50 border-violet-200 ring-4 ring-violet-500/5" 
+                          : "bg-white/50 border-slate-200 hover:border-slate-300"
+                        }`}>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">v{selected?.label || '1'}</span>
+                        <div className={`w-1 h-1 rounded-full ${selected?.badge === 'DRAFT' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-300'}`}></div>
+                        <span className={`text-[9px] font-bold uppercase tracking-tight
+                          ${selected?.badge === 'DRAFT' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                          {selected?.badge}
+                        </span>
+                        <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+                      </div>
+                    )}
+                    options={(skillConfig.versions || []).map((v: any) => ({
+                      id: v.id,
+                      label: v.version,
+                      description: `${new Date(v.updated_at).toLocaleDateString()}`,
+                      badge: v.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+                      icon: v.id === id ? <Check className="w-3 h-3" /> : undefined
+                    }))}
+                    value={id}
+                    onChange={async (newId) => {
+                      if (newId === id || !currentProject?.id || !selectedNode?.parentId) return;
+                      try {
+                        const agentId = selectedNode.parentId;
+                        const agentRes = await fetch(`/api/agents/${agentId}?projectId=${currentProject.id}`);
+                        const agentData = await agentRes.json();
+                        const agent = agentData.agent;
+                        
+                        const nextSkills = (agent.skills || []).map((sid: string) =>
+                          sid === id ? newId : sid
+                        );
+
+                        await fetch(`/api/agents/${agentId}?projectId=${currentProject.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ ...agent, skills: nextSkills })
+                        });
+
+                        addToast(`Switched version`, "success");
+                        await refreshTree();
+                        
+                        setSelectedNode({
+                          ...selectedNode,
+                          id: newId,
+                        });
+                      } catch (err) {
+                        addToast("Failed to switch version", "error");
+                      }
+                    }}
+                  />
+                  {isReadOnly && (
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100/50 border border-slate-200 rounded-full">
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Read Only</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
             <div className="flex items-center gap-2 shrink-0">
               {/* Node Palette Toggle */}
-              <button
-                onClick={() => togglePanel("palette")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${activePanel === "palette" ? "bg-violet-200 text-violet-800" : "bg-white border border-violet-200 text-violet-700 hover:bg-violet-100"}`}
-              >
-                <Blocks className="w-4 h-4" />
-                Node Palette
-                <div
-                  className={`transition-transform duration-300 ${activePanel === "palette" ? "rotate-180" : "rotate-0"}`}
+              {!isReadOnly && (
+                <button
+                  onClick={() => togglePanel("palette")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${activePanel === "palette" ? "bg-violet-200 text-violet-800" : "bg-white border border-violet-200 text-violet-700 hover:bg-violet-100"}`}
                 >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </div>
-              </button>
+                  <Blocks className="w-4 h-4" />
+                  Node Palette
+                  <div
+                    className={`transition-transform duration-300 ${activePanel === "palette" ? "rotate-180" : "rotate-0"}`}
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </div>
+                </button>
+              )}
 
-              <div className="w-px h-6 bg-violet-200 mx-1"></div>
+              {!isReadOnly && <div className="w-px h-6 bg-violet-200 mx-1"></div>}
 
               {/* Settings Toggle */}
               <button
@@ -320,28 +411,63 @@ export function SkillEditor({ id }: SkillEditorProps) {
                 <Play className="w-4 h-4 text-violet-500 fill-violet-500" />
                 Playground
               </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-2 px-4 py-1.5 bg-violet-600 text-white text-sm font-medium rounded-md hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-              >
-                {isSaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {isSaving ? "Saving..." : "Save"}
-              </button>
+
+              {isReadOnly ? (
+                <button
+                  onClick={handleGoToDraft}
+                  className="flex items-center gap-2 px-4 py-1.5 bg-violet-600 text-white text-sm font-medium rounded-md hover:bg-violet-700 transition-colors shadow-sm"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  Switch to Draft to Edit
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || isPublishing}
+                    className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm border ${saveSuccess
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-white text-slate-700 border-violet-200 hover:bg-violet-50"
+                      }`}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : saveSuccess ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    {isSaving ? "Saving..." : saveSuccess ? "Saved" : "Save Draft"}
+                  </button>
+
+                  <button
+                    onClick={handlePublish}
+                    disabled={isSaving || isPublishing}
+                    className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm ${publishSuccess
+                      ? "bg-emerald-500 text-white"
+                      : "bg-violet-600 text-white hover:bg-violet-700"
+                      }`}
+                  >
+                    {isPublishing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : publishSuccess ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : (
+                      <UploadCloud className="w-4 h-4" />
+                    )}
+                    {publishSuccess ? "Published" : "Publish Version"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
           {/* Animated Tray Container */}
           <div
-            className={`bg-white transition-all duration-300 ease-in-out shadow-inner overflow-hidden ${
-              activePanel
-                ? "max-h-[45vh] opacity-100 border-t border-violet-200"
-                : "max-h-0 opacity-0 border-t-0 pointer-events-none"
-            }`}
+            className={`bg-white transition-all duration-300 ease-in-out shadow-inner overflow-hidden ${activePanel
+              ? "max-h-[45vh] opacity-100 border-t border-violet-200"
+              : "max-h-0 opacity-0 border-t-0 pointer-events-none"
+              }`}
           >
             {/* Tray 1: Node Palette */}
             {activePanel === "palette" && (
@@ -423,9 +549,11 @@ export function SkillEditor({ id }: SkillEditorProps) {
               <div className="animate-in fade-in slide-in-from-top-4 duration-300">
                 <SkillSettings
                   data={skillConfig}
-                  onChange={(field, val) =>
-                    setSkillConfig((prev) => ({ ...prev, [field]: val }))
-                  }
+                  readOnly={isReadOnly}
+                  onChange={(field, val) => {
+                    if (isReadOnly) return;
+                    setSkillConfig((prev) => ({ ...prev, [field]: val, status: "draft" }))
+                  }}
                 />
               </div>
             )}

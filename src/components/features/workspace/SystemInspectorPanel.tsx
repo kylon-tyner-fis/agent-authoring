@@ -16,11 +16,19 @@ import {
   Bot,
   Wrench,
   ChevronDown,
-  Info
+  Info,
+  History,
+  Lock,
+  Check,
 } from "lucide-react";
+import { Dropdown } from "../../ui/Dropdown";
+import { useToast } from "../../layout/Toast";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
 
 export function SystemInspectorPanel() {
-  const { systemTree } = useWorkspace();
+  const { systemTree, selectedNode, setSelectedNode, refreshTree } = useWorkspace();
+  const { currentProject } = useProject();
+  const { addToast } = useToast();
   const [isChecksExpanded, setIsChecksExpanded] = useState(false);
   const [isSchemaExpanded, setIsSchemaExpanded] = useState(false);
   const [isUnmappedExpanded, setIsUnmappedExpanded] = useState(false);
@@ -299,8 +307,8 @@ export function SystemInspectorPanel() {
         </div>
         <span
           className={`text-[10px] font-bold px-2 py-1 rounded-full border uppercase tracking-wider ${isReady
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : "bg-amber-50 text-amber-700 border-amber-200"
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+            : "bg-amber-50 text-amber-700 border-amber-200"
             }`}
         >
           {isReady ? "Ready" : "Incomplete"}
@@ -308,6 +316,43 @@ export function SystemInspectorPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-8">
+
+        {/* Selection Details */}
+        {selectedNode?.type === "skill" && (() => {
+          // Find the skill node in the tree to get its version data
+          const findSkillNode = (nodes: any[]): any => {
+            for (const node of nodes) {
+              if (node.id === selectedNode.id && node.type === "skill") return node;
+              if (node.children) {
+                const found = findSkillNode(node.children);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          const skillNode = systemTree ? findSkillNode([systemTree]) : null;
+          if (!skillNode) return null;
+
+          const versions = skillNode.data?.allVersions || [];
+
+          return (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <History className="w-3.5 h-3.5" /> Version Management
+              </h3>
+
+                {skillNode.data.status === "published" && (
+                  <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-start gap-2.5">
+                    <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      This version is <strong>read-only</strong> because it has been published. To make changes, switch the agent to the <strong>Draft</strong> version using the switcher in the header.
+                    </p>
+                  </div>
+                )}
+            </div>
+          );
+        })()}
 
         {/* System Validation & Warnings */}
         <div>
@@ -390,10 +435,10 @@ export function SystemInspectorPanel() {
                 <div
                   key={idx}
                   className={`border rounded-lg shadow-sm transition-all flex flex-col overflow-hidden ${issue.type === "error"
-                      ? "border-red-200 bg-red-50 hover:border-red-300"
-                      : issue.type === "warning"
-                        ? "border-amber-200 bg-amber-50 hover:border-amber-300"
-                        : "border-blue-200 bg-blue-50 hover:border-blue-300"
+                    ? "border-red-200 bg-red-50 hover:border-red-300"
+                    : issue.type === "warning"
+                      ? "border-amber-200 bg-amber-50 hover:border-amber-300"
+                      : "border-blue-200 bg-blue-50 hover:border-blue-300"
                     }`}
                 >
                   <div

@@ -80,11 +80,27 @@ export async function GET(
               skillMcpIds.includes(m.id),
             );
 
+            // Find all versions for this skill head (or find the head if this is a snapshot)
+            const isSnapshot = !!skill.parent_id;
+            const headId = isSnapshot ? skill.parent_id : skill.id;
+            const allVersions = (skillsRes.data || [])
+              .filter((s) => s.id === headId || s.parent_id === headId)
+              .map((v) => ({
+                id: v.id,
+                version: v.version,
+                status: v.status,
+                updated_at: v.updated_at,
+              }))
+              .sort((a, b) => b.version.localeCompare(a.version));
+
             return {
               id: skill.id,
               type: "skill",
               name: skill.name || "Untitled Skill",
-              data: skill,
+              data: {
+                ...skill,
+                allVersions, // Attach version history to each skill node
+              },
               children: [
                 {
                   id: `${skill.id}-tools`,

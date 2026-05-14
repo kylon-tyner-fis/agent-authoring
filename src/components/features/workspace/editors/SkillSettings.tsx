@@ -7,6 +7,7 @@ import { Cpu, MessageSquare, Info } from "lucide-react";
 interface SkillSettingsProps {
   data: any;
   onChange: (field: string, value: any) => void;
+  readOnly?: boolean;
 }
 
 const SUPPORTED_PROVIDERS = ["openai", "anthropic", "google"];
@@ -16,7 +17,7 @@ const SUPPORTED_MODELS: Record<string, string[]> = {
   google: ["gemini-1.5-pro", "gemini-1.5-flash"],
 };
 
-export function SkillSettings({ data, onChange }: SkillSettingsProps) {
+export function SkillSettings({ data, onChange, readOnly }: SkillSettingsProps) {
   return (
     <div className="p-6 flex flex-col md:flex-row gap-8 overflow-y-auto">
       {/* Description Section */}
@@ -30,9 +31,10 @@ export function SkillSettings({ data, onChange }: SkillSettingsProps) {
           </span>
           <textarea
             value={data.description || ""}
+            disabled={readOnly}
             onChange={(e) => onChange("description", e.target.value)}
             placeholder="What does this skill accomplish?"
-            className="w-full p-2.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none min-h-[100px] resize-none bg-slate-50/30"
+            className={`w-full p-2.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none min-h-[100px] resize-none ${readOnly ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-slate-50/30 text-slate-700"}`}
           />
         </div>
       </section>
@@ -48,9 +50,10 @@ export function SkillSettings({ data, onChange }: SkillSettingsProps) {
           </span>
           <textarea
             value={data.system_prompt || ""}
+            disabled={readOnly}
             onChange={(e) => onChange("system_prompt", e.target.value)}
             placeholder="Define the internal logic for this skill..."
-            className="w-full p-2.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none min-h-[100px] font-mono bg-slate-50/30 text-slate-700"
+            className={`w-full p-2.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none min-h-[100px] font-mono ${readOnly ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-slate-50/30 text-slate-700"}`}
           />
         </div>
       </section>
@@ -68,6 +71,7 @@ export function SkillSettings({ data, onChange }: SkillSettingsProps) {
             </span>
             <select
               value={data.model?.provider || "openai"}
+              disabled={readOnly}
               onChange={(e) =>
                 onChange("model", {
                   ...data.model,
@@ -75,7 +79,7 @@ export function SkillSettings({ data, onChange }: SkillSettingsProps) {
                   model_name: SUPPORTED_MODELS[e.target.value][0],
                 })
               }
-              className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none bg-white"
+              className={`w-full p-2 text-sm border border-slate-200 rounded-lg outline-none ${readOnly ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700"}`}
             >
               {SUPPORTED_PROVIDERS.map((p) => (
                 <option key={p} value={p}>
@@ -91,10 +95,11 @@ export function SkillSettings({ data, onChange }: SkillSettingsProps) {
             </span>
             <select
               value={data.model?.model_name || ""}
+              disabled={readOnly}
               onChange={(e) =>
                 onChange("model", { ...data.model, model_name: e.target.value })
               }
-              className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none bg-white"
+              className={`w-full p-2 text-sm border border-slate-200 rounded-lg outline-none ${readOnly ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700"}`}
             >
               {SUPPORTED_MODELS[data.model?.provider || "openai"]?.map((m) => (
                 <option key={m} value={m}>

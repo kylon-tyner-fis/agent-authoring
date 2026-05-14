@@ -40,12 +40,19 @@ export async function POST(
 
     // 3. CREATE THE SNAPSHOT (New ID, Published status)
     const snapshotPayload = {
-      ...config,
-      id: randomUUID(), // New unique ID for this version
-      parent_id: headId, // Link back to the main skill
+      id: randomUUID(),
+      project_id: config.project_id,
+      name: config.name,
+      version: config.version,
+      description: config.description,
       status: "published",
+      parent_id: headId,
+      model: config.model,
+      mcp_servers: config.mcp_servers,
+      system_prompt: config.system_prompt,
+      state_schema: config.state_schema,
+      orchestration: config.orchestration,
       compiled_manifest: compiledManifest,
-      version: config.version, // Keep the version we just finalized
       updated_at: new Date().toISOString(),
     };
 
@@ -61,6 +68,9 @@ export async function POST(
       .update({
         version: nextVersion,
         status: "draft",
+        state_schema: config.state_schema,
+        orchestration: config.orchestration,
+        mcp_servers: config.mcp_servers,
       })
       .eq("id", headId)
       .select()

@@ -151,7 +151,11 @@ export async function PUT(
         name: updatedConfig.name,
         description: updatedConfig.description,
         orchestration: updatedConfig.orchestration,
+        model: updatedConfig.model,
+        mcp_servers: updatedConfig.mcp_servers,
+        state_schema: updatedConfig.state_schema,
         system_prompt: updatedConfig.system_prompt,
+        status: updatedConfig.status || "draft",
         compiled_manifest: compiledManifest,
         updated_at: new Date().toISOString(),
       })
