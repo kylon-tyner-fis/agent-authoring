@@ -1,5 +1,4 @@
 // src/app/api/skills/route.ts
-// Replace the GET function with the following:
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -15,6 +14,12 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
+
+type AgentSkillUsage = {
+  id: string;
+  name: string;
+  skills: string[] | null;
+};
 
 function collectReferencedIds(config: SkillConfig) {
   const toolIds = new Set<string>();
@@ -80,10 +85,26 @@ export async function POST(req: Request) {
       (id) => !serverIdSet.has(id),
     );
 
-    const payload = {
+    const payload: SkillConfig = {
       ...config,
       id: normalizedId,
       project_id: normalizedProjectId,
+      version: config.version || "1",
+      status: config.status || "draft",
+      model: config.model || {
+        provider: "openai",
+        model_name: "gpt-4o-mini",
+        temperature: 0.7,
+        max_tokens: 4096,
+      },
+      mcp_servers: config.mcp_servers || [],
+      system_prompt: config.system_prompt || "",
+      state_schema: config.state_schema || {},
+      graph: config.graph || {
+        nodes: {},
+        edges: [],
+        conditional_functions: {},
+      },
     };
 
     if (missing_tool_ids.length > 0 || missing_mcp_server_ids.length > 0) {
@@ -98,7 +119,7 @@ export async function POST(req: Request) {
     }
 
     const compiledManifest = generateManifest(
-      config,
+      payload,
       projectTools,
       projectServers,
     );
@@ -113,15 +134,12 @@ export async function POST(req: Request) {
             name: payload.name,
             version: payload.version,
             description: payload.description,
+            status: payload.status,
+            parent_id: payload.parent_id || null,
             model: payload.model,
             mcp_servers: payload.mcp_servers,
             system_prompt: payload.system_prompt,
             state_schema: payload.state_schema,
-            custom_types: payload.custom_types,
-            graph: payload.graph,
-            subgraphs: payload.subgraphs,
-            persistence: payload.persistence,
-            interrupts: payload.interrupts,
             orchestration: payload.orchestration,
             compiled_manifest: compiledManifest,
           },
@@ -180,7 +198,7 @@ export async function GET(req: Request) {
     const skillUsageMap: Record<string, { id: string; name: string }[]> = {};
 
     if (agents) {
-      agents.forEach((agent: any) => {
+      (agents as AgentSkillUsage[]).forEach((agent) => {
         if (Array.isArray(agent.skills)) {
           agent.skills.forEach((id: string) => {
             usedSkillIds.add(id);
@@ -214,7 +232,8 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({ skills: groupedSkills });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

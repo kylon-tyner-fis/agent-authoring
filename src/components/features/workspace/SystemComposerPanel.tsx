@@ -207,6 +207,7 @@ function TreeNode({
     }
 
     setIsAddingSkill(true);
+    let createdSkillId: string | null = null;
 
     try {
       const agentResponse = await fetch(
@@ -220,6 +221,7 @@ function TreeNode({
 
       const agent = agentPayload.agent;
       const skillId = crypto.randomUUID();
+      createdSkillId = skillId;
       const skillName = getNewSkillName();
 
       const createResponse = await fetch("/api/skills", {
@@ -277,6 +279,13 @@ function TreeNode({
       const message =
         error instanceof Error ? error.message : "Failed to add skill.";
       console.error("Failed to add skill:", error);
+
+      if (createdSkillId && currentProject?.id) {
+        await fetch(`/api/skills/${createdSkillId}?projectId=${currentProject.id}`, {
+          method: "DELETE",
+        });
+      }
+
       addToast(message, "error");
     } finally {
       setIsAddingSkill(false);
