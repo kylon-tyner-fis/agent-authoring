@@ -480,7 +480,7 @@ export const AgentPlayground = ({
                       {item.args.request}
                     </pre>
                   ) : (
-                    <div className="bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto">
+                    <div className="bg-slate-50 p-2 rounded border border-slate-100 overflow-x-auto max-h-96 overflow-y-auto custom-scrollbar">
                       <RecursiveJsonViewer data={item.args} />
                     </div>
                   )}
@@ -510,7 +510,7 @@ export const AgentPlayground = ({
                       </span>
                     )}
                   </div>
-                  <div className="p-3 overflow-x-auto">
+                  <div className="p-3 overflow-x-auto max-h-96 overflow-y-auto custom-scrollbar">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                       State Updates
                     </h4>
@@ -576,7 +576,7 @@ export const AgentPlayground = ({
                   <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">
                     Tool Inputs
                   </span>
-                  <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto">
+                  <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto max-h-96 overflow-y-auto custom-scrollbar">
                     <RecursiveJsonViewer data={item.args} />
                   </div>
                 </div>
@@ -596,7 +596,7 @@ export const AgentPlayground = ({
                   <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">
                     Tool Outputs
                   </span>
-                  <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto max-h-60 overflow-y-auto custom-scrollbar">
+                  <div className="bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto max-h-96 overflow-y-auto custom-scrollbar">
                     <RecursiveJsonViewer data={item.result} />
                   </div>
                 </div>
@@ -615,7 +615,7 @@ export const AgentPlayground = ({
                     {item.skillName}
                   </span>
                 </div>
-                <div className="text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">
+                <div className="text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
                   <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider text-xs">
                     Final Output
                   </span>

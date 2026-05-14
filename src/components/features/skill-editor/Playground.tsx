@@ -45,7 +45,7 @@ const MarkdownComponents = {
                     Final Output
                   </h3>
                 </div>
-                <div className="p-4 overflow-x-auto">
+                <div className="p-4 overflow-x-auto max-h-96 overflow-y-auto custom-scrollbar">
                   <RecursiveJsonViewer data={extracted_data} />
                 </div>
               </div>
@@ -54,7 +54,7 @@ const MarkdownComponents = {
         }
         return (
           <div className="my-4 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden font-sans not-prose w-full">
-            <div className="p-5 overflow-x-auto">
+            <div className="p-5 overflow-x-auto max-h-96 overflow-y-auto custom-scrollbar">
               <RecursiveJsonViewer data={data} />
             </div>
           </div>
@@ -445,7 +445,7 @@ export const Playground = ({
                         </span>
                       )}
                     </div>
-                    <div className="p-4 overflow-x-auto space-y-4">
+                    <div className="p-4 overflow-x-auto space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
                       <div>
                         <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">
                           State Updates
@@ -476,7 +476,7 @@ export const Playground = ({
                         {history.toolName}
                       </span>
                     </div>
-                    <div className="ml-10 text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200">
+                    <div className="ml-10 text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
                       <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
                         Arguments
                       </span>
@@ -497,7 +497,7 @@ export const Playground = ({
                         {history.toolName}
                       </span>
                     </div>
-                    <div className="ml-10 text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">
+                    <div className="ml-10 text-sm text-slate-500 bg-white shadow-sm p-3 rounded-lg border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
                       <span className="font-bold mb-1.5 block text-slate-400 uppercase tracking-wider">
                         Result
                       </span>

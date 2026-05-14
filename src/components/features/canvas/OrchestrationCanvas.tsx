@@ -419,22 +419,54 @@ const CanvasEditor = forwardRef<
           const tool = toolsList.find((t) => t.id === node.data?.toolId);
           if (!tool) return node;
 
-          const currentMapping = (node.data?.output_mapping || {}) as Record<
+          const currentOutputMapping = (node.data?.output_mapping || {}) as Record<
             string,
             string
           >;
-          const nextMapping = { ...currentMapping };
+          const nextOutputMapping = { ...currentOutputMapping };
+          const toolOutputKeys = Object.keys(tool.output_schema || {});
           let changed = false;
 
-          Object.keys(tool.output_schema || {}).forEach((outputKey) => {
-            if (!nextMapping[outputKey]) {
-              nextMapping[outputKey] = outputKey;
+          // Remove outputs that no longer exist in the tool schema
+          Object.keys(nextOutputMapping).forEach((outputKey) => {
+            if (!toolOutputKeys.includes(outputKey)) {
+              delete nextOutputMapping[outputKey];
+              changed = true;
+            }
+          });
+
+          // Add new outputs from the tool schema
+          toolOutputKeys.forEach((outputKey) => {
+            if (!nextOutputMapping[outputKey]) {
+              nextOutputMapping[outputKey] = outputKey;
+              changed = true;
+            }
+          });
+
+          const currentInputMapping = (node.data?.input_mapping || {}) as Record<
+            string,
+            string | string[]
+          >;
+          const nextInputMapping = { ...currentInputMapping };
+          const toolInputKeys = Object.keys(tool.input_schema || {});
+
+          // Remove inputs that no longer exist in the tool schema
+          Object.keys(nextInputMapping).forEach((inputKey) => {
+            if (!toolInputKeys.includes(inputKey)) {
+              delete nextInputMapping[inputKey];
               changed = true;
             }
           });
 
           return changed
-            ? { ...node, data: { ...node.data, output_mapping: nextMapping } }
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  output_mapping: nextOutputMapping,
+                  input_mapping: nextInputMapping,
+                },
+              }
             : node;
         }
 
