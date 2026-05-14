@@ -316,44 +316,6 @@ export function SystemInspectorPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-8">
-
-        {/* Selection Details */}
-        {selectedNode?.type === "skill" && (() => {
-          // Find the skill node in the tree to get its version data
-          const findSkillNode = (nodes: any[]): any => {
-            for (const node of nodes) {
-              if (node.id === selectedNode.id && node.type === "skill") return node;
-              if (node.children) {
-                const found = findSkillNode(node.children);
-                if (found) return found;
-              }
-            }
-            return null;
-          };
-
-          const skillNode = systemTree ? findSkillNode([systemTree]) : null;
-          if (!skillNode) return null;
-
-          const versions = skillNode.data?.allVersions || [];
-
-          return (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <History className="w-3.5 h-3.5" /> Version Management
-              </h3>
-
-                {skillNode.data.status === "published" && (
-                  <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-start gap-2.5">
-                    <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-amber-800 leading-relaxed">
-                      This version is <strong>read-only</strong> because it has been published. To make changes, switch the agent to the <strong>Draft</strong> version using the switcher in the header.
-                    </p>
-                  </div>
-                )}
-            </div>
-          );
-        })()}
-
         {/* System Validation & Warnings */}
         <div>
           <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between">

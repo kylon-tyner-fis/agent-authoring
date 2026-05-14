@@ -19,7 +19,7 @@ import {
   Loader2,
   Network,
   Check,
-  History,
+  Lock,
 } from "lucide-react";
 import { Dropdown } from "@/src/components/ui/Dropdown";
 import { useProject } from "@/src/lib/contexts/ProjectContext";
@@ -288,7 +288,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
               <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20 shrink-0">
                 <Network className="w-5 h-5" />
               </div>
-              
+
               <div className="flex flex-col min-w-0">
                 <input
                   type="text"
@@ -305,13 +305,13 @@ export function SkillEditor({ id }: SkillEditorProps) {
                   className={`bg-transparent font-bold text-base tracking-tight focus:outline-none focus:ring-0 placeholder:text-slate-300 truncate -ml-0.5 ${isReadOnly ? "text-slate-500 cursor-not-allowed" : "text-slate-900"}`}
                   placeholder="Untitled Skill"
                 />
-                
+
                 <div className="flex items-center gap-2 mt-0.5">
                   <Dropdown
                     trigger={(selected, isOpen) => (
                       <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-all cursor-pointer
-                        ${isOpen 
-                          ? "bg-violet-50 border-violet-200 ring-4 ring-violet-500/5" 
+                        ${isOpen
+                          ? "bg-violet-50 border-violet-200 ring-4 ring-violet-500/5"
                           : "bg-white/50 border-slate-200 hover:border-slate-300"
                         }`}>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">v{selected?.label || '1'}</span>
@@ -338,7 +338,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
                         const agentRes = await fetch(`/api/agents/${agentId}?projectId=${currentProject.id}`);
                         const agentData = await agentRes.json();
                         const agent = agentData.agent;
-                        
+
                         const nextSkills = (agent.skills || []).map((sid: string) =>
                           sid === id ? newId : sid
                         );
@@ -351,7 +351,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
 
                         addToast(`Switched version`, "success");
                         await refreshTree();
-                        
+
                         setSelectedNode({
                           ...selectedNode,
                           id: newId,
