@@ -13,6 +13,8 @@ import {
   SystemTreeNode,
   EntityType,
 } from "@/src/lib/contexts/WorkspaceContext";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
+import { useToast } from "@/src/components/layout/Toast";
 import {
   ChevronRight,
   ChevronDown,
@@ -96,11 +98,14 @@ function TreeNode({
   parentId?: string;
 }) {
   const { selectedNode, setSelectedNode, refreshTree } = useWorkspace();
+  const { currentProject } = useProject();
+  const { addToast } = useToast();
   const { collapsedNodes, toggleNode, activeMenuId, setActiveMenuId } =
     useTreeContext();
 
+  const menuId = `${node.type}:${node.id}:${parentId || "root"}`;
   const isExpanded = !collapsedNodes.has(node.id);
-  const isMenuOpen = activeMenuId === node.id;
+  const isMenuOpen = activeMenuId === menuId;
   const isSelected =
     selectedNode?.id === node.id && selectedNode?.type === node.type;
   const theme =
@@ -165,6 +170,76 @@ function TreeNode({
     e.stopPropagation();
     if (e.key === "Enter") handleRenameSubmit();
     if (e.key === "Escape") cancelEditing();
+  };
+
+  const handleRemoveFromAgent = async () => {
+    setActiveMenuId(null);
+
+    if (node.type !== "skill" || !parentId) {
+      addToast("Select a skill assigned to an agent before removing it.", "error");
+      return;
+    }
+
+    if (!currentProject?.id) {
+      addToast("Choose a project before updating agent assignments.", "error");
+      return;
+    }
+
+    try {
+      const agentResponse = await fetch(
+        `/api/agents/${parentId}?projectId=${currentProject.id}`,
+      );
+      const agentPayload = await agentResponse.json();
+
+      if (!agentResponse.ok) {
+        throw new Error(agentPayload.error || "Failed to load parent agent");
+      }
+
+      const agent = agentPayload.agent;
+      const currentSkills = Array.isArray(agent?.skills) ? agent.skills : [];
+      const nextSkills = currentSkills.filter(
+        (skillId: string) => skillId !== node.id,
+      );
+
+      if (nextSkills.length === currentSkills.length) {
+        addToast(`${node.name} is not assigned to this agent.`, "info");
+        return;
+      }
+
+      const updateResponse = await fetch(
+        `/api/agents/${parentId}?projectId=${currentProject.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: agent.name || "",
+            description: agent.description || "",
+            system_prompt: agent.system_prompt || "",
+            skills: nextSkills,
+            sub_agents: agent.sub_agents || [],
+          }),
+        },
+      );
+      const updatePayload = await updateResponse.json();
+
+      if (!updateResponse.ok) {
+        throw new Error(updatePayload.error || "Failed to update agent");
+      }
+
+      if (selectedNode?.id === node.id && selectedNode.type === "skill") {
+        setSelectedNode({ id: parentId, type: "agent" });
+      }
+
+      await refreshTree();
+      addToast(`Removed ${node.name} from ${agent.name || "agent"}.`, "success");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to remove skill from agent.";
+      console.error("Failed to remove skill from agent:", error);
+      addToast(message, "error");
+    }
   };
 
   const visibleChildren = (node.children || []).filter((child) =>
@@ -274,7 +349,7 @@ function TreeNode({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveMenuId(isMenuOpen ? null : node.id);
+                    setActiveMenuId(isMenuOpen ? null : menuId);
                   }}
                   className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm ${isSelected ? (isMenuOpen ? "bg-black/30 text-white" : "text-white/80 hover:text-white hover:bg-black/20") : isMenuOpen ? "bg-slate-200 text-slate-800 border border-slate-300" : "bg-white text-slate-400 border border-slate-200 hover:text-slate-700 hover:bg-slate-100 hover:border-slate-300"}`}
                   title="More Actions"
@@ -323,10 +398,7 @@ function TreeNode({
                       <div className="h-px bg-slate-100 my-1 mx-1"></div>
                       {node.type === "skill" ? (
                         <button
-                          onClick={() => {
-                            alert(`Removing Skill from Agent...`);
-                            setActiveMenuId(null);
-                          }}
+                          onClick={handleRemoveFromAgent}
                           className="w-full text-left px-2 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800 rounded-md flex items-center gap-2 transition-colors"
                         >
                           <Unlink className="w-3.5 h-3.5" /> Remove from Agent
@@ -379,7 +451,11 @@ export function SystemComposerPanel() {
   const toggleNode = (id: string) => {
     setCollapsedNodes((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
