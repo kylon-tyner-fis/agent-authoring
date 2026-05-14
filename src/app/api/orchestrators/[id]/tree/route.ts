@@ -54,6 +54,7 @@ export async function GET(
       id: orch.id,
       type: "orchestrator",
       name: orch.name || "Untitled Orchestrator",
+      data: orch,
       children: (agents || []).map((agent) => {
         // Find skills assigned to this agent (assuming agent.skills is an array of IDs)
         // Change logic based on your exact DB relations
@@ -66,6 +67,7 @@ export async function GET(
           id: agent.id,
           type: "agent",
           name: agent.name || "Untitled Agent",
+          data: agent,
           children: assignedSkills.map((skill) => {
             // Find tools and MCPs assigned to this skill
             const skillToolIds = skill.tools || [];
@@ -82,6 +84,7 @@ export async function GET(
               id: skill.id,
               type: "skill",
               name: skill.name || "Untitled Skill",
+              data: skill,
               children: [
                 {
                   id: `${skill.id}-tools`,
@@ -92,6 +95,7 @@ export async function GET(
                     id: t.id,
                     type: "tool",
                     name: t.name || "Untitled Tool",
+                    data: t,
                   })),
                 },
                 {
@@ -103,6 +107,7 @@ export async function GET(
                     id: m.id,
                     type: "mcp_server",
                     name: m.name || "Untitled Server",
+                    data: m,
                   })),
                 },
               ],
