@@ -15,6 +15,7 @@ import {
 } from "@/src/lib/contexts/WorkspaceContext";
 import { useProject } from "@/src/lib/contexts/ProjectContext";
 import { useToast } from "@/src/components/layout/Toast";
+import { DEFAULT_SKILL_CONFIG } from "@/src/lib/types/constants";
 import {
   ChevronRight,
   ChevronDown,
@@ -22,6 +23,7 @@ import {
   Bot,
   Network,
   Plus,
+  Loader2,
   MoreHorizontal,
   Trash2,
   Unlink,
@@ -114,6 +116,7 @@ function TreeNode({
 
   // --- In-place Editing State ---
   const [isEditing, setIsEditing] = useState(false);
+  const [isAddingSkill, setIsAddingSkill] = useState(false);
   const [editValue, setEditValue] = useState(node.name);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -170,6 +173,114 @@ function TreeNode({
     e.stopPropagation();
     if (e.key === "Enter") handleRenameSubmit();
     if (e.key === "Escape") cancelEditing();
+  };
+
+  const getNewSkillName = () => {
+    const existingSkillNames = (node.children || [])
+      .filter((child) => child.type === "skill")
+      .map((child) => child.name);
+
+    if (!existingSkillNames.includes("New Skill")) {
+      return "New Skill";
+    }
+
+    let suffix = 2;
+    while (existingSkillNames.includes(`New Skill ${suffix}`)) {
+      suffix += 1;
+    }
+
+    return `New Skill ${suffix}`;
+  };
+
+  const handleAddSkill = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setActiveMenuId(null);
+
+    if (node.type !== "agent") {
+      addToast("Select an agent before adding a skill.", "error");
+      return;
+    }
+
+    if (!currentProject?.id) {
+      addToast("Choose a project before creating a skill.", "error");
+      return;
+    }
+
+    setIsAddingSkill(true);
+
+    try {
+      const agentResponse = await fetch(
+        `/api/agents/${node.id}?projectId=${currentProject.id}`,
+      );
+      const agentPayload = await agentResponse.json();
+
+      if (!agentResponse.ok) {
+        throw new Error(agentPayload.error || "Failed to load agent");
+      }
+
+      const agent = agentPayload.agent;
+      const skillId = crypto.randomUUID();
+      const skillName = getNewSkillName();
+
+      const createResponse = await fetch("/api/skills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...DEFAULT_SKILL_CONFIG,
+          id: skillId,
+          project_id: currentProject.id,
+          name: skillName,
+          description: `Deterministic workflow for ${agent.name || node.name}.`,
+          system_prompt:
+            "Define this skill as a deterministic, state-aware workflow.",
+          orchestration: {
+            nodes: [],
+            edges: [],
+            viewport: { x: 0, y: 0, zoom: 1 },
+          },
+        }),
+      });
+      const createPayload = await createResponse.json();
+
+      if (!createResponse.ok) {
+        throw new Error(createPayload.error || "Failed to create skill");
+      }
+
+      const currentSkills = Array.isArray(agent?.skills) ? agent.skills : [];
+      const nextSkills = Array.from(new Set([...currentSkills, skillId]));
+
+      const updateResponse = await fetch(
+        `/api/agents/${node.id}?projectId=${currentProject.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: agent.name || "",
+            description: agent.description || "",
+            system_prompt: agent.system_prompt || "",
+            skills: nextSkills,
+            sub_agents: agent.sub_agents || [],
+          }),
+        },
+      );
+      const updatePayload = await updateResponse.json();
+
+      if (!updateResponse.ok) {
+        throw new Error(updatePayload.error || "Failed to assign skill to agent");
+      }
+
+      if (collapsedNodes.has(node.id)) toggleNode(node.id);
+      await refreshTree();
+      setSelectedNode({ id: skillId, type: "skill", parentId: node.id });
+      addToast(`Created ${skillName} under ${agent.name || node.name}.`, "success");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to add skill.";
+      console.error("Failed to add skill:", error);
+      addToast(message, "error");
+    } finally {
+      setIsAddingSkill(false);
+    }
   };
 
   const handleRemoveFromAgent = async () => {
@@ -333,14 +444,16 @@ function TreeNode({
 
               {node.type === "agent" && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    alert(`Adding Skill to ${node.name}...`);
-                  }}
-                  className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm ${isSelected ? "text-white/80 hover:text-white hover:bg-black/20" : "bg-white text-slate-400 border border-slate-200 hover:text-violet-600 hover:bg-violet-50 hover:border-violet-200"}`}
+                  onClick={handleAddSkill}
+                  disabled={isAddingSkill}
+                  className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm disabled:cursor-wait disabled:opacity-70 ${isSelected ? "text-white/80 hover:text-white hover:bg-black/20" : "bg-white text-slate-400 border border-slate-200 hover:text-violet-600 hover:bg-violet-50 hover:border-violet-200"}`}
                   title="Add Skill"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  {isAddingSkill ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5" />
+                  )}
                 </button>
               )}
 
