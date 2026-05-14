@@ -51,7 +51,7 @@ export function NodePalette({ onDragStart, availableTools, availableServers }: N
           ))}
           {availableTools.length === 0 && (
             <div className="w-full py-4 border border-dashed border-slate-200 rounded-xl flex items-center justify-center">
-               <span className="text-[10px] text-slate-400 font-medium italic">No tools available</span>
+              <span className="text-[10px] text-slate-400 font-medium italic">No tools available</span>
             </div>
           )}
         </div>
@@ -72,7 +72,7 @@ export function NodePalette({ onDragStart, availableTools, availableServers }: N
           ))}
           {availableServers.length === 0 && (
             <div className="w-full py-4 border border-dashed border-slate-200 rounded-xl flex items-center justify-center">
-               <span className="text-[10px] text-slate-400 font-medium italic">No MCP servers available</span>
+              <span className="text-[10px] text-slate-400 font-medium italic">No MCP servers available</span>
             </div>
           )}
         </div>
