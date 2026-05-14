@@ -15,12 +15,13 @@ export interface DropdownOption {
 
 interface DropdownProps {
   options: DropdownOption[];
-  value: string;
+  value?: string;
   onChange: (id: string) => void;
   placeholder?: string;
   className?: string;
   label?: string;
   trigger?: React.ReactNode | ((selected: DropdownOption | undefined, isOpen: boolean) => React.ReactNode);
+  disabled?: boolean;
 }
 
 export function Dropdown({
@@ -31,6 +32,7 @@ export function Dropdown({
   className = "",
   label,
   trigger,
+  disabled = false,
 }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [menuRect, setMenuRect] = useState<DOMRect | null>(null);
@@ -60,6 +62,11 @@ export function Dropdown({
     }
   }, [isOpen]);
 
+  const handleToggle = () => {
+    if (disabled) return;
+    setIsOpen(!isOpen);
+  };
+
   return (
     <div className={`relative inline-block ${className}`} ref={dropdownRef}>
       {label && (
@@ -68,7 +75,7 @@ export function Dropdown({
         </label>
       )}
       
-      <div onClick={() => setIsOpen(!isOpen)} className="cursor-pointer">
+      <div onClick={handleToggle} className={`${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
         {trigger ? (
           typeof trigger === "function" ? trigger(selectedOption, isOpen) : trigger
         ) : (

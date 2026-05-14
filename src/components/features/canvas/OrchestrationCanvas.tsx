@@ -20,6 +20,8 @@ import {
   Node,
   MarkerType,
   useViewport,
+  Viewport,
+  Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -33,13 +35,12 @@ import {
   Zap,
   Flag,
   Plus,
-  Database,
-  Server,
-  Loader2,
+  X,
+  Brain,
   Eye,
+  Loader2,
   Cpu,
   FileText,
-  X,
 } from "lucide-react";
 import { ToolConfig, MCPServerConfig } from "@/src/lib/types/constants";
 import { useToast } from "../../layout/Toast";
@@ -71,8 +72,10 @@ const COLUMN_WIDTH = 350;
 const ROW_HEIGHT = 200;
 
 export interface OrchestrationCanvasRef {
-  getCanvasData: () => any;
+  getCanvasData: () => { nodes: Node[]; edges: Edge[]; viewport: Viewport };
   getInferredStateSchema: () => Record<string, string>;
+  openStateSchema: () => void;
+  isStateSchemaOpen: () => boolean;
   clearSelection: () => void;
 }
 
@@ -387,9 +390,18 @@ const CanvasEditor = forwardRef<
   useImperativeHandle(ref, () => ({
     getCanvasData: () => toObject(),
     getInferredStateSchema: () => inferredStateSchema,
+    openStateSchema: () => {
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+      setIsStateSchemaOpen(true);
+      props.onSelectionChange?.(true);
+    },
+    isStateSchemaOpen: () => isStateSchemaOpen,
     clearSelection: () => {
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
+      setIsStateSchemaOpen(false);
+      props.onSelectionChange?.(false);
     },
   }));
 
@@ -460,13 +472,13 @@ const CanvasEditor = forwardRef<
 
           return changed
             ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  output_mapping: nextOutputMapping,
-                  input_mapping: nextInputMapping,
-                },
-              }
+              ...node,
+              data: {
+                ...node.data,
+                output_mapping: nextOutputMapping,
+                input_mapping: nextInputMapping,
+              },
+            }
             : node;
         }
 
@@ -817,13 +829,13 @@ const CanvasEditor = forwardRef<
         nds.map((n) =>
           n.id === selectedNodeId
             ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  expected_payload: compiled,
-                  initialization_mapping: cleanMapping,
-                },
-              }
+              ...n,
+              data: {
+                ...n.data,
+                expected_payload: compiled,
+                initialization_mapping: cleanMapping,
+              },
+            }
             : n,
         ),
       );
@@ -842,13 +854,13 @@ const CanvasEditor = forwardRef<
         nds.map((n) =>
           n.id === selectedNodeId
             ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  response_payload: compiled,
-                  extraction_mapping: cleanMapping,
-                },
-              }
+              ...n,
+              data: {
+                ...n.data,
+                response_payload: compiled,
+                extraction_mapping: cleanMapping,
+              },
+            }
             : n,
         ),
       );
@@ -975,1057 +987,261 @@ const CanvasEditor = forwardRef<
         ))}
       </datalist>
 
-      {/* Canvas State Schema Entry Point */}
-      <button
-        type="button"
-        onClick={() => {
-          setSelectedNodeId(null);
-          setSelectedEdgeId(null);
-          setIsStateSchemaOpen(true);
-          props.onSelectionChange?.(true);
-        }}
-        className={`absolute bottom-24 left-4 z-40 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold shadow-sm transition-colors ${
-          isStateSchemaOpen
-            ? "border-violet-300 bg-violet-100 text-violet-800"
-            : "border-slate-200 bg-white/95 text-slate-700 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
-        }`}
-      >
-        <Database className="h-4 w-4" />
-        State Schema
-        <span className="rounded-full bg-white/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
-          {inferredStateFields.length}
-        </span>
-      </button>
 
-      {/* State Schema Inspector Card */}
-      {isStateSchemaOpen && !selectedNode && !selectedEdge && (
-        <div className="absolute right-4 top-[92px] bottom-4 w-[380px] z-50 flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-xl animate-in slide-in-from-right-8 fade-in duration-300 ease-out">
-          <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-violet-500" />
-              <div>
-                <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  Skill State Schema
-                </h2>
-                <p className="text-[10px] font-medium text-slate-500">
-                  {inferredStateFields.length} inferred field
-                  {inferredStateFields.length === 1 ? "" : "s"}
-                </p>
-              </div>
+      {/* State Schema (Memory) Inspector Card */}
+      <div className={`absolute right-4 top-[78px] bottom-4 w-[380px] z-50 flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-xl transition-all duration-300 ease-out origin-right ${isStateSchemaOpen && !selectedNode && !selectedEdge
+        ? "opacity-100 translate-x-0 scale-100 pointer-events-auto"
+        : "opacity-0 translate-x-8 scale-95 pointer-events-none"
+        }`}>
+        <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <Brain className="w-4 h-4 text-violet-500" />
+            <div>
+              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Skill Memory
+              </h2>
+              <p className="text-[10px] font-medium text-slate-500">
+                {inferredStateFields.length} active variable
+                {inferredStateFields.length === 1 ? "" : "s"}
+              </p>
             </div>
+          </div>
+          <button
+            onClick={() => {
+              setIsStateSchemaOpen(false);
+              props.onSelectionChange?.(false);
+            }}
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-md transition-colors"
+            title="Close Memory"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-white/50">
+          {inferredStateFields.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              Add fields to the Trigger payload or map Tool outputs to begin
+              building this Skill&apos;s state schema.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {inferredStateFields.map((field) => (
+                <div
+                  key={field.key}
+                  className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div
+                        className="truncate font-mono text-sm font-bold text-slate-800"
+                        title={field.key}
+                      >
+                        {field.key}
+                      </div>
+                      <div className="mt-1 inline-flex rounded border border-violet-100 bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+                        {field.typeHint}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      <Eye className="h-3 w-3" />
+                      {field.touches.length} touch
+                      {field.touches.length === 1 ? "" : "es"}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {field.touches.map((touch, index) => (
+                      <div
+                        key={`${field.key}-${touch.nodeId}-${touch.localField}-${index}`}
+                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <div
+                            className="truncate font-semibold text-slate-700"
+                            title={touch.nodeLabel}
+                          >
+                            {touch.nodeLabel}
+                          </div>
+                          <div
+                            className="truncate font-mono text-[10px] text-slate-400"
+                            title={touch.localField}
+                          >
+                            {touch.nodeType} · {touch.localField}
+                          </div>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${touch.direction === "writes"
+                            ? "bg-fuchsia-50 text-fuchsia-700"
+                            : "bg-indigo-50 text-indigo-700"
+                            }`}
+                        >
+                          {touch.direction}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+
+      {/* Floating Node Inspector Card */}
+      <div className={`absolute right-4 top-[78px] bottom-4 w-[380px] z-50 flex flex-col bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/80 overflow-hidden transition-all duration-300 ease-out origin-right ${selectedNode || selectedEdge
+        ? "opacity-100 translate-x-0 scale-100 pointer-events-auto"
+        : "opacity-0 translate-x-8 scale-95 pointer-events-none"
+        }`}>
+        {/* Inspector Header */}
+        <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <Settings2 className="w-4 h-4 text-violet-500" />
+            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              {selectedNode ? "Node Configuration" : "Edge Configuration"}
+            </h2>
+          </div>
+          <div className="flex items-center gap-1">
+            {!isReadOnly && (
+              <button
+                onClick={deleteSelected}
+                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                title="Delete Selected"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <div className="w-px h-4 bg-slate-200 mx-1"></div>
             <button
               onClick={() => {
-                setIsStateSchemaOpen(false);
+                setSelectedNodeId(null);
+                setSelectedEdgeId(null);
                 props.onSelectionChange?.(false);
               }}
               className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-md transition-colors"
-              title="Close State Schema"
+              title="Close Inspector"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
-
-          <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-white/50">
-            {inferredStateFields.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                Add fields to the Trigger payload or map Tool outputs to begin
-                building this Skill&apos;s state schema.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {inferredStateFields.map((field) => (
-                  <div
-                    key={field.key}
-                    className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
-                  >
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div
-                          className="truncate font-mono text-sm font-bold text-slate-800"
-                          title={field.key}
-                        >
-                          {field.key}
-                        </div>
-                        <div className="mt-1 inline-flex rounded border border-violet-100 bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-violet-700">
-                          {field.typeHint}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        <Eye className="h-3 w-3" />
-                        {field.touches.length} touch
-                        {field.touches.length === 1 ? "" : "es"}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      {field.touches.map((touch, index) => (
-                        <div
-                          key={`${field.key}-${touch.nodeId}-${touch.localField}-${index}`}
-                          className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs"
-                        >
-                          <div className="min-w-0">
-                            <div
-                              className="truncate font-semibold text-slate-700"
-                              title={touch.nodeLabel}
-                            >
-                              {touch.nodeLabel}
-                            </div>
-                            <div
-                              className="truncate font-mono text-[10px] text-slate-400"
-                              title={touch.localField}
-                            >
-                              {touch.nodeType} · {touch.localField}
-                            </div>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                              touch.direction === "writes"
-                                ? "bg-fuchsia-50 text-fuchsia-700"
-                                : "bg-indigo-50 text-indigo-700"
-                            }`}
-                          >
-                            {touch.direction}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
-      )}
 
-      {/* Floating Node Inspector Card */}
-      {(selectedNode || selectedEdge) && (
-        <div className="absolute right-4 top-[92px] bottom-4 w-[380px] z-50 flex flex-col bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200/80 overflow-hidden animate-in slide-in-from-right-8 fade-in duration-300 ease-out">
-          {/* Inspector Header */}
-          <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <Settings2 className="w-4 h-4 text-violet-500" />
-              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                {selectedNode ? "Node Configuration" : "Edge Configuration"}
-              </h2>
-            </div>
-            <div className="flex items-center gap-1">
-              {!isReadOnly && (
-                <button
-                  onClick={deleteSelected}
-                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                  title="Delete Selected"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
-              <div className="w-px h-4 bg-slate-200 mx-1"></div>
-              <button
-                onClick={() => {
-                  setSelectedNodeId(null);
-                  setSelectedEdgeId(null);
-                  props.onSelectionChange?.(false);
-                }}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-md transition-colors"
-                title="Close Inspector"
-              >
-                <X className="w-4 h-4" />{" "}
-                {/* Ensure X is imported from lucide-react! */}
-              </button>
-            </div>
-          </div>
-
-          <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-white/50">
-            {selectedNode ? (
-              <div className="space-y-6 animate-in fade-in">
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Node Label
-                    </label>
-                    <input
-                      type="text"
-                      disabled={isReadOnly}
-                      value={selectedNode.data.label as string}
-                      onChange={(e) =>
-                        handleNodeChange("label", e.target.value)
-                      }
-                      className={`w-full p-2 text-sm border rounded outline-none font-mono ${
-                        isReadOnly
-                          ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                          : "border-slate-300 focus:border-sky-500 text-slate-900 bg-white"
+        <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-white/50">
+          {selectedNode ? (
+            <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Node Label
+                  </label>
+                  <input
+                    type="text"
+                    disabled={isReadOnly}
+                    value={selectedNode.data.label as string}
+                    onChange={(e) =>
+                      handleNodeChange("label", e.target.value)
+                    }
+                    className={`w-full p-2 text-sm border rounded outline-none font-mono ${isReadOnly
+                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                      : "border-slate-300 focus:border-sky-500 text-slate-900 bg-white"
                       }`}
-                    />
-                  </div>
+                  />
+                </div>
 
-                  {/* MCP NODE INSPECTOR */}
-                  {selectedNode.type === "mcp_node" && (
-                    <>
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Select External Action
-                        </label>
-                        {isLoadingMcp ? (
-                          <div className="flex items-center gap-2 text-sm text-slate-500">
-                            <Loader2 className="w-4 h-4 animate-spin" />{" "}
-                            Fetching Server Tools...
-                          </div>
-                        ) : availableMcpTools.length === 0 ? (
-                          <p className="text-xs text-slate-400 italic">
-                            No tools found on this server.
-                          </p>
-                        ) : (
-                          <select
-                            disabled={isReadOnly}
-                            value={(selectedNode.data.toolName as string) || ""}
-                            onChange={(e) => {
-                              handleNodeChange("toolName", e.target.value);
-                              handleNodeChange("input_mapping", {}); // reset mappings
-                            }}
-                            className={`w-full p-2.5 text-sm border rounded outline-none ${
-                              isReadOnly
-                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                : "border-slate-300 focus:border-emerald-500 bg-white"
-                            }`}
-                          >
-                            <option value="">-- Choose an action --</option>
-                            {availableMcpTools.map((t) => (
-                              <option key={t.name} value={t.name}>
-                                {t.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        {selectedMcpToolDef && (
-                          <p className="text-[10px] text-slate-500 leading-tight bg-slate-50 p-2 rounded border border-slate-100">
-                            {selectedMcpToolDef.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {selectedMcpToolDef && (
-                        <>
-                          <div className="pt-4 border-t border-slate-100 space-y-3">
-                            <div className="flex items-center gap-2 text-emerald-700 mb-2">
-                              <ArrowRightLeft className="w-4 h-4" />
-                              <h3 className="text-xs font-bold uppercase tracking-wider">
-                                Input Mapping
-                              </h3>
-                            </div>
-                            <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                              Map state variables to the external API's
-                              arguments.
-                            </p>
-
-                            {Object.keys(
-                              selectedMcpToolDef.inputSchema?.properties || {},
-                            ).map((inputKey) => {
-                              const currentVal =
-                                (
-                                  selectedNode.data.input_mapping as Record<
-                                    string,
-                                    string
-                                  >
-                                )?.[inputKey] || "";
-                              return (
-                                <div
-                                  key={inputKey}
-                                  className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
-                                >
-                                  <span className="text-xs font-mono font-semibold text-slate-700">
-                                    {inputKey}
-                                  </span>
-                                  <select
-                                    disabled={isReadOnly}
-                                    value={currentVal}
-                                    onChange={(e) =>
-                                      handleMappingChange(
-                                        "input_mapping",
-                                        inputKey,
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                      isReadOnly
-                                        ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                        : "border-slate-300 focus:border-emerald-500 bg-white"
-                                    }`}
-                                  >
-                                    <option value="">
-                                      -- Select State Variable --
-                                    </option>
-                                    {stateKeys.map((k) => (
-                                      <option key={k} value={k}>
-                                        {k}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          <div className="pt-4 border-t border-slate-100 space-y-3">
-                            <div className="flex items-center gap-2 text-emerald-700 mb-2">
-                              <ArrowRightLeft className="w-4 h-4" />
-                              <h3 className="text-xs font-bold uppercase tracking-wider">
-                                Output Mapping
-                              </h3>
-                            </div>
-                            <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                              Save the raw JSON response to state.
-                            </p>
-
-                            <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                              <span className="text-xs font-mono font-semibold text-slate-700">
-                                mcp_response
-                              </span>
-                              <input
-                                type="text"
-                                disabled={isReadOnly}
-                                list="state-schema-keys"
-                                placeholder="mcp_response"
-                                value={
-                                  (
-                                    selectedNode.data.output_mapping as Record<
-                                      string,
-                                      string
-                                    >
-                                  )?.[`mcp_response`] || ""
-                                }
-                                onChange={(e) =>
-                                  handleMappingChange(
-                                    "output_mapping",
-                                    "mcp_response",
-                                    e.target.value,
-                                  )
-                                }
-                                className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                  isReadOnly
-                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                    : "border-slate-300 focus:border-emerald-500 bg-white"
-                                }`}
-                              />
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </>
-                  )}
-
-                  {/* LLM TOOL INSPECTOR */}
-                  {selectedNode.type === "tool" && activeTool && (
-                    <>
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Node-Specific Instructions
-                        </label>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-1">
-                          Add extra context or rules that only apply to this
-                          specific step.
+                {/* MCP NODE INSPECTOR */}
+                {selectedNode.type === "mcp_node" && (
+                  <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Select External Action
+                      </label>
+                      {isLoadingMcp ? (
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                          <Loader2 className="w-4 h-4 animate-spin" />{" "}
+                          Fetching Server Tools...
+                        </div>
+                      ) : availableMcpTools.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">
+                          No tools found on this server.
                         </p>
-                        <textarea
+                      ) : (
+                        <select
                           disabled={isReadOnly}
-                          placeholder="e.g. Only return bullet points for this step..."
-                          value={
-                            (selectedNode.data.custom_instructions as string) ||
-                            ""
-                          }
-                          onChange={(e) =>
-                            handleNodeChange(
-                              "custom_instructions",
-                              e.target.value,
-                            )
-                          }
-                          className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${
-                            isReadOnly
-                              ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                              : "border-slate-300 focus:border-amber-500 bg-slate-50 text-slate-900"
-                          }`}
-                        />
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-purple-600 mb-2">
-                          <Cpu className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            AI Engine Override
-                          </h3>
-                        </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          By default, this node uses the Skill's global AI
-                          Engine. Enable override to specify a different model
-                          for this step.
+                          value={(selectedNode.data.toolName as string) || ""}
+                          onChange={(e) => {
+                            handleNodeChange("toolName", e.target.value);
+                            handleNodeChange("input_mapping", {}); // reset mappings
+                          }}
+                          className={`w-full p-2.5 text-sm border rounded outline-none ${isReadOnly
+                            ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                            : "border-slate-300 focus:border-emerald-500 bg-white"
+                            }`}
+                        >
+                          <option value="">-- Choose an action --</option>
+                          {availableMcpTools.map((t) => (
+                            <option key={t.name} value={t.name}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {selectedMcpToolDef && (
+                        <p className="text-[10px] text-slate-500 leading-tight bg-slate-50 p-2 rounded border border-slate-100">
+                          {selectedMcpToolDef.description}
                         </p>
+                      )}
+                    </div>
 
-                        {!selectedNode.data.model_config ? (
-                          !isReadOnly && (
-                            <button
-                              onClick={() =>
-                                handleNodeChange("model_config", {
-                                  provider: "openai",
-                                  model_name: "gpt-4o-mini",
-                                  temperature: 0.7,
-                                  max_tokens: 4096,
-                                })
-                              }
-                              className="w-full py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition-colors"
-                            >
-                              + Enable Model Override
-                            </button>
-                          )
-                        ) : (
-                          <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                            <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                Custom Engine
-                              </span>
-                              {!isReadOnly && (
-                                <button
-                                  onClick={() =>
-                                    handleNodeChange("model_config", undefined)
-                                  }
-                                  className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:underline"
-                                >
-                                  Remove
-                                </button>
-                              )}
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-semibold text-gray-600">
-                                Provider
-                              </label>
-                              <select
-                                disabled={isReadOnly}
-                                value={
-                                  (selectedNode.data.model_config as any)
-                                    .provider
-                                }
-                                onChange={(e) =>
-                                  handleNodeChange("model_config", {
-                                    ...(selectedNode.data.model_config as any),
-                                    provider: e.target.value,
-                                    model_name:
-                                      SUPPORTED_MODELS[e.target.value][0],
-                                  })
-                                }
-                                className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                  isReadOnly
-                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                    : "border-slate-300 bg-white text-slate-900"
-                                }`}
-                              >
-                                {SUPPORTED_PROVIDERS.map((p) => (
-                                  <option key={p} value={p}>
-                                    {p}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-semibold text-gray-600">
-                                Model Name
-                              </label>
-                              <select
-                                disabled={isReadOnly}
-                                value={
-                                  (selectedNode.data.model_config as any)
-                                    .model_name
-                                }
-                                onChange={(e) =>
-                                  handleNodeChange("model_config", {
-                                    ...(selectedNode.data.model_config as any),
-                                    model_name: e.target.value,
-                                  })
-                                }
-                                className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                  isReadOnly
-                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                    : "border-slate-300 bg-white text-slate-900"
-                                }`}
-                              >
-                                {SUPPORTED_MODELS[
-                                  (selectedNode.data.model_config as any)
-                                    .provider
-                                ]?.map((m) => (
-                                  <option key={m} value={m}>
-                                    {m}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="space-y-1.5">
-                                <label className="text-[10px] font-semibold text-gray-600">
-                                  Temp
-                                </label>
-                                <input
-                                  type="number"
-                                  disabled={isReadOnly}
-                                  min="0"
-                                  max="2"
-                                  step="0.1"
-                                  value={
-                                    (selectedNode.data.model_config as any)
-                                      .temperature
-                                  }
-                                  onChange={(e) =>
-                                    handleNodeChange("model_config", {
-                                      ...(selectedNode.data
-                                        .model_config as any),
-                                      temperature:
-                                        parseFloat(e.target.value) || 0,
-                                    })
-                                  }
-                                  className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${
-                                    isReadOnly
-                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                      : "border-slate-300 bg-white text-slate-900"
-                                  }`}
-                                />
-                              </div>
-                              <div className="space-y-1.5">
-                                <label className="text-[10px] font-semibold text-gray-600">
-                                  Max Tokens
-                                </label>
-                                <input
-                                  type="number"
-                                  disabled={isReadOnly}
-                                  min="256"
-                                  step="1"
-                                  value={
-                                    (selectedNode.data.model_config as any)
-                                      .max_tokens
-                                  }
-                                  onChange={(e) =>
-                                    handleNodeChange("model_config", {
-                                      ...(selectedNode.data
-                                        .model_config as any),
-                                      max_tokens:
-                                        parseInt(e.target.value) || 256,
-                                    })
-                                  }
-                                  className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${
-                                    isReadOnly
-                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                      : "border-slate-300 bg-white text-slate-900"
-                                  }`}
-                                />
-                              </div>
-                            </div>
+                    {selectedMcpToolDef && (
+                      <>
+                        <div className="pt-4 border-t border-slate-100 space-y-3">
+                          <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                            <ArrowRightLeft className="w-4 h-4" />
+                            <h3 className="text-xs font-bold uppercase tracking-wider">
+                              Input Mapping
+                            </h3>
                           </div>
-                        )}
-                      </div>
+                          <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                            Map state variables to the external API's
+                            arguments.
+                          </p>
 
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-amber-700 mb-2">
-                          <ArrowRightLeft className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            Input Mapping
-                          </h3>
-                        </div>
-
-                        {Object.keys(activeTool.input_schema).map(
-                          (inputKey) => {
-                            const rawHint = activeTool.input_schema[inputKey];
-                            const typeHint =
-                              typeof rawHint === "string"
-                                ? rawHint.toLowerCase()
-                                : Array.isArray(rawHint)
-                                  ? "array<object>"
-                                  : "object";
-                            const isArrayType =
-                              typeHint.includes("array") ||
-                              typeHint.includes("[]");
-                            const currentVal = (
-                              selectedNode.data.input_mapping as Record<
-                                string,
-                                any
-                              >
-                            )?.[inputKey];
-
+                          {Object.keys(
+                            selectedMcpToolDef.inputSchema?.properties || {},
+                          ).map((inputKey) => {
+                            const currentVal =
+                              (
+                                selectedNode.data.input_mapping as Record<
+                                  string,
+                                  string
+                                >
+                              )?.[inputKey] || "";
                             return (
                               <div
                                 key={inputKey}
                                 className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
                               >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-mono font-semibold text-slate-700">
-                                    {inputKey}
-                                  </span>
-                                  <span className="text-[9px] text-slate-400 bg-white px-1 border border-slate-100 rounded uppercase font-bold tracking-wider">
-                                    {typeHint}
-                                  </span>
-                                </div>
-                                {isArrayType ? (
-                                  <div className="space-y-1.5 mt-1">
-                                    {(Array.isArray(currentVal)
-                                      ? currentVal
-                                      : currentVal
-                                        ? [currentVal]
-                                        : []
-                                    ).map((val, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="flex items-center gap-1.5"
-                                      >
-                                        <select
-                                          disabled={isReadOnly}
-                                          value={val}
-                                          onChange={(e) => {
-                                            const newArr = Array.isArray(
-                                              currentVal,
-                                            )
-                                              ? [...currentVal]
-                                              : currentVal
-                                                ? [currentVal]
-                                                : [];
-                                            newArr[idx] = e.target.value;
-                                            handleMappingChange(
-                                              "input_mapping",
-                                              inputKey,
-                                              newArr,
-                                            );
-                                          }}
-                                          className={`flex-1 p-1.5 text-xs border rounded outline-none ${
-                                            isReadOnly
-                                              ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                              : "border-slate-300 focus:border-amber-500 bg-white text-slate-900"
-                                          }`}
-                                        >
-                                          <option value="">
-                                            -- Select State Variable --
-                                          </option>
-                                          {stateKeys.map((k) => (
-                                            <option key={k} value={k}>
-                                              {k}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        {!isReadOnly && (
-                                          <button
-                                            onClick={() => {
-                                              const newArr = (
-                                                Array.isArray(currentVal)
-                                                  ? currentVal
-                                                  : [currentVal]
-                                              ).filter((_, i) => i !== idx);
-                                              handleMappingChange(
-                                                "input_mapping",
-                                                inputKey,
-                                                newArr,
-                                              );
-                                            }}
-                                            className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    ))}
-                                    {!isReadOnly && (
-                                      <button
-                                        onClick={() => {
-                                          const newArr = Array.isArray(
-                                            currentVal,
-                                          )
-                                            ? [...currentVal, ""]
-                                            : currentVal
-                                              ? [currentVal, ""]
-                                              : [""];
-                                          handleMappingChange(
-                                            "input_mapping",
-                                            inputKey,
-                                            newArr,
-                                          );
-                                        }}
-                                        className="text-[10px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 py-1"
-                                      >
-                                        <Plus className="w-3 h-3" /> Add mapped
-                                        variable
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <select
-                                    disabled={isReadOnly}
-                                    value={currentVal || ""}
-                                    onChange={(e) =>
-                                      handleMappingChange(
-                                        "input_mapping",
-                                        inputKey,
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                      isReadOnly
-                                        ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                        : "border-slate-300 focus:border-amber-500 bg-white"
-                                    }`}
-                                  >
-                                    <option value="">
-                                      -- Select State Variable --
-                                    </option>
-                                    {stateKeys.map((k) => (
-                                      <option key={k} value={k}>
-                                        {k}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-                              </div>
-                            );
-                          },
-                        )}
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-amber-700 mb-2">
-                          <ArrowRightLeft className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            Output Mapping
-                          </h3>
-                        </div>
-
-                        {Object.keys(activeTool.output_schema).map(
-                          (outputKey) => {
-                            const currentVal =
-                              (
-                                selectedNode.data.output_mapping as Record<
-                                  string,
-                                  string
-                                >
-                              )?.[outputKey] || "";
-                            return (
-                              <div
-                                key={outputKey}
-                                className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
-                              >
                                 <span className="text-xs font-mono font-semibold text-slate-700">
-                                  {outputKey}
+                                  {inputKey}
                                 </span>
-                                <input
-                                  type="text"
+                                <select
                                   disabled={isReadOnly}
-                                  list="state-schema-keys"
-                                  placeholder={outputKey}
                                   value={currentVal}
                                   onChange={(e) =>
                                     handleMappingChange(
-                                      "output_mapping",
-                                      outputKey,
+                                      "input_mapping",
+                                      inputKey,
                                       e.target.value,
                                     )
                                   }
-                                  className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                    isReadOnly
-                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                      : "border-slate-300 focus:border-amber-500 bg-white text-slate-900"
-                                  }`}
-                                />
-                              </div>
-                            );
-                          },
-                        )}
-                      </div>
-                    </>
-                  )}
-
-                  {selectedNode.type === "trigger" && (
-                    <>
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Node-Specific Instructions
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          placeholder="e.g. If the user doesn't specify a language, default to Spanish..."
-                          value={
-                            (selectedNode.data.custom_instructions as string) ||
-                            ""
-                          }
-                          onChange={(e) =>
-                            handleNodeChange(
-                              "custom_instructions",
-                              e.target.value,
-                            )
-                          }
-                          className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${
-                            isReadOnly
-                              ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                              : "border-slate-300 focus:border-sky-500 bg-slate-50 text-slate-900"
-                          }`}
-                        />
-                      </div>
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-sky-700 mb-2">
-                          <Zap className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            Expected Payload
-                          </h3>
-                        </div>
-                        <SchemaViewer
-                          title="Expected Payload"
-                          nodes={inspectorSchema}
-                          setNodes={handleSchemaChange}
-                          addButtonText="Add Input Field"
-                          readOnly={isReadOnly} // <-- Lock SchemaViewer
-                        />
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-sky-700 mb-2">
-                          <ArrowRightLeft className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            Initialization Mapping
-                          </h3>
-                        </div>
-
-                        {Object.keys(
-                          selectedNode.data.expected_payload || {},
-                        ).map((payloadKey) => {
-                          const currentVal =
-                            (
-                              selectedNode.data
-                                .initialization_mapping as Record<
-                                string,
-                                string
-                              >
-                            )?.[payloadKey] || "";
-                          return (
-                            <div
-                              key={payloadKey}
-                              className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
-                            >
-                              <span className="text-xs font-mono font-semibold text-slate-700">
-                                {payloadKey}
-                              </span>
-                              <select
-                                disabled={isReadOnly}
-                                value={currentVal}
-                                onChange={(e) =>
-                                  handleMappingChange(
-                                    "initialization_mapping",
-                                    payloadKey,
-                                    e.target.value,
-                                  )
-                                }
-                                className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                  isReadOnly
+                                  className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
                                     ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                    : "border-slate-300 focus:border-sky-500 bg-white"
-                                }`}
-                              >
-                                <option value="">
-                                  -- Select State Variable --
-                                </option>
-                                {stateKeys.map((k) => (
-                                  <option key={k} value={k}>
-                                    {k}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-
-                  {selectedNode.type === "response" && (
-                    <>
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                          Node-Specific Instructions
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          placeholder="e.g. Summarize the output in 3 concise bullet points..."
-                          value={
-                            (selectedNode.data.custom_instructions as string) ||
-                            ""
-                          }
-                          onChange={(e) =>
-                            handleNodeChange(
-                              "custom_instructions",
-                              e.target.value,
-                            )
-                          }
-                          className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${
-                            isReadOnly
-                              ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                              : "border-slate-300 focus:border-purple-500 bg-slate-50 text-slate-900"
-                          }`}
-                        />
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-purple-600 mb-2">
-                          <Flag className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            Response Payload
-                          </h3>
-                        </div>
-                        <SchemaViewer
-                          title="Response Payload"
-                          nodes={inspectorSchema}
-                          setNodes={handleSchemaChange}
-                          addButtonText="Add Output Field"
-                          readOnly={isReadOnly} // <-- Lock SchemaViewer
-                        />
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-purple-600 mb-2">
-                          <ArrowRightLeft className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            Extraction Mapping
-                          </h3>
-                        </div>
-
-                        {Object.keys(
-                          selectedNode.data.response_payload || {},
-                        ).map((payloadKey) => {
-                          const currentVal =
-                            (
-                              selectedNode.data.extraction_mapping as Record<
-                                string,
-                                string
-                              >
-                            )?.[payloadKey] || "";
-                          return (
-                            <div
-                              key={payloadKey}
-                              className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
-                            >
-                              <span className="text-xs font-mono font-semibold text-slate-700">
-                                {payloadKey}
-                              </span>
-                              <select
-                                disabled={isReadOnly}
-                                value={currentVal}
-                                onChange={(e) =>
-                                  handleMappingChange(
-                                    "extraction_mapping",
-                                    payloadKey,
-                                    e.target.value,
-                                  )
-                                }
-                                className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                  isReadOnly
-                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                    : "border-slate-300 focus:border-purple-500 bg-white text-slate-900"
-                                }`}
-                              >
-                                <option value="">
-                                  -- Select State Variable --
-                                </option>
-                                {stateKeys.map((k) => (
-                                  <option key={k} value={k}>
-                                    {k}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* File Exports */}
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-rose-600 mb-2">
-                          <FileText className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            File Exports
-                          </h3>
-                        </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mb-2">
-                          Generate downloadable files from state variables. The
-                          URLs will be injected into the final JSON payload.
-                        </p>
-
-                        {/* List of active exports */}
-                        {((selectedNode.data.exports as any[]) || []).map(
-                          (exp, index) => (
-                            <div
-                              key={exp.id}
-                              className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3 mb-2 relative group animate-in fade-in"
-                            >
-                              {!isReadOnly && (
-                                <button
-                                  onClick={() => {
-                                    const newExports = [
-                                      ...((selectedNode.data
-                                        .exports as any[]) || []),
-                                    ];
-                                    newExports.splice(index, 1);
-                                    handleNodeChange("exports", newExports);
-                                  }}
-                                  className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  title="Remove Export"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-
-                              <div className="space-y-1.5 pr-6">
-                                <label className="text-[10px] font-semibold text-gray-600">
-                                  Format
-                                </label>
-                                <select
-                                  disabled={isReadOnly}
-                                  value={exp.format}
-                                  onChange={(e) => {
-                                    const newExports = [
-                                      ...((selectedNode.data
-                                        .exports as any[]) || []),
-                                    ];
-                                    newExports[index] = {
-                                      ...exp,
-                                      format: e.target.value,
-                                    };
-                                    handleNodeChange("exports", newExports);
-                                  }}
-                                  className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                    isReadOnly
-                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                      : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
-                                  }`}
-                                >
-                                  <option value="pdf">
-                                    PDF Document (.pdf)
-                                  </option>
-                                  <option value="csv">CSV Data (.csv)</option>
-                                  <option value="txt">Plain Text (.txt)</option>
-                                  <option value="md">Markdown (.md)</option>
-                                </select>
-                              </div>
-
-                              <div className="space-y-1.5">
-                                <label className="text-[10px] font-semibold text-gray-600">
-                                  Source Variable
-                                </label>
-                                <select
-                                  disabled={isReadOnly}
-                                  value={exp.source_variable}
-                                  onChange={(e) => {
-                                    const newExports = [
-                                      ...((selectedNode.data
-                                        .exports as any[]) || []),
-                                    ];
-                                    newExports[index] = {
-                                      ...exp,
-                                      source_variable: e.target.value,
-                                    };
-                                    handleNodeChange("exports", newExports);
-                                  }}
-                                  className={`w-full p-1.5 text-xs border rounded outline-none ${
-                                    isReadOnly
-                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                      : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
-                                  }`}
+                                    : "border-slate-300 focus:border-emerald-500 bg-white"
+                                    }`}
                                 >
                                   <option value="">
-                                    -- Select Data Source --
+                                    -- Select State Variable --
                                   </option>
                                   {stateKeys.map((k) => (
                                     <option key={k} value={k}>
@@ -2034,45 +1250,775 @@ const CanvasEditor = forwardRef<
                                   ))}
                                 </select>
                               </div>
+                            );
+                          })}
+                        </div>
 
-                              {exp.format === "pdf" && (
-                                <div className="space-y-1.5">
-                                  <label className="text-[10px] font-semibold text-gray-600">
-                                    Layout Instructions (Optional)
-                                  </label>
-                                  <textarea
-                                    disabled={isReadOnly}
-                                    placeholder="e.g. Use a large title, bold the correct answers..."
-                                    value={exp.layout_instructions || ""}
-                                    onChange={(e) => {
-                                      const newExports = [
-                                        ...((selectedNode.data
-                                          .exports as any[]) || []),
-                                      ];
-                                      newExports[index] = {
-                                        ...exp,
-                                        layout_instructions: e.target.value,
-                                      };
-                                      handleNodeChange("exports", newExports);
-                                    }}
-                                    className={`w-full p-2 text-xs border rounded outline-none min-h-[60px] ${
-                                      isReadOnly
-                                        ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                        : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
-                                    }`}
-                                  />
+                        <div className="pt-4 border-t border-slate-100 space-y-3">
+                          <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                            <ArrowRightLeft className="w-4 h-4" />
+                            <h3 className="text-xs font-bold uppercase tracking-wider">
+                              Output Mapping
+                            </h3>
+                          </div>
+                          <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                            Save the raw JSON response to state.
+                          </p>
+
+                          <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                            <span className="text-xs font-mono font-semibold text-slate-700">
+                              mcp_response
+                            </span>
+                            <input
+                              type="text"
+                              disabled={isReadOnly}
+                              list="state-schema-keys"
+                              placeholder="mcp_response"
+                              value={
+                                (
+                                  selectedNode.data.output_mapping as Record<
+                                    string,
+                                    string
+                                  >
+                                )?.[`mcp_response`] || ""
+                              }
+                              onChange={(e) =>
+                                handleMappingChange(
+                                  "output_mapping",
+                                  "mcp_response",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                : "border-slate-300 focus:border-emerald-500 bg-white"
+                                }`}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+
+                {/* LLM TOOL INSPECTOR */}
+                {selectedNode.type === "tool" && activeTool && (
+                  <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Node-Specific Instructions
+                      </label>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-1">
+                        Add extra context or rules that only apply to this
+                        specific step.
+                      </p>
+                      <textarea
+                        disabled={isReadOnly}
+                        placeholder="e.g. Only return bullet points for this step..."
+                        value={
+                          (selectedNode.data.custom_instructions as string) ||
+                          ""
+                        }
+                        onChange={(e) =>
+                          handleNodeChange(
+                            "custom_instructions",
+                            e.target.value,
+                          )
+                        }
+                        className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${isReadOnly
+                          ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                          : "border-slate-300 focus:border-amber-500 bg-slate-50 text-slate-900"
+                          }`}
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-purple-600 mb-2">
+                        <Cpu className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          AI Engine Override
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        By default, this node uses the Skill's global AI
+                        Engine. Enable override to specify a different model
+                        for this step.
+                      </p>
+
+                      {!selectedNode.data.model_config ? (
+                        !isReadOnly && (
+                          <button
+                            onClick={() =>
+                              handleNodeChange("model_config", {
+                                provider: "openai",
+                                model_name: "gpt-4o-mini",
+                                temperature: 0.7,
+                                max_tokens: 4096,
+                              })
+                            }
+                            className="w-full py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded transition-colors"
+                          >
+                            + Enable Model Override
+                          </button>
+                        )
+                      ) : (
+                        <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                              Custom Engine
+                            </span>
+                            {!isReadOnly && (
+                              <button
+                                onClick={() =>
+                                  handleNodeChange("model_config", undefined)
+                                }
+                                className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:underline"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-semibold text-gray-600">
+                              Provider
+                            </label>
+                            <select
+                              disabled={isReadOnly}
+                              value={
+                                (selectedNode.data.model_config as any)
+                                  .provider
+                              }
+                              onChange={(e) =>
+                                handleNodeChange("model_config", {
+                                  ...(selectedNode.data.model_config as any),
+                                  provider: e.target.value,
+                                  model_name:
+                                    SUPPORTED_MODELS[e.target.value][0],
+                                })
+                              }
+                              className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                : "border-slate-300 bg-white text-slate-900"
+                                }`}
+                            >
+                              {SUPPORTED_PROVIDERS.map((p) => (
+                                <option key={p} value={p}>
+                                  {p}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-semibold text-gray-600">
+                              Model Name
+                            </label>
+                            <select
+                              disabled={isReadOnly}
+                              value={
+                                (selectedNode.data.model_config as any)
+                                  .model_name
+                              }
+                              onChange={(e) =>
+                                handleNodeChange("model_config", {
+                                  ...(selectedNode.data.model_config as any),
+                                  model_name: e.target.value,
+                                })
+                              }
+                              className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                : "border-slate-300 bg-white text-slate-900"
+                                }`}
+                            >
+                              {SUPPORTED_MODELS[
+                                (selectedNode.data.model_config as any)
+                                  .provider
+                              ]?.map((m) => (
+                                <option key={m} value={m}>
+                                  {m}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-semibold text-gray-600">
+                                Temp
+                              </label>
+                              <input
+                                type="number"
+                                disabled={isReadOnly}
+                                min="0"
+                                max="2"
+                                step="0.1"
+                                value={
+                                  (selectedNode.data.model_config as any)
+                                    .temperature
+                                }
+                                onChange={(e) =>
+                                  handleNodeChange("model_config", {
+                                    ...(selectedNode.data
+                                      .model_config as any),
+                                    temperature:
+                                      parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${isReadOnly
+                                  ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                  : "border-slate-300 bg-white text-slate-900"
+                                  }`}
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-semibold text-gray-600">
+                                Max Tokens
+                              </label>
+                              <input
+                                type="number"
+                                disabled={isReadOnly}
+                                min="256"
+                                step="1"
+                                value={
+                                  (selectedNode.data.model_config as any)
+                                    .max_tokens
+                                }
+                                onChange={(e) =>
+                                  handleNodeChange("model_config", {
+                                    ...(selectedNode.data
+                                      .model_config as any),
+                                    max_tokens:
+                                      parseInt(e.target.value) || 256,
+                                  })
+                                }
+                                className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${isReadOnly
+                                  ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                  : "border-slate-300 bg-white text-slate-900"
+                                  }`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-amber-700 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Input Mapping
+                        </h3>
+                      </div>
+
+                      {Object.keys(activeTool.input_schema).map(
+                        (inputKey) => {
+                          const rawHint = activeTool.input_schema[inputKey];
+                          const typeHint =
+                            typeof rawHint === "string"
+                              ? rawHint.toLowerCase()
+                              : Array.isArray(rawHint)
+                                ? "array<object>"
+                                : "object";
+                          const isArrayType =
+                            typeHint.includes("array") ||
+                            typeHint.includes("[]");
+                          const currentVal = (
+                            selectedNode.data.input_mapping as Record<
+                              string,
+                              any
+                            >
+                          )?.[inputKey];
+
+                          return (
+                            <div
+                              key={inputKey}
+                              className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-mono font-semibold text-slate-700">
+                                  {inputKey}
+                                </span>
+                                <span className="text-[9px] text-slate-400 bg-white px-1 border border-slate-100 rounded uppercase font-bold tracking-wider">
+                                  {typeHint}
+                                </span>
+                              </div>
+                              {isArrayType ? (
+                                <div className="space-y-1.5 mt-1">
+                                  {(Array.isArray(currentVal)
+                                    ? currentVal
+                                    : currentVal
+                                      ? [currentVal]
+                                      : []
+                                  ).map((val, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center gap-1.5"
+                                    >
+                                      <select
+                                        disabled={isReadOnly}
+                                        value={val}
+                                        onChange={(e) => {
+                                          const newArr = Array.isArray(
+                                            currentVal,
+                                          )
+                                            ? [...currentVal]
+                                            : currentVal
+                                              ? [currentVal]
+                                              : [];
+                                          newArr[idx] = e.target.value;
+                                          handleMappingChange(
+                                            "input_mapping",
+                                            inputKey,
+                                            newArr,
+                                          );
+                                        }}
+                                        className={`flex-1 p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                          ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                          : "border-slate-300 focus:border-amber-500 bg-white text-slate-900"
+                                          }`}
+                                      >
+                                        <option value="">
+                                          -- Select State Variable --
+                                        </option>
+                                        {stateKeys.map((k) => (
+                                          <option key={k} value={k}>
+                                            {k}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {!isReadOnly && (
+                                        <button
+                                          onClick={() => {
+                                            const newArr = (
+                                              Array.isArray(currentVal)
+                                                ? currentVal
+                                                : [currentVal]
+                                            ).filter((_, i) => i !== idx);
+                                            handleMappingChange(
+                                              "input_mapping",
+                                              inputKey,
+                                              newArr,
+                                            );
+                                          }}
+                                          className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {!isReadOnly && (
+                                    <button
+                                      onClick={() => {
+                                        const newArr = Array.isArray(
+                                          currentVal,
+                                        )
+                                          ? [...currentVal, ""]
+                                          : currentVal
+                                            ? [currentVal, ""]
+                                            : [""];
+                                        handleMappingChange(
+                                          "input_mapping",
+                                          inputKey,
+                                          newArr,
+                                        );
+                                      }}
+                                      className="text-[10px] font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 py-1"
+                                    >
+                                      <Plus className="w-3 h-3" /> Add mapped
+                                      variable
+                                    </button>
+                                  )}
                                 </div>
+                              ) : (
+                                <select
+                                  disabled={isReadOnly}
+                                  value={currentVal || ""}
+                                  onChange={(e) =>
+                                    handleMappingChange(
+                                      "input_mapping",
+                                      inputKey,
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                    : "border-slate-300 focus:border-amber-500 bg-white"
+                                    }`}
+                                >
+                                  <option value="">
+                                    -- Select State Variable --
+                                  </option>
+                                  {stateKeys.map((k) => (
+                                    <option key={k} value={k}>
+                                      {k}
+                                    </option>
+                                  ))}
+                                </select>
                               )}
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
 
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-amber-700 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Output Mapping
+                        </h3>
+                      </div>
+
+                      {Object.keys(activeTool.output_schema).map(
+                        (outputKey) => {
+                          const currentVal =
+                            (
+                              selectedNode.data.output_mapping as Record<
+                                string,
+                                string
+                              >
+                            )?.[outputKey] || "";
+                          return (
+                            <div
+                              key={outputKey}
+                              className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                            >
+                              <span className="text-xs font-mono font-semibold text-slate-700">
+                                {outputKey}
+                              </span>
+                              <input
+                                type="text"
+                                disabled={isReadOnly}
+                                list="state-schema-keys"
+                                placeholder={outputKey}
+                                value={currentVal}
+                                onChange={(e) =>
+                                  handleMappingChange(
+                                    "output_mapping",
+                                    outputKey,
+                                    e.target.value,
+                                  )
+                                }
+                                className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                  ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                  : "border-slate-300 focus:border-amber-500 bg-white text-slate-900"
+                                  }`}
+                              />
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {selectedNode.type === "trigger" && (
+                  <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Node-Specific Instructions
+                      </label>
+                      <textarea
+                        disabled={isReadOnly}
+                        placeholder="e.g. If the user doesn't specify a language, default to Spanish..."
+                        value={
+                          (selectedNode.data.custom_instructions as string) ||
+                          ""
+                        }
+                        onChange={(e) =>
+                          handleNodeChange(
+                            "custom_instructions",
+                            e.target.value,
+                          )
+                        }
+                        className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${isReadOnly
+                          ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                          : "border-slate-300 focus:border-sky-500 bg-slate-50 text-slate-900"
+                          }`}
+                      />
+                    </div>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-sky-700 mb-2">
+                        <Zap className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Expected Payload
+                        </h3>
+                      </div>
+                      <SchemaViewer
+                        title="Expected Payload"
+                        nodes={inspectorSchema}
+                        setNodes={handleSchemaChange}
+                        addButtonText="Add Input Field"
+                        readOnly={isReadOnly} // <-- Lock SchemaViewer
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-sky-700 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Initialization Mapping
+                        </h3>
+                      </div>
+
+                      {Object.keys(
+                        selectedNode.data.expected_payload || {},
+                      ).map((payloadKey) => {
+                        const currentVal =
+                          (
+                            selectedNode.data
+                              .initialization_mapping as Record<
+                                string,
+                                string
+                              >
+                          )?.[payloadKey] || "";
+                        return (
+                          <div
+                            key={payloadKey}
+                            className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                          >
+                            <span className="text-xs font-mono font-semibold text-slate-700">
+                              {payloadKey}
+                            </span>
+                            <select
+                              disabled={isReadOnly}
+                              value={currentVal}
+                              onChange={(e) =>
+                                handleMappingChange(
+                                  "initialization_mapping",
+                                  payloadKey,
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                : "border-slate-300 focus:border-sky-500 bg-white"
+                                }`}
+                            >
+                              <option value="">
+                                -- Select State Variable --
+                              </option>
+                              {stateKeys.map((k) => (
+                                <option key={k} value={k}>
+                                  {k}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {selectedNode.type === "response" && (
+                  <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Node-Specific Instructions
+                      </label>
+                      <textarea
+                        disabled={isReadOnly}
+                        placeholder="e.g. Summarize the output in 3 concise bullet points..."
+                        value={
+                          (selectedNode.data.custom_instructions as string) ||
+                          ""
+                        }
+                        onChange={(e) =>
+                          handleNodeChange(
+                            "custom_instructions",
+                            e.target.value,
+                          )
+                        }
+                        className={`w-full p-2.5 text-sm border rounded outline-none min-h-[100px] ${isReadOnly
+                          ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                          : "border-slate-300 focus:border-purple-500 bg-slate-50 text-slate-900"
+                          }`}
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-purple-600 mb-2">
+                        <Flag className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Response Payload
+                        </h3>
+                      </div>
+                      <SchemaViewer
+                        title="Response Payload"
+                        nodes={inspectorSchema}
+                        setNodes={handleSchemaChange}
+                        addButtonText="Add Output Field"
+                        readOnly={isReadOnly} // <-- Lock SchemaViewer
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-purple-600 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Extraction Mapping
+                        </h3>
+                      </div>
+
+                      {Object.keys(
+                        selectedNode.data.response_payload || {},
+                      ).map((payloadKey) => {
+                        const currentVal =
+                          (
+                            selectedNode.data.extraction_mapping as Record<
+                              string,
+                              string
+                            >
+                          )?.[payloadKey] || "";
+                        return (
+                          <div
+                            key={payloadKey}
+                            className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200"
+                          >
+                            <span className="text-xs font-mono font-semibold text-slate-700">
+                              {payloadKey}
+                            </span>
+                            <select
+                              disabled={isReadOnly}
+                              value={currentVal}
+                              onChange={(e) =>
+                                handleMappingChange(
+                                  "extraction_mapping",
+                                  payloadKey,
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                : "border-slate-300 focus:border-purple-500 bg-white text-slate-900"
+                                }`}
+                            >
+                              <option value="">
+                                -- Select State Variable --
+                              </option>
+                              {stateKeys.map((k) => (
+                                <option key={k} value={k}>
+                                  {k}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* File Exports */}
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-rose-600 mb-2">
+                        <FileText className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          File Exports
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight mb-2">
+                        Generate downloadable files from state variables. The
+                        URLs will be injected into the final JSON payload.
+                      </p>
+
+                      {/* List of active exports */}
+                      {((selectedNode.data.exports as any[]) || []).map(
+                        (exp, index) => (
+                          <div
+                            key={exp.id}
+                            className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-3 mb-2 relative group animate-in fade-in"
+                          >
+                            {!isReadOnly && (
+                              <button
+                                onClick={() => {
+                                  const newExports = [
+                                    ...((selectedNode.data
+                                      .exports as any[]) || []),
+                                  ];
+                                  newExports.splice(index, 1);
+                                  handleNodeChange("exports", newExports);
+                                }}
+                                className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remove Export"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            <div className="space-y-1.5 pr-6">
+                              <label className="text-[10px] font-semibold text-gray-600">
+                                Format
+                              </label>
+                              <select
+                                disabled={isReadOnly}
+                                value={exp.format}
+                                onChange={(e) => {
+                                  const newExports = [
+                                    ...((selectedNode.data
+                                      .exports as any[]) || []),
+                                  ];
+                                  newExports[index] = {
+                                    ...exp,
+                                    format: e.target.value,
+                                  };
+                                  handleNodeChange("exports", newExports);
+                                }}
+                                className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                  ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                  : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
+                                  }`}
+                              >
+                                <option value="pdf">
+                                  PDF Document (.pdf)
+                                </option>
+                                <option value="csv">CSV Data (.csv)</option>
+                                <option value="txt">Plain Text (.txt)</option>
+                                <option value="md">Markdown (.md)</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-semibold text-gray-600">
+                                Source Variable
+                              </label>
+                              <select
+                                disabled={isReadOnly}
+                                value={exp.source_variable}
+                                onChange={(e) => {
+                                  const newExports = [
+                                    ...((selectedNode.data
+                                      .exports as any[]) || []),
+                                  ];
+                                  newExports[index] = {
+                                    ...exp,
+                                    source_variable: e.target.value,
+                                  };
+                                  handleNodeChange("exports", newExports);
+                                }}
+                                className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                                  ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                  : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
+                                  }`}
+                              >
+                                <option value="">
+                                  -- Select Data Source --
+                                </option>
+                                {stateKeys.map((k) => (
+                                  <option key={k} value={k}>
+                                    {k}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {exp.format === "pdf" && (
                               <div className="space-y-1.5">
                                 <label className="text-[10px] font-semibold text-gray-600">
-                                  Target Output Key
+                                  Layout Instructions (Optional)
                                 </label>
-                                <input
-                                  type="text"
+                                <textarea
                                   disabled={isReadOnly}
-                                  placeholder="e.g. download_url"
-                                  value={exp.target_variable}
+                                  placeholder="e.g. Use a large title, bold the correct answers..."
+                                  value={exp.layout_instructions || ""}
                                   onChange={(e) => {
                                     const newExports = [
                                       ...((selectedNode.data
@@ -2080,124 +2026,148 @@ const CanvasEditor = forwardRef<
                                     ];
                                     newExports[index] = {
                                       ...exp,
-                                      target_variable: e.target.value,
+                                      layout_instructions: e.target.value,
                                     };
                                     handleNodeChange("exports", newExports);
                                   }}
-                                  className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${
-                                    isReadOnly
-                                      ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                      : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
-                                  }`}
+                                  className={`w-full p-2 text-xs border rounded outline-none min-h-[60px] ${isReadOnly
+                                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                    : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
+                                    }`}
                                 />
                               </div>
+                            )}
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-semibold text-gray-600">
+                                Target Output Key
+                              </label>
+                              <input
+                                type="text"
+                                disabled={isReadOnly}
+                                placeholder="e.g. download_url"
+                                value={exp.target_variable}
+                                onChange={(e) => {
+                                  const newExports = [
+                                    ...((selectedNode.data
+                                      .exports as any[]) || []),
+                                  ];
+                                  newExports[index] = {
+                                    ...exp,
+                                    target_variable: e.target.value,
+                                  };
+                                  handleNodeChange("exports", newExports);
+                                }}
+                                className={`w-full p-1.5 text-xs border rounded outline-none font-mono ${isReadOnly
+                                  ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                                  : "border-slate-300 focus:border-rose-500 bg-white text-slate-900"
+                                  }`}
+                              />
                             </div>
-                          ),
-                        )}
+                          </div>
+                        ),
+                      )}
 
-                        {!isReadOnly && (
-                          <button
-                            onClick={() => {
-                              const newExports = [
-                                ...((selectedNode.data.exports as any[]) || []),
-                              ];
-                              newExports.push({
-                                id: crypto.randomUUID(),
-                                format: "pdf",
-                                source_variable: "",
-                                target_variable: "",
-                              });
-                              handleNodeChange("exports", newExports);
-                            }}
-                            className="w-full py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition-colors flex items-center justify-center gap-1 shadow-sm mt-2"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> Add File Export
-                          </button>
-                        )}
+                      {!isReadOnly && (
+                        <button
+                          onClick={() => {
+                            const newExports = [
+                              ...((selectedNode.data.exports as any[]) || []),
+                            ];
+                            newExports.push({
+                              id: crypto.randomUUID(),
+                              format: "pdf",
+                              source_variable: "",
+                              target_variable: "",
+                            });
+                            handleNodeChange("exports", newExports);
+                          }}
+                          className="w-full py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded transition-colors flex items-center justify-center gap-1 shadow-sm mt-2"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add File Export
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {selectedNode.type === "interrupt" && (
+                  <>
+                    <div className="pt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 text-orange-600 mb-2">
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                          Output Mapping
+                        </h3>
                       </div>
-                    </>
-                  )}
-
-                  {selectedNode.type === "interrupt" && (
-                    <>
-                      <div className="pt-4 border-t border-slate-100 space-y-3">
-                        <div className="flex items-center gap-2 text-orange-600 mb-2">
-                          <ArrowRightLeft className="w-4 h-4" />
-                          <h3 className="text-xs font-bold uppercase tracking-wider">
-                            Output Mapping
-                          </h3>
-                        </div>
-                        <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                          <span className="text-xs font-mono font-semibold text-slate-700">
-                            human_input
-                          </span>
-                          <select
-                            disabled={isReadOnly}
-                            value={
-                              (
-                                selectedNode.data.output_mapping as Record<
-                                  string,
-                                  string
-                                >
-                              )?.[`human_input`] || ""
-                            }
-                            onChange={(e) =>
-                              handleMappingChange(
-                                "output_mapping",
-                                "human_input",
-                                e.target.value,
-                              )
-                            }
-                            className={`w-full p-1.5 text-xs border rounded outline-none ${
-                              isReadOnly
-                                ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                : "border-slate-300 focus:border-orange-500 bg-white"
+                      <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                        <span className="text-xs font-mono font-semibold text-slate-700">
+                          human_input
+                        </span>
+                        <select
+                          disabled={isReadOnly}
+                          value={
+                            (
+                              selectedNode.data.output_mapping as Record<
+                                string,
+                                string
+                              >
+                            )?.[`human_input`] || ""
+                          }
+                          onChange={(e) =>
+                            handleMappingChange(
+                              "output_mapping",
+                              "human_input",
+                              e.target.value,
+                            )
+                          }
+                          className={`w-full p-1.5 text-xs border rounded outline-none ${isReadOnly
+                            ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                            : "border-slate-300 focus:border-orange-500 bg-white"
                             }`}
-                          >
-                            <option value="">-- Select Target State --</option>
-                            {stateKeys.map((k) => (
-                              <option key={k} value={k}>
-                                {k}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        >
+                          <option value="">-- Select Target State --</option>
+                          {stateKeys.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </>
+                )}
               </div>
-            ) : selectedEdge ? (
-              <div className="space-y-4 animate-in fade-in">
-                <div className="flex items-center gap-3 bg-slate-50 p-3 rounded border border-slate-200 text-sm font-mono text-slate-600">
-                  <span className="flex-1 truncate">{selectedEdge.source}</span>
-                  <GitMerge className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="flex-1 truncate text-right">
-                    {selectedEdge.target}
-                  </span>
-                </div>
-                <div className="space-y-1.5 mt-4">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Condition
-                  </label>
-                  <input
-                    type="text"
-                    disabled={isReadOnly}
-                    placeholder="e.g. priority == 'high'"
-                    value={(selectedEdge.data?.label as string) || ""}
-                    onChange={(e) => handleEdgeChange("label", e.target.value)}
-                    className={`w-full p-2 text-sm border rounded outline-none font-mono ${
-                      isReadOnly
-                        ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                        : "border-slate-300 focus:border-orange-500 text-slate-900"
+            </div>
+          ) : selectedEdge ? (
+            <div className="space-y-4 animate-in fade-in">
+              <div className="flex items-center gap-3 bg-slate-50 p-3 rounded border border-slate-200 text-sm font-mono text-slate-600">
+                <span className="flex-1 truncate">{selectedEdge.source}</span>
+                <GitMerge className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="flex-1 truncate text-right">
+                  {selectedEdge.target}
+                </span>
+              </div>
+              <div className="space-y-1.5 mt-4">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Condition
+                </label>
+                <input
+                  type="text"
+                  disabled={isReadOnly}
+                  placeholder="e.g. priority == 'high'"
+                  value={(selectedEdge.data?.label as string) || ""}
+                  onChange={(e) => handleEdgeChange("label", e.target.value)}
+                  className={`w-full p-2 text-sm border rounded outline-none font-mono ${isReadOnly
+                    ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
+                    : "border-slate-300 focus:border-orange-500 text-slate-900"
                     }`}
-                  />
-                </div>
+                />
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
-      )}
+      </div>
     </div>
   );
 });

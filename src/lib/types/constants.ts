@@ -92,6 +92,13 @@ export interface OrchestrationConfig {
   };
 }
 
+export interface VersionSummary {
+  id: string;
+  label: string;
+  status: "draft" | "published" | "archived";
+  created_at: string;
+}
+
 export interface SkillConfig {
   id: string;
   project_id: string;
@@ -110,7 +117,7 @@ export interface SkillConfig {
   interrupts?: Record<string, InterruptConfig>;
   orchestration?: OrchestrationConfig;
   compiled_manifest?: any;
-  versions?: SkillConfig[];
+  versions?: VersionSummary[];
   status?: "draft" | "published" | "archived";
 }
 
