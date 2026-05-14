@@ -2,6 +2,85 @@ import { McpClient, JsonValue } from "../../api-clients/mcp-client";
 import { MCPServerConfig } from "../../types/constants";
 import { ManifestNode, NodeContext, GraphState } from "../types";
 
+type McpToolSchema = {
+  properties: Record<string, unknown>;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toJsonValue = (value: unknown): JsonValue => value as JsonValue;
+
+const getToolList = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (isRecord(value) && Array.isArray(value.tools)) return value.tools;
+  return [];
+};
+
+const getToolSchema = async (
+  client: McpClient,
+  toolName: string,
+): Promise<McpToolSchema | null> => {
+  const toolsResult = await client.listTools();
+  if (!toolsResult.success) return null;
+
+  const toolDefinition = getToolList(toolsResult.data).find(
+    (tool) => isRecord(tool) && tool.name === toolName,
+  );
+
+  if (!isRecord(toolDefinition)) return null;
+
+  const schema = toolDefinition.inputSchema || toolDefinition.input_schema;
+  if (!isRecord(schema) || !isRecord(schema.properties)) return null;
+
+  return { properties: schema.properties };
+};
+
+const shouldWrapAsArray = (propertySchema: unknown) =>
+  isRecord(propertySchema) && propertySchema.type === "array";
+
+const getMappedValue = (
+  inputKey: string,
+  rawInputs: Record<string, JsonValue>,
+  propertySchema: unknown,
+): JsonValue | undefined => {
+  const directValue = rawInputs[inputKey];
+  if (directValue !== undefined) return directValue;
+
+  if (inputKey.endsWith("s")) {
+    const singularKey = inputKey.slice(0, -1);
+    const singularValue = rawInputs[singularKey];
+    if (singularValue !== undefined) {
+      return shouldWrapAsArray(propertySchema) && !Array.isArray(singularValue)
+        ? [singularValue]
+        : singularValue;
+    }
+  }
+
+  const pluralValue = rawInputs[`${inputKey}s`];
+  if (pluralValue !== undefined) return pluralValue;
+
+  return undefined;
+};
+
+const normalizeMcpArguments = (
+  rawInputs: Record<string, JsonValue>,
+  schema: McpToolSchema | null,
+) => {
+  if (!schema) return rawInputs;
+
+  const normalizedInputs: Record<string, JsonValue> = {};
+
+  for (const [inputKey, propertySchema] of Object.entries(schema.properties)) {
+    const mappedValue = getMappedValue(inputKey, rawInputs, propertySchema);
+    if (mappedValue !== undefined) {
+      normalizedInputs[inputKey] = mappedValue;
+    }
+  }
+
+  return normalizedInputs;
+};
+
 /**
  * Creates an MCP (Model Context Protocol) Node for the LangGraph workflow.
  * This node acts as a bridge to execute tools on remote external servers.
@@ -69,10 +148,12 @@ export function createMcpNode(node: ManifestNode, context: NodeContext) {
     // 2. Execution (No try/catch needed!)
     // Note: Record<string, JsonValue> implicitly satisfies the GraphState type
     // expected by the reporter, so no casting is needed here.
-    reporter?.onToolStart?.(toolName, localInputs);
-
     const client = new McpClient(serverConfig as MCPServerConfig);
-    const result = await client.callTool(toolName, localInputs);
+    const toolSchema = await getToolSchema(client, toolName);
+    const toolArguments = normalizeMcpArguments(localInputs, toolSchema);
+    reporter?.onToolStart?.(toolName, toolArguments);
+
+    const result = await client.callTool(toolName, toolArguments);
 
     // 3. Output Mapping & Error Handling
     if (!result.success) {
@@ -82,7 +163,7 @@ export function createMcpNode(node: ManifestNode, context: NodeContext) {
       reporter?.onToolEnd?.(toolName, { error: result.error });
     } else {
       // TypeScript knows `result.data` is safely available here
-      reporter?.onToolEnd?.(toolName, result.data);
+      reporter?.onToolEnd?.(toolName, toJsonValue(result.data));
 
       const outputTarget = (
         node.data.output_mapping as Record<string, string>
