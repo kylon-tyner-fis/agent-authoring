@@ -32,8 +32,6 @@ import {
   ArrowRightLeft,
   Zap,
   Flag,
-  ChevronDown,
-  ChevronUp,
   Plus,
   Database,
   Server,
@@ -360,7 +358,7 @@ const CanvasEditor = forwardRef<
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [isStateSchemaOpen, setIsStateSchemaOpen] = useState(true);
+  const [isStateSchemaOpen, setIsStateSchemaOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [dragPreview, setDragPreview] = useState<{
     x: number;
@@ -887,11 +885,13 @@ const CanvasEditor = forwardRef<
           onDragOver={isReadOnly ? undefined : onDragOver}
           onDragLeave={() => setDragPreview(null)}
           onNodeClick={(_, node) => {
+            setIsStateSchemaOpen(false);
             setSelectedNodeId(node.id);
             setSelectedEdgeId(null);
             props.onSelectionChange?.(true);
           }}
           onEdgeClick={(_, edge) => {
+            setIsStateSchemaOpen(false);
             setSelectedEdgeId(edge.id);
             setSelectedNodeId(null);
             props.onSelectionChange?.(true);
@@ -899,6 +899,7 @@ const CanvasEditor = forwardRef<
           onPaneClick={() => {
             setSelectedNodeId(null);
             setSelectedEdgeId(null);
+            setIsStateSchemaOpen(false);
             props.onSelectionChange?.(false);
           }}
           snapToGrid={true}
@@ -942,90 +943,127 @@ const CanvasEditor = forwardRef<
         ))}
       </datalist>
 
-      {/* Floating Skill State Schema Card */}
-      <div className="absolute left-4 top-[92px] z-40 w-[340px] overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_8px_30px_rgb(0,0,0,0.10)] backdrop-blur-xl">
-        <button
-          type="button"
-          onClick={() => setIsStateSchemaOpen((open) => !open)}
-          className="flex w-full items-center justify-between gap-3 border-b border-slate-200/80 bg-slate-50/70 p-3 text-left transition-colors hover:bg-slate-100"
-        >
-          <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-violet-500" />
-            <div>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Skill State Schema
-              </h2>
-              <p className="text-[10px] font-medium text-slate-500">
-                {inferredStateFields.length} inferred field{inferredStateFields.length === 1 ? "" : "s"}
-              </p>
-            </div>
-          </div>
-          {isStateSchemaOpen ? (
-            <ChevronUp className="h-4 w-4 text-slate-400" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          )}
-        </button>
+      {/* Canvas State Schema Entry Point */}
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedNodeId(null);
+          setSelectedEdgeId(null);
+          setIsStateSchemaOpen(true);
+          props.onSelectionChange?.(true);
+        }}
+        className={`absolute bottom-24 left-4 z-40 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold shadow-sm transition-colors ${
+          isStateSchemaOpen
+            ? "border-violet-300 bg-violet-100 text-violet-800"
+            : "border-slate-200 bg-white/95 text-slate-700 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+        }`}
+      >
+        <Database className="h-4 w-4" />
+        State Schema
+        <span className="rounded-full bg-white/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+          {inferredStateFields.length}
+        </span>
+      </button>
 
-        {isStateSchemaOpen && (
-          <div className="max-h-[42vh] space-y-3 overflow-y-auto p-3 custom-scrollbar">
+      {/* State Schema Inspector Card */}
+      {isStateSchemaOpen && !selectedNode && !selectedEdge && (
+        <div className="absolute right-4 top-[92px] bottom-4 w-[380px] z-50 flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-xl animate-in slide-in-from-right-8 fade-in duration-300 ease-out">
+          <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-violet-500" />
+              <div>
+                <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Skill State Schema
+                </h2>
+                <p className="text-[10px] font-medium text-slate-500">
+                  {inferredStateFields.length} inferred field
+                  {inferredStateFields.length === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setIsStateSchemaOpen(false);
+                props.onSelectionChange?.(false);
+              }}
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-md transition-colors"
+              title="Close State Schema"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-white/50">
             {inferredStateFields.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
-                Add fields to the Trigger payload or map Tool outputs to begin building this Skill&apos;s state schema.
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                Add fields to the Trigger payload or map Tool outputs to begin
+                building this Skill&apos;s state schema.
               </div>
             ) : (
-              inferredStateFields.map((field) => (
-                <div
-                  key={field.key}
-                  className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
-                >
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate font-mono text-xs font-bold text-slate-800" title={field.key}>
-                        {field.key}
-                      </div>
-                      <div className="mt-1 inline-flex rounded border border-violet-100 bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-violet-700">
-                        {field.typeHint}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                      <Eye className="h-3 w-3" />
-                      {field.touches.length}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {field.touches.map((touch, index) => (
-                      <div
-                        key={`${field.key}-${touch.nodeId}-${touch.localField}-${index}`}
-                        className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-[10px]"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-slate-700" title={touch.nodeLabel}>
-                            {touch.nodeLabel}
-                          </div>
-                          <div className="truncate font-mono text-slate-400" title={touch.localField}>
-                            {touch.localField}
-                          </div>
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 font-bold uppercase tracking-wide ${
-                            touch.direction === "writes"
-                              ? "bg-fuchsia-50 text-fuchsia-700"
-                              : "bg-indigo-50 text-indigo-700"
-                          }`}
+              <div className="space-y-3">
+                {inferredStateFields.map((field) => (
+                  <div
+                    key={field.key}
+                    className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+                  >
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div
+                          className="truncate font-mono text-sm font-bold text-slate-800"
+                          title={field.key}
                         >
-                          {touch.direction}
-                        </span>
+                          {field.key}
+                        </div>
+                        <div className="mt-1 inline-flex rounded border border-violet-100 bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+                          {field.typeHint}
+                        </div>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        <Eye className="h-3 w-3" />
+                        {field.touches.length} touch
+                        {field.touches.length === 1 ? "" : "es"}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {field.touches.map((touch, index) => (
+                        <div
+                          key={`${field.key}-${touch.nodeId}-${touch.localField}-${index}`}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <div
+                              className="truncate font-semibold text-slate-700"
+                              title={touch.nodeLabel}
+                            >
+                              {touch.nodeLabel}
+                            </div>
+                            <div
+                              className="truncate font-mono text-[10px] text-slate-400"
+                              title={touch.localField}
+                            >
+                              {touch.nodeType} · {touch.localField}
+                            </div>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                              touch.direction === "writes"
+                                ? "bg-fuchsia-50 text-fuchsia-700"
+                                : "bg-indigo-50 text-indigo-700"
+                            }`}
+                          >
+                            {touch.direction}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Floating Node Inspector Card */}
       {(selectedNode || selectedEdge) && (
