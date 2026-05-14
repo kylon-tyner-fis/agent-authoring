@@ -80,14 +80,25 @@ export function SkillEditor({ id }: SkillEditorProps) {
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
 
+        const versionCount = versions.length;
         setSkillConfig({
           ...data.skill,
-          versions: versions.map((v: any) => ({
-            id: v.id,
-            label: v.status === 'draft' ? 'Draft' : `v${v.version_number || '1'}`,
-            status: v.status,
-            created_at: v.created_at
-          }))
+          versions: versions.map((v: any, index: number) => {
+            const vNum = v.version_number || (versionCount - index);
+            return {
+              id: v.id,
+              label: `v${vNum}${v.status === 'draft' ? ' (Draft)' : ''}`,
+              description: v.created_at ? new Date(v.created_at).toLocaleDateString(undefined, { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }) : 'No date',
+              status: v.status,
+              created_at: v.created_at
+            };
+          })
         });
 
         setAvailableTools(toolsData.tools || []);
@@ -270,18 +281,18 @@ export function SkillEditor({ id }: SkillEditorProps) {
 
         {/* 1. IDENTITY CLUSTER (Top-Left) */}
         <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
-          <div className="flex items-center p-1.5 bg-white/90 backdrop-blur-xl border border-slate-200 shadow-xl shadow-slate-200/40 rounded-2xl">
-            <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20 shrink-0 ml-1 mt-1 mb-1">
-              <Network className="w-5 h-5" />
+          <div className="flex items-center gap-4 p-2.5 bg-white/95 backdrop-blur-xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-2xl">
+            <div className="w-11 h-11 bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20 shrink-0 ml-0.5">
+              <Network className="w-6 h-6" />
             </div>
 
-            <div className="flex flex-col pr-4 min-w-0 max-w-[240px]">
+            <div className="flex flex-col pr-6 min-w-0 max-w-[320px]">
               <input
                 type="text"
                 value={skillConfig.name || ""}
                 disabled={isReadOnly}
                 onChange={(e) => setSkillConfig({ ...skillConfig, name: e.target.value })}
-                className={`bg-transparent font-bold text-sm tracking-tight focus:outline-none focus:ring-0 placeholder:text-slate-300 truncate -ml-0.5 ${isReadOnly ? "text-slate-500 cursor-not-allowed" : "text-slate-900"}`}
+                className={`bg-transparent font-bold text-sm tracking-tight focus:outline-none focus:ring-0 placeholder:text-slate-300 truncate ${isReadOnly ? "text-slate-500 cursor-not-allowed" : "text-slate-900 hover:text-violet-600 transition-colors"}`}
                 placeholder="Untitled Skill"
               />
 
@@ -289,59 +300,32 @@ export function SkillEditor({ id }: SkillEditorProps) {
                 <Dropdown
                   trigger={(selected, isOpen) => (
                     <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg border transition-all cursor-pointer
-                      ${isOpen
-                        ? "bg-violet-50 border-violet-200 ring-4 ring-violet-500/5"
-                        : "bg-white/50 border-slate-200 hover:border-slate-300"
+                      ${isOpen 
+                        ? "bg-violet-50 border-violet-200 ring-4 ring-violet-500/5" 
+                        : "bg-slate-50 border-slate-200 hover:border-slate-300"
                       }`}>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">v{selected?.label || '1'}</span>
+                      <span className="text-[10px] font-bold text-slate-500 tracking-tight">{selected?.label || 'v1'}</span>
                       <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                     </div>
                   )}
                   value={id}
                   options={skillConfig.versions || []}
-                  onChange={async (newId) => {
-                    if (!currentProject?.id) return;
+                  onChange={(newId) => {
                     const selected = (skillConfig.versions || []).find(v => v.id === newId);
-                    if (!selected) return;
-
-                    const res = await fetch(`/api/agents?projectId=${currentProject.id}`);
-                    const data = await res.json();
-                    const agents = data.agents || [];
-                    const associatedAgent = agents.find((a: any) => (a.skills || []).includes(id));
-
-                    if (associatedAgent) {
-                      const agentId = associatedAgent.id;
-                      const agentRes = await fetch(`/api/agents/${agentId}?projectId=${currentProject.id}`);
-                      const agentData = await agentRes.json();
-                      const agent = agentData.agent;
-
-                      const nextSkills = (agent.skills || []).map((sid: string) =>
-                        sid === id ? newId : sid
-                      );
-
-                      await fetch(`/api/agents/${agentId}?projectId=${currentProject.id}`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ ...agent, skills: nextSkills }),
-                      });
-                    }
-
-                    addToast(`Switched version`, "success");
-                    await refreshTree();
-
-                    if (selectedNode) {
+                    if (selected && selectedNode) {
                       setSelectedNode({
                         ...selectedNode,
                         id: newId,
                       });
+                      addToast(`Switched to ${selected.label}`, "success");
                     }
                   }}
                 />
 
                 {isReadOnly && (
-                  <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded-lg shadow-sm">
-                    <Lock className="w-2.5 h-2.5 text-slate-400" />
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Read Only</span>
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 border border-amber-200 rounded-lg shadow-sm">
+                    <Lock className="w-2.5 h-2.5 text-amber-500" />
+                    <span className="text-[9px] font-bold text-amber-600 uppercase tracking-tight">Read Only</span>
                   </div>
                 )}
               </div>
