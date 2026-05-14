@@ -3,6 +3,7 @@
 import {
   useState,
   useCallback,
+  useMemo,
   forwardRef,
   useImperativeHandle,
   useEffect,
@@ -31,12 +32,11 @@ import {
   ArrowRightLeft,
   Zap,
   Flag,
-  ChevronDown,
-  ChevronUp,
   Plus,
   Database,
   Server,
   Loader2,
+  Eye,
   Cpu,
   FileText,
   X,
@@ -72,6 +72,7 @@ const ROW_HEIGHT = 200;
 
 export interface OrchestrationCanvasRef {
   getCanvasData: () => any;
+  getInferredStateSchema: () => Record<string, string>;
   clearSelection: () => void;
 }
 
@@ -151,14 +152,204 @@ const compileSchema = (nodes: SchemaNode[]): any => {
   return result;
 };
 
+type StateFieldTouch = {
+  nodeId: string;
+  nodeLabel: string;
+  nodeType: string;
+  direction: "reads" | "writes";
+  localField: string;
+};
+
+type StateFieldSummary = {
+  key: string;
+  typeHint: string;
+  touches: StateFieldTouch[];
+};
+
+const getSchemaTypeAtPath = (schema: unknown, path: string): string => {
+  if (!schema || !path) return "unknown";
+  const segments = path.split(".");
+  let current: unknown = schema;
+
+  for (const segment of segments) {
+    if (Array.isArray(current)) current = current[0];
+    if (!current || typeof current !== "object") return "unknown";
+    current = (current as Record<string, unknown>)[segment];
+  }
+
+  if (Array.isArray(current)) {
+    if (current.length === 0) return "array";
+    return typeof current[0] === "object"
+      ? "array<object>"
+      : `array<${String(current[0])}>`;
+  }
+  if (current && typeof current === "object") return "object";
+  return current ? String(current) : "unknown";
+};
+
+const addStateTouch = (
+  fields: Map<string, StateFieldSummary>,
+  key: unknown,
+  typeHint: string,
+  touch: StateFieldTouch,
+) => {
+  if (typeof key !== "string" || !key.trim()) return;
+  const normalizedKey = key.trim();
+  const existing = fields.get(normalizedKey);
+
+  if (existing) {
+    if (existing.typeHint === "unknown" && typeHint !== "unknown") {
+      existing.typeHint = typeHint;
+    }
+    existing.touches.push(touch);
+    return;
+  }
+
+  fields.set(normalizedKey, {
+    key: normalizedKey,
+    typeHint: typeHint || "unknown",
+    touches: [touch],
+  });
+};
+
+const inferStateFields = (
+  nodes: Node[],
+  toolsList: ToolConfig[],
+): StateFieldSummary[] => {
+  const fields = new Map<string, StateFieldSummary>();
+
+  nodes.forEach((node) => {
+    const nodeLabel = String(node.data?.label || node.id);
+    const nodeType = node.type || "node";
+    const baseTouch = { nodeId: node.id, nodeLabel, nodeType };
+
+    if (node.type === "trigger") {
+      const schema = (node.data?.expected_payload || {}) as Record<
+        string,
+        unknown
+      >;
+      const mapping = (node.data?.initialization_mapping || {}) as Record<
+        string,
+        string
+      >;
+      Object.keys(schema).forEach((payloadKey) => {
+        addStateTouch(
+          fields,
+          mapping[payloadKey] || payloadKey,
+          getSchemaTypeAtPath(schema, payloadKey),
+          {
+            ...baseTouch,
+            direction: "writes",
+            localField: payloadKey,
+          },
+        );
+      });
+      return;
+    }
+
+    if (node.type === "tool") {
+      const tool = toolsList.find((t) => t.id === node.data?.toolId);
+      const inputMapping = (node.data?.input_mapping || {}) as Record<
+        string,
+        string | string[]
+      >;
+      Object.entries(inputMapping).forEach(([localField, mappedKeys]) => {
+        const keys = Array.isArray(mappedKeys) ? mappedKeys : [mappedKeys];
+        keys.forEach((key) =>
+          addStateTouch(fields, key, "unknown", {
+            ...baseTouch,
+            direction: "reads",
+            localField,
+          }),
+        );
+      });
+
+      const outputMapping = (node.data?.output_mapping || {}) as Record<
+        string,
+        string
+      >;
+      Object.entries(outputMapping).forEach(([localField, stateKey]) => {
+        addStateTouch(
+          fields,
+          stateKey || localField,
+          getSchemaTypeAtPath(tool?.output_schema, localField),
+          {
+            ...baseTouch,
+            direction: "writes",
+            localField,
+          },
+        );
+      });
+      return;
+    }
+
+    if (node.type === "mcp_node") {
+      const inputMapping = (node.data?.input_mapping || {}) as Record<
+        string,
+        string
+      >;
+      Object.entries(inputMapping).forEach(([localField, stateKey]) => {
+        addStateTouch(fields, stateKey, "unknown", {
+          ...baseTouch,
+          direction: "reads",
+          localField,
+        });
+      });
+
+      const outputMapping = (node.data?.output_mapping || {}) as Record<
+        string,
+        string
+      >;
+      Object.entries(outputMapping).forEach(([localField, stateKey]) => {
+        addStateTouch(fields, stateKey || localField, "object", {
+          ...baseTouch,
+          direction: "writes",
+          localField,
+        });
+      });
+      return;
+    }
+
+    if (node.type === "response") {
+      const mapping = (node.data?.extraction_mapping || {}) as Record<
+        string,
+        string
+      >;
+      Object.entries(mapping).forEach(([localField, stateKey]) => {
+        addStateTouch(fields, stateKey, "unknown", {
+          ...baseTouch,
+          direction: "reads",
+          localField,
+        });
+      });
+    }
+  });
+
+  return Array.from(fields.values()).sort((a, b) => a.key.localeCompare(b.key));
+};
+
+const stateFieldSummariesToSchema = (
+  fields: StateFieldSummary[],
+): Record<string, string> =>
+  fields.reduce<Record<string, string>>((schema, field) => {
+    schema[field.key] = field.typeHint;
+    return schema;
+  }, {});
+
 const CanvasEditor = forwardRef<
   OrchestrationCanvasRef,
   OrchestrationCanvasProps
 >((props, ref) => {
   const startingNodes = props.initialData?.nodes || [];
   const startingEdges = props.initialData?.edges || [];
-  const toolsList = props.availableTools || [];
-  const serversList = props.availableServers || [];
+  const toolsList = useMemo(
+    () => props.availableTools || [],
+    [props.availableTools],
+  );
+  const serversList = useMemo(
+    () => props.availableServers || [],
+    [props.availableServers],
+  );
   const isReadOnly = !!props.readOnly; // Extracted
 
   const [nodes, setNodes, onNodesChange] = useNodesState(startingNodes);
@@ -167,7 +358,7 @@ const CanvasEditor = forwardRef<
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [isPaletteOpen, setIsPaletteOpen] = useState(true);
+  const [isStateSchemaOpen, setIsStateSchemaOpen] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [dragPreview, setDragPreview] = useState<{
     x: number;
@@ -184,8 +375,18 @@ const CanvasEditor = forwardRef<
   const { x, y, zoom } = useViewport();
   const { addToast } = useToast();
 
+  const inferredStateFields = useMemo(
+    () => inferStateFields(nodes, toolsList),
+    [nodes, toolsList],
+  );
+  const inferredStateSchema = useMemo(
+    () => stateFieldSummariesToSchema(inferredStateFields),
+    [inferredStateFields],
+  );
+
   useImperativeHandle(ref, () => ({
     getCanvasData: () => toObject(),
+    getInferredStateSchema: () => inferredStateSchema,
     clearSelection: () => {
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
@@ -208,6 +409,59 @@ const CanvasEditor = forwardRef<
       setViewport(props.initialData.viewport);
     }
   }, [props.initialData, setViewport]);
+
+  useEffect(() => {
+    if (isReadOnly) return;
+
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.type === "tool") {
+          const tool = toolsList.find((t) => t.id === node.data?.toolId);
+          if (!tool) return node;
+
+          const currentMapping = (node.data?.output_mapping || {}) as Record<
+            string,
+            string
+          >;
+          const nextMapping = { ...currentMapping };
+          let changed = false;
+
+          Object.keys(tool.output_schema || {}).forEach((outputKey) => {
+            if (!nextMapping[outputKey]) {
+              nextMapping[outputKey] = outputKey;
+              changed = true;
+            }
+          });
+
+          return changed
+            ? { ...node, data: { ...node.data, output_mapping: nextMapping } }
+            : node;
+        }
+
+        if (node.type === "mcp_node") {
+          const currentMapping = (node.data?.output_mapping || {}) as Record<
+            string,
+            string
+          >;
+          if (currentMapping.mcp_response) return node;
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              output_mapping: {
+                ...currentMapping,
+                mcp_response: "mcp_response",
+              },
+            },
+          };
+        }
+
+        return node;
+      }),
+    );
+  }, [isReadOnly, setNodes, toolsList]);
+
 
   useEffect(() => {
     if (isFullScreen) {
@@ -409,7 +663,10 @@ const CanvasEditor = forwardRef<
             toolId: tool.id,
             description: tool.description,
             input_mapping: {},
-            output_mapping: {},
+            output_mapping: Object.keys(tool.output_schema || {}).reduce(
+              (mapping, outputKey) => ({ ...mapping, [outputKey]: outputKey }),
+              {} as Record<string, string>,
+            ),
           };
         }
       } else if (type === "mcp_node" && itemId) {
@@ -420,7 +677,7 @@ const CanvasEditor = forwardRef<
             serverId: server.id,
             toolName: "",
             input_mapping: {},
-            output_mapping: {},
+            output_mapping: { mcp_response: "mcp_response" },
           };
         }
       } else if (type === "trigger") {
@@ -518,6 +775,11 @@ const CanvasEditor = forwardRef<
           delete cleanMapping[key];
         }
       });
+      Object.keys(compiled).forEach((key) => {
+        if (!cleanMapping[key]) {
+          cleanMapping[key] = key;
+        }
+      });
 
       setNodes((nds) =>
         nds.map((n) =>
@@ -572,7 +834,12 @@ const CanvasEditor = forwardRef<
     );
   };
 
-  const stateKeys = flattenSchemaKeys(props.globalStateSchema);
+  const stateKeys = Array.from(
+    new Set([
+      ...flattenSchemaKeys(props.globalStateSchema),
+      ...inferredStateFields.map((field) => field.key),
+    ]),
+  ).sort();
   const activeTool =
     selectedNode?.type === "tool"
       ? toolsList.find((t) => t.id === selectedNode.data.toolId)
@@ -618,11 +885,13 @@ const CanvasEditor = forwardRef<
           onDragOver={isReadOnly ? undefined : onDragOver}
           onDragLeave={() => setDragPreview(null)}
           onNodeClick={(_, node) => {
+            setIsStateSchemaOpen(false);
             setSelectedNodeId(node.id);
             setSelectedEdgeId(null);
             props.onSelectionChange?.(true);
           }}
           onEdgeClick={(_, edge) => {
+            setIsStateSchemaOpen(false);
             setSelectedEdgeId(edge.id);
             setSelectedNodeId(null);
             props.onSelectionChange?.(true);
@@ -630,6 +899,7 @@ const CanvasEditor = forwardRef<
           onPaneClick={() => {
             setSelectedNodeId(null);
             setSelectedEdgeId(null);
+            setIsStateSchemaOpen(false);
             props.onSelectionChange?.(false);
           }}
           snapToGrid={true}
@@ -666,6 +936,134 @@ const CanvasEditor = forwardRef<
           />
         </ReactFlow>
       </div>
+
+      <datalist id="state-schema-keys">
+        {stateKeys.map((key) => (
+          <option key={key} value={key} />
+        ))}
+      </datalist>
+
+      {/* Canvas State Schema Entry Point */}
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedNodeId(null);
+          setSelectedEdgeId(null);
+          setIsStateSchemaOpen(true);
+          props.onSelectionChange?.(true);
+        }}
+        className={`absolute bottom-24 left-4 z-40 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold shadow-sm transition-colors ${
+          isStateSchemaOpen
+            ? "border-violet-300 bg-violet-100 text-violet-800"
+            : "border-slate-200 bg-white/95 text-slate-700 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+        }`}
+      >
+        <Database className="h-4 w-4" />
+        State Schema
+        <span className="rounded-full bg-white/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+          {inferredStateFields.length}
+        </span>
+      </button>
+
+      {/* State Schema Inspector Card */}
+      {isStateSchemaOpen && !selectedNode && !selectedEdge && (
+        <div className="absolute right-4 top-[92px] bottom-4 w-[380px] z-50 flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-xl animate-in slide-in-from-right-8 fade-in duration-300 ease-out">
+          <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-violet-500" />
+              <div>
+                <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Skill State Schema
+                </h2>
+                <p className="text-[10px] font-medium text-slate-500">
+                  {inferredStateFields.length} inferred field
+                  {inferredStateFields.length === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setIsStateSchemaOpen(false);
+                props.onSelectionChange?.(false);
+              }}
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-md transition-colors"
+              title="Close State Schema"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-white/50">
+            {inferredStateFields.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                Add fields to the Trigger payload or map Tool outputs to begin
+                building this Skill&apos;s state schema.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {inferredStateFields.map((field) => (
+                  <div
+                    key={field.key}
+                    className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+                  >
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div
+                          className="truncate font-mono text-sm font-bold text-slate-800"
+                          title={field.key}
+                        >
+                          {field.key}
+                        </div>
+                        <div className="mt-1 inline-flex rounded border border-violet-100 bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+                          {field.typeHint}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        <Eye className="h-3 w-3" />
+                        {field.touches.length} touch
+                        {field.touches.length === 1 ? "" : "es"}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {field.touches.map((touch, index) => (
+                        <div
+                          key={`${field.key}-${touch.nodeId}-${touch.localField}-${index}`}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <div
+                              className="truncate font-semibold text-slate-700"
+                              title={touch.nodeLabel}
+                            >
+                              {touch.nodeLabel}
+                            </div>
+                            <div
+                              className="truncate font-mono text-[10px] text-slate-400"
+                              title={touch.localField}
+                            >
+                              {touch.nodeType} · {touch.localField}
+                            </div>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                              touch.direction === "writes"
+                                ? "bg-fuchsia-50 text-fuchsia-700"
+                                : "bg-indigo-50 text-indigo-700"
+                            }`}
+                          >
+                            {touch.direction}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Floating Node Inspector Card */}
       {(selectedNode || selectedEdge) && (
@@ -849,8 +1247,11 @@ const CanvasEditor = forwardRef<
                               <span className="text-xs font-mono font-semibold text-slate-700">
                                 mcp_response
                               </span>
-                              <select
+                              <input
+                                type="text"
                                 disabled={isReadOnly}
+                                list="state-schema-keys"
+                                placeholder="mcp_response"
                                 value={
                                   (
                                     selectedNode.data.output_mapping as Record<
@@ -871,16 +1272,7 @@ const CanvasEditor = forwardRef<
                                     ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
                                     : "border-slate-300 focus:border-emerald-500 bg-white"
                                 }`}
-                              >
-                                <option value="">
-                                  -- Select Target State --
-                                </option>
-                                {stateKeys.map((k) => (
-                                  <option key={k} value={k}>
-                                    {k}
-                                  </option>
-                                ))}
-                              </select>
+                              />
                             </div>
                           </div>
                         </>
@@ -1279,8 +1671,11 @@ const CanvasEditor = forwardRef<
                                 <span className="text-xs font-mono font-semibold text-slate-700">
                                   {outputKey}
                                 </span>
-                                <select
+                                <input
+                                  type="text"
                                   disabled={isReadOnly}
+                                  list="state-schema-keys"
+                                  placeholder={outputKey}
                                   value={currentVal}
                                   onChange={(e) =>
                                     handleMappingChange(
@@ -1292,18 +1687,9 @@ const CanvasEditor = forwardRef<
                                   className={`w-full p-1.5 text-xs border rounded outline-none ${
                                     isReadOnly
                                       ? "bg-slate-100 cursor-not-allowed border-slate-200 text-slate-500"
-                                      : "border-slate-300 focus:border-amber-500 bg-white"
+                                      : "border-slate-300 focus:border-amber-500 bg-white text-slate-900"
                                   }`}
-                                >
-                                  <option value="">
-                                    -- Select Target State --
-                                  </option>
-                                  {stateKeys.map((k) => (
-                                    <option key={k} value={k}>
-                                      {k}
-                                    </option>
-                                  ))}
-                                </select>
+                                />
                               </div>
                             );
                           },
