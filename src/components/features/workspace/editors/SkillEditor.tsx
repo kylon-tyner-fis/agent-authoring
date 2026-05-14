@@ -1,7 +1,7 @@
 // src/components/features/workspace/editors/SkillEditor.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Network,
   Save,
@@ -25,7 +25,6 @@ import {
   DEFAULT_SKILL_CONFIG,
   MCPServerConfig,
   Message,
-  OrchestrationConfig,
   SkillConfig,
   ToolConfig,
 } from "@/src/lib/types/constants";
@@ -39,14 +38,6 @@ interface SkillEditorProps {
 }
 
 type ActivePanel = "palette" | "settings" | null;
-
-interface WorkspaceSkillFormData {
-  name: string;
-  description: string;
-  system_prompt: string;
-  model: SkillConfig["model"];
-  orchestration: OrchestrationConfig | null;
-}
 
 export function SkillEditor({ id }: SkillEditorProps) {
   const { currentProject } = useProject();
@@ -62,17 +53,14 @@ export function SkillEditor({ id }: SkillEditorProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>("palette");
 
   const canvasRef = useRef<OrchestrationCanvasRef>(null);
-  const [formData, setFormData] = useState<WorkspaceSkillFormData>({
-    name: "",
-    description: "",
-    system_prompt: "",
+  const [skillConfig, setSkillConfig] = useState<SkillConfig>({
+    ...DEFAULT_SKILL_CONFIG,
+    id,
+    project_id: currentProject?.id || "",
     model: {
-      provider: "openai",
+      ...DEFAULT_SKILL_CONFIG.model,
       model_name: "gpt-4o",
-      temperature: 0.7,
-      max_tokens: 4096,
     },
-    orchestration: null,
   });
 
   const [availableTools, setAvailableTools] = useState<ToolConfig[]>([]);
@@ -80,30 +68,46 @@ export function SkillEditor({ id }: SkillEditorProps) {
     [],
   );
 
-  const playgroundConfig = useMemo<SkillConfig>(
-    () => ({
-      ...DEFAULT_SKILL_CONFIG,
-      id,
-      project_id: currentProject?.id || "",
-      name: formData.name,
-      description: formData.description,
-      system_prompt: formData.system_prompt,
-      model: {
-        ...DEFAULT_SKILL_CONFIG.model,
-        ...formData.model,
-      },
-      orchestration: formData.orchestration || undefined,
-    }),
-    [
-      currentProject?.id,
-      formData.description,
-      formData.model,
-      formData.name,
-      formData.orchestration,
-      formData.system_prompt,
-      id,
-    ],
-  );
+  const getCurrentCanvasData = () =>
+    canvasRef.current?.getCanvasData() || skillConfig.orchestration;
+
+  const getMcpServerIds = (canvasData: unknown) => {
+    if (!canvasData || typeof canvasData !== "object")
+      return skillConfig.mcp_servers;
+
+    const nodes = (canvasData as { nodes?: unknown }).nodes;
+    if (!Array.isArray(nodes)) return skillConfig.mcp_servers;
+
+    return Array.from(
+      new Set(
+        nodes.flatMap((node) => {
+          if (!node || typeof node !== "object") return [];
+
+          const { type, data } = node as { type?: unknown; data?: unknown };
+          if (type !== "mcp_node" || !data || typeof data !== "object") {
+            return [];
+          }
+
+          const serverId = (data as { serverId?: unknown }).serverId;
+          return typeof serverId === "string" && serverId ? [serverId] : [];
+        }),
+      ),
+    );
+  };
+
+  const syncCanvasToSkillConfig = () => {
+    const currentCanvasData = getCurrentCanvasData();
+    if (!currentCanvasData) return skillConfig;
+
+    const nextConfig = {
+      ...skillConfig,
+      mcp_servers: getMcpServerIds(currentCanvasData),
+      orchestration: currentCanvasData,
+    };
+
+    setSkillConfig(nextConfig);
+    return nextConfig;
+  };
 
   useEffect(() => {
     async function fetchSkillData() {
@@ -137,19 +141,22 @@ export function SkillEditor({ id }: SkillEditorProps) {
         }
 
         if (data.skill) {
-          setFormData({
-            name: data.skill.name || "",
-            description: data.skill.description || "",
-            system_prompt: data.skill.system_prompt || "",
+          setSkillConfig({
+            ...DEFAULT_SKILL_CONFIG,
+            ...data.skill,
+            id: data.skill.id || id,
+            project_id: data.skill.project_id || currentProject.id,
             model: {
               ...DEFAULT_SKILL_CONFIG.model,
               ...(data.skill.model || {
-                provider: "openai",
-                model_name: "gpt-4o",
-                temperature: 0.7,
+                provider: data.skill.provider || "openai",
+                model_name: data.skill.model_name || "gpt-4o",
+                temperature: data.skill.temperature ?? 0.7,
+                max_tokens: data.skill.max_tokens ?? 4096,
               }),
             },
-            orchestration: data.skill.orchestration || null,
+            mcp_servers: data.skill.mcp_servers || [],
+            orchestration: data.skill.orchestration || undefined,
           });
         }
       } catch (error) {
@@ -188,20 +195,26 @@ export function SkillEditor({ id }: SkillEditorProps) {
     if (!currentProject?.id) return;
     setIsSaving(true);
     try {
-      const currentCanvasData = canvasRef.current?.getCanvasData();
+      const currentCanvasData = getCurrentCanvasData();
+      const mcpServers = getMcpServerIds(currentCanvasData);
       const res = await fetch(
         `/api/skills/${id}?projectId=${currentProject.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ...formData,
+            ...skillConfig,
+            mcp_servers: mcpServers,
             orchestration: currentCanvasData,
           }),
         },
       );
       if (res.ok) {
-        setFormData((prev) => ({ ...prev, orchestration: currentCanvasData }));
+        setSkillConfig((prev) => ({
+          ...prev,
+          mcp_servers: mcpServers,
+          orchestration: currentCanvasData,
+        }));
         await refreshTree();
       }
     } catch (error) {
@@ -226,7 +239,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
         <div className="absolute inset-0 z-0">
           <OrchestrationCanvas
             ref={canvasRef}
-            initialData={formData.orchestration}
+            initialData={skillConfig.orchestration}
             availableTools={availableTools}
             availableServers={availableServers}
             activeNodeId={activeNodeId}
@@ -248,9 +261,12 @@ export function SkillEditor({ id }: SkillEditorProps) {
               <div className="flex-1 max-w-sm">
                 <input
                   type="text"
-                  value={formData.name}
+                  value={skillConfig.name}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                    setSkillConfig((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
                   }
                   className="w-full bg-transparent font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/50 rounded px-1 -ml-1 text-lg placeholder:text-slate-400 truncate"
                 />
@@ -288,7 +304,10 @@ export function SkillEditor({ id }: SkillEditorProps) {
               </button>
 
               <button
-                onClick={() => setIsPlaygroundOpen(true)}
+                onClick={() => {
+                  syncCanvasToSkillConfig();
+                  setIsPlaygroundOpen(true);
+                }}
                 className="flex items-center gap-2 px-4 py-1.5 bg-white text-slate-700 border border-violet-200 text-sm font-medium rounded-md hover:bg-violet-50 transition-colors shadow-sm ml-1"
               >
                 <Play className="w-4 h-4 text-violet-500 fill-violet-500" />
@@ -396,9 +415,9 @@ export function SkillEditor({ id }: SkillEditorProps) {
             {activePanel === "settings" && (
               <div className="animate-in fade-in slide-in-from-top-4 duration-300">
                 <SkillSettings
-                  data={formData}
+                  data={skillConfig}
                   onChange={(field, val) =>
-                    setFormData((prev) => ({ ...prev, [field]: val }))
+                    setSkillConfig((prev) => ({ ...prev, [field]: val }))
                   }
                 />
               </div>
@@ -409,7 +428,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
 
       <SlidingPlaygroundPanel isOpen={isPlaygroundOpen}>
         <Playground
-          config={playgroundConfig}
+          config={skillConfig}
           messages={messages}
           setMessages={setMessages}
           onClose={() => setIsPlaygroundOpen(false)}
