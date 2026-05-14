@@ -39,26 +39,40 @@ const getToolSchema = async (
 const shouldWrapAsArray = (propertySchema: unknown) =>
   isRecord(propertySchema) && propertySchema.type === "array";
 
+const getAliasKeys = (inputKey: string) => {
+  const aliases = new Set([inputKey]);
+
+  if (inputKey.endsWith("ies")) {
+    aliases.add(`${inputKey.slice(0, -3)}y`);
+  }
+
+  if (inputKey.endsWith("es")) {
+    aliases.add(inputKey.slice(0, -2));
+  }
+
+  if (inputKey.endsWith("s")) {
+    aliases.add(inputKey.slice(0, -1));
+  } else {
+    aliases.add(`${inputKey}s`);
+  }
+
+  return [...aliases].filter(Boolean);
+};
+
+const coerceValueForSchema = (value: JsonValue, propertySchema: unknown) =>
+  shouldWrapAsArray(propertySchema) && !Array.isArray(value) ? [value] : value;
+
 const getMappedValue = (
   inputKey: string,
   rawInputs: Record<string, JsonValue>,
   propertySchema: unknown,
 ): JsonValue | undefined => {
-  const directValue = rawInputs[inputKey];
-  if (directValue !== undefined) return directValue;
-
-  if (inputKey.endsWith("s")) {
-    const singularKey = inputKey.slice(0, -1);
-    const singularValue = rawInputs[singularKey];
-    if (singularValue !== undefined) {
-      return shouldWrapAsArray(propertySchema) && !Array.isArray(singularValue)
-        ? [singularValue]
-        : singularValue;
+  for (const aliasKey of getAliasKeys(inputKey)) {
+    const mappedValue = rawInputs[aliasKey];
+    if (mappedValue !== undefined) {
+      return coerceValueForSchema(mappedValue, propertySchema);
     }
   }
-
-  const pluralValue = rawInputs[`${inputKey}s`];
-  if (pluralValue !== undefined) return pluralValue;
 
   return undefined;
 };
