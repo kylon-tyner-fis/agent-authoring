@@ -102,6 +102,8 @@ export function SkillEditor({ id }: SkillEditorProps) {
     const nextConfig = {
       ...skillConfig,
       mcp_servers: getMcpServerIds(currentCanvasData),
+      state_schema:
+        canvasRef.current?.getInferredStateSchema() || skillConfig.state_schema,
       orchestration: currentCanvasData,
     };
 
@@ -197,6 +199,8 @@ export function SkillEditor({ id }: SkillEditorProps) {
     try {
       const currentCanvasData = getCurrentCanvasData();
       const mcpServers = getMcpServerIds(currentCanvasData);
+      const inferredStateSchema =
+        canvasRef.current?.getInferredStateSchema() || skillConfig.state_schema;
       const res = await fetch(
         `/api/skills/${id}?projectId=${currentProject.id}`,
         {
@@ -205,6 +209,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
           body: JSON.stringify({
             ...skillConfig,
             mcp_servers: mcpServers,
+            state_schema: inferredStateSchema,
             orchestration: currentCanvasData,
           }),
         },
@@ -213,6 +218,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
         setSkillConfig((prev) => ({
           ...prev,
           mcp_servers: mcpServers,
+          state_schema: inferredStateSchema,
           orchestration: currentCanvasData,
         }));
         await refreshTree();
@@ -242,6 +248,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
             initialData={skillConfig.orchestration}
             availableTools={availableTools}
             availableServers={availableServers}
+            globalStateSchema={skillConfig.state_schema}
             activeNodeId={activeNodeId}
             readOnly={false}
             onSelectionChange={() => {
