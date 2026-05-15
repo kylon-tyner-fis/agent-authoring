@@ -29,16 +29,19 @@ export async function GET(
 
     if (orchError) throw orchError;
 
-    // 2. Fetch Agents for this Orchestrator
-    // Assuming agents have an orchestrator_id. If they are stored as an array of IDs
-    // on the orchestrator, change this to: .in("id", orch.agents || [])
+    // 2. Fetch and Filter Agents that belong to this Orchestrator
     const { data: agents, error: agentsError } = await supabase
       .from("agents")
       .select("*")
       .eq("project_id", projectId);
-    // .eq("orchestrator_id", id); // Add this if you have the foreign key
 
     if (agentsError) throw agentsError;
+
+    const orchestratorAgentIds = Array.isArray(orch.agents) ? orch.agents : [];
+    const assignedAgents = (agents || []).filter((agent) =>
+      orchestratorAgentIds.includes(agent.id),
+    );
+
 
     // 3. Fetch Skills, Tools, and MCP Servers
     // In a real production app, you might fetch these based on the specific agent IDs.
@@ -55,7 +58,7 @@ export async function GET(
       type: "orchestrator",
       name: orch.name || "Untitled Orchestrator",
       data: orch,
-      children: (agents || []).map((agent) => {
+      children: assignedAgents.map((agent) => {
         // Find skills assigned to this agent (assuming agent.skills is an array of IDs)
         // Change logic based on your exact DB relations
         const agentSkillIds = agent.skills || [];

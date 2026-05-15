@@ -48,9 +48,11 @@ interface WorkspaceContextType {
   activeOrchestratorId: string | null;
   setActiveOrchestratorId: (id: string) => void;
   systemTree: SystemTreeNode | null;
+  projectTree: SystemTreeNode | null;
   selectedNode: SelectedNode | null;
   setSelectedNode: (node: SelectedNode | null) => void;
   validationReadiness: ValidationReadiness | null;
+  lastUpdated: number;
   isLoading: boolean;
   refreshTree: () => Promise<void>;
 }
@@ -65,38 +67,77 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     string | null
   >(null);
   const [systemTree, setSystemTree] = useState<SystemTreeNode | null>(null);
+  const [projectTree, setProjectTree] = useState<SystemTreeNode | null>(null);
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [validationReadiness, setValidationReadiness] =
     useState<ValidationReadiness | null>(null);
+  const [lastUpdated, setLastUpdated] = useState(Date.now());
   const [isLoading, setIsLoading] = useState(false);
 
   const refreshTree = async () => {
-    if (!activeOrchestratorId || !currentProject?.id) return;
+    if (!currentProject?.id) return;
     setIsLoading(true);
+    setLastUpdated(Date.now());
 
     try {
-      // Call our new assembled tree endpoint
-      const response = await fetch(
-        `/api/orchestrators/${activeOrchestratorId}/tree?projectId=${currentProject.id}`,
+      // 1. Fetch all orchestrators for this project
+      const orchListResponse = await fetch(
+        `/api/orchestrators?projectId=${currentProject.id}`,
       );
+      if (!orchListResponse.ok) throw new Error("Failed to fetch orchestrators");
+      const orchListData = await orchListResponse.json();
+      const orchestrators = orchListData.orchestrators || [];
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch system tree from server");
+      if (orchestrators.length === 0) {
+        setProjectTree(null);
+        setSystemTree(null);
+        return;
       }
 
-      const data = await response.json();
+      // 2. If no active orchestrator is set, or current one is missing (deleted), pick the first one
+      const activeExists = orchestrators.some(
+        (o: any) => o.id === activeOrchestratorId,
+      );
+      if ((!activeOrchestratorId || !activeExists) && orchestrators.length > 0) {
+        const nextId = orchestrators[0].id;
+        setActiveOrchestratorId(nextId);
+        // Important: return early because the setActiveOrchestratorId will trigger a re-run
+        // or just continue with the new ID for this run to avoid flicker
+      }
 
-      if (data.tree) {
-        setSystemTree(data.tree);
+      // 3. Fetch full trees for all orchestrators
+      const treePromises = orchestrators.map((o: any) =>
+        fetch(
+          `/api/orchestrators/${o.id}/tree?projectId=${currentProject.id}`,
+        ).then((r) => r.json()),
+      );
 
-        // Auto-select the orchestrator if nothing is selected
-        if (!selectedNode) {
-          setSelectedNode({ id: data.tree.id, type: "orchestrator" });
+      const treeResults = await Promise.all(treePromises);
+      const trees = treeResults.map((r) => r.tree).filter(Boolean);
+
+      // Create a virtual root for the sidebar
+      const virtualRoot: SystemTreeNode = {
+        id: "project-root",
+        type: "group",
+        name: currentProject.name,
+        children: trees,
+      };
+      setProjectTree(virtualRoot);
+
+      // 4. Set the systemTree to the active one for Inspector/Editor
+      if (activeOrchestratorId) {
+        const activeTree = trees.find((t) => t.id === activeOrchestratorId);
+        if (activeTree) {
+          setSystemTree(activeTree);
+
+          // Auto-select the active orchestrator if nothing is selected
+          if (!selectedNode) {
+            setSelectedNode({ id: activeTree.id, type: "orchestrator" });
+          }
         }
       }
     } catch (error) {
       console.error("Failed to fetch system tree:", error);
-      // Optional: Add a toast notification here to warn the user
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +145,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshTree();
-  }, [activeOrchestratorId]);
+  }, [currentProject?.id, activeOrchestratorId]);
 
   return (
     <WorkspaceContext.Provider
@@ -112,9 +153,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         activeOrchestratorId,
         setActiveOrchestratorId,
         systemTree,
+        projectTree,
         selectedNode,
         setSelectedNode,
         validationReadiness,
+        lastUpdated,
         isLoading,
         refreshTree,
       }}

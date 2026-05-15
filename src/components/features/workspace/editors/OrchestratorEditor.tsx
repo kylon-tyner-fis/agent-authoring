@@ -15,7 +15,7 @@ interface OrchestratorEditorProps {
 
 export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
   const { currentProject } = useProject();
-  const { refreshTree } = useWorkspace();
+  const { refreshTree, lastUpdated } = useWorkspace();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,7 +61,7 @@ export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
     }
 
     fetchOrchestrator();
-  }, [id, currentProject?.id]);
+  }, [id, currentProject?.id, lastUpdated]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

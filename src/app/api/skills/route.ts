@@ -175,7 +175,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from("skills")
       .select(
-        "id, name, version, description, model, updated_at, status, parent_id",
+        "id, name, version, description, model, created_at, updated_at, status, parent_id",
       )
       .eq("project_id", projectId)
       .order("updated_at", { ascending: false });

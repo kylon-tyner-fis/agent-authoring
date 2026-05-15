@@ -36,7 +36,7 @@ import { useToast } from "@/src/components/layout/Toast";
 
 export function SkillEditor({ id }: SkillEditorProps) {
   const { currentProject } = useProject();
-  const { refreshTree, selectedNode, setSelectedNode } = useWorkspace();
+  const { refreshTree, lastUpdated, selectedNode, setSelectedNode } = useWorkspace();
   const { addToast } = useToast();
 
   const [skillConfig, setSkillConfig] = useState<SkillConfig>(DEFAULT_SKILL_CONFIG);
@@ -88,7 +88,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
             return {
               id: v.id,
               label: `v${vNum}${v.status === 'draft' ? ' (Draft)' : ''}`,
-              description: v.created_at ? new Date(v.created_at).toLocaleDateString(undefined, { 
+              description: (v.created_at || v.updated_at) ? new Date(v.created_at || v.updated_at).toLocaleDateString(undefined, { 
                 month: 'short', 
                 day: 'numeric', 
                 year: 'numeric',
@@ -111,7 +111,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
     };
 
     loadSkill();
-  }, [id, currentProject?.id]);
+  }, [id, currentProject?.id, lastUpdated]);
 
   const syncCanvasToSkillConfig = () => {
     if (!canvasRef.current) return;
@@ -281,8 +281,8 @@ export function SkillEditor({ id }: SkillEditorProps) {
 
         {/* 1. IDENTITY CLUSTER (Top-Left) */}
         <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
-          <div className="flex items-center gap-4 p-2.5 bg-white/95 backdrop-blur-xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-2xl">
-            <div className="w-11 h-11 bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20 shrink-0 ml-0.5">
+          <div className="flex items-center gap-4 p-2.5 bg-white/95 backdrop-blur-xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-2xl transition-all duration-300 hover:shadow-[0_12px_40px_rgb(0,0,0,0.12)] hover:border-slate-300/80 group/identity">
+            <div className="w-11 h-11 bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20 shrink-0 ml-0.5 transition-transform duration-500 group-hover/identity:scale-110 group-hover/identity:rotate-3">
               <Network className="w-6 h-6" />
             </div>
 
@@ -292,20 +292,28 @@ export function SkillEditor({ id }: SkillEditorProps) {
                 value={skillConfig.name || ""}
                 disabled={isReadOnly}
                 onChange={(e) => setSkillConfig({ ...skillConfig, name: e.target.value })}
-                className={`bg-transparent font-bold text-sm tracking-tight focus:outline-none focus:ring-0 placeholder:text-slate-300 truncate ${isReadOnly ? "text-slate-500 cursor-not-allowed" : "text-slate-900 hover:text-violet-600 transition-colors"}`}
+                className={`bg-transparent font-bold text-lg tracking-tight focus:outline-none focus:ring-0 placeholder:text-slate-200 truncate transition-all duration-300 ${isReadOnly ? "text-slate-500 cursor-not-allowed" : "text-slate-900 hover:text-violet-600"}`}
                 placeholder="Untitled Skill"
               />
 
               <div className="flex items-center gap-2 mt-0.5">
                 <Dropdown
                   trigger={(selected, isOpen) => (
-                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg border transition-all cursor-pointer
+                    <div className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-all duration-300 cursor-pointer group
                       ${isOpen 
-                        ? "bg-violet-50 border-violet-200 ring-4 ring-violet-500/5" 
-                        : "bg-slate-50 border-slate-200 hover:border-slate-300"
+                        ? "bg-violet-600 border-violet-500 shadow-lg shadow-violet-500/20" 
+                        : "bg-slate-50 border-slate-200 hover:border-violet-200 hover:bg-violet-50/50"
                       }`}>
-                      <span className="text-[10px] font-bold text-slate-500 tracking-tight">{selected?.label || 'v1'}</span>
-                      <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      <History className={`w-3.5 h-3.5 transition-colors ${isOpen ? "text-violet-100" : "text-slate-400 group-hover:text-violet-500"}`} />
+                      <div className="flex flex-col leading-none">
+                        <span className={`text-[9px] font-black uppercase tracking-widest mb-0.5 transition-colors ${isOpen ? "text-violet-200" : "text-slate-400"}`}>
+                          Version
+                        </span>
+                        <span className={`text-[11px] font-bold tracking-tight transition-colors ${isOpen ? "text-white" : "text-slate-700"}`}>
+                          {selected?.label || 'v1.0'}
+                        </span>
+                      </div>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-all duration-300 ${isOpen ? 'rotate-180 text-violet-100' : 'text-slate-400 group-hover:text-violet-500 group-hover:translate-y-0.5'}`} />
                     </div>
                   )}
                   value={id}
@@ -321,6 +329,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
                     }
                   }}
                 />
+
 
                 {isReadOnly && (
                   <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 border border-amber-200 rounded-lg shadow-sm">
