@@ -2,8 +2,12 @@
 "use client";
 
 import React from "react";
-import { Cpu, MessageSquare, Info, Brain } from "lucide-react";
+import { Cpu, MessageSquare, Info, ChevronDown } from "lucide-react";
 import { Dropdown, DropdownOption } from "@/src/components/ui/Dropdown";
+import {
+  WORKSPACE_ENTITY_FIELD_FOCUS_CLASS,
+  WORKSPACE_ENTITY_SECTION_ICON_SHELL_CLASS,
+} from "../workspaceEntityTheme";
 
 interface SkillSettingsProps {
   data: any;
@@ -38,7 +42,9 @@ export function SkillSettings({ data, onChange, readOnly }: SkillSettingsProps) 
       {/* 1. General Info */}
       <section className="space-y-4">
         <div className="flex items-center gap-2 mb-2">
-          <div className="w-7 h-7 bg-violet-100 text-violet-600 rounded-lg flex items-center justify-center shadow-sm">
+          <div
+            className={`w-7 h-7 rounded-lg flex items-center justify-center shadow-sm ${WORKSPACE_ENTITY_SECTION_ICON_SHELL_CLASS}`}
+          >
             <MessageSquare className="w-4 h-4" />
           </div>
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-[0.15em]">General Information</h3>
@@ -53,7 +59,7 @@ export function SkillSettings({ data, onChange, readOnly }: SkillSettingsProps) 
             disabled={readOnly}
             onChange={(e) => onChange("description", e.target.value)}
             placeholder="What does this skill accomplish? This helps the Orchestrator decide when to call this agent."
-            className={`w-full p-4 text-sm border border-slate-200 rounded-2xl focus:ring-4 focus:ring-violet-500/5 focus:border-violet-500 outline-none min-h-[100px] transition-all resize-none shadow-sm ${readOnly ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : "bg-white text-slate-700 hover:border-slate-300"}`}
+            className={`w-full p-4 text-sm border border-slate-200 rounded-2xl outline-none min-h-[100px] transition-all resize-none shadow-sm ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS} ${readOnly ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : "bg-white text-slate-700 hover:border-slate-300"}`}
           />
         </div>
       </section>
@@ -79,7 +85,7 @@ export function SkillSettings({ data, onChange, readOnly }: SkillSettingsProps) 
             disabled={readOnly}
             onChange={(e) => onChange("system_prompt", e.target.value)}
             placeholder="Define the internal logic for this skill..."
-            className={`w-full p-4 text-sm border border-slate-200 rounded-2xl focus:ring-4 focus:ring-violet-500/5 focus:border-violet-500 outline-none min-h-[160px] font-mono transition-all shadow-sm ${readOnly ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : "bg-white text-slate-700 hover:border-slate-300"}`}
+            className={`w-full p-4 text-sm border border-slate-200 rounded-2xl outline-none min-h-[160px] font-mono transition-all shadow-sm ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS} ${readOnly ? "bg-slate-50/50 text-slate-500 cursor-not-allowed" : "bg-white text-slate-700 hover:border-slate-300"}`}
           />
         </div>
       </section>
@@ -114,7 +120,7 @@ export function SkillSettings({ data, onChange, readOnly }: SkillSettingsProps) 
                   ${readOnly 
                     ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" 
                     : isOpen 
-                      ? "bg-white border-violet-500 ring-4 ring-violet-500/5" 
+                      ? "bg-white border-[var(--entity-500)] ring-2 ring-[var(--entity-focus-soft)]" 
                       : "bg-white border-slate-200 hover:border-slate-300"
                   }`}>
                   <span className="text-sm font-bold text-slate-700">{selected?.label || "Select Provider"}</span>
@@ -140,7 +146,7 @@ export function SkillSettings({ data, onChange, readOnly }: SkillSettingsProps) 
                   ${readOnly 
                     ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" 
                     : isOpen 
-                      ? "bg-white border-violet-500 ring-4 ring-violet-500/5" 
+                      ? "bg-white border-[var(--entity-500)] ring-2 ring-[var(--entity-focus-soft)]" 
                       : "bg-white border-slate-200 hover:border-slate-300"
                   }`}>
                   <span className="text-sm font-bold text-slate-700">{selected?.label || "Select Model"}</span>
@@ -154,6 +160,3 @@ export function SkillSettings({ data, onChange, readOnly }: SkillSettingsProps) 
     </div>
   );
 }
-
-// Add ChevronDown to the local imports since we're using it in triggers
-import { ChevronDown } from "lucide-react";

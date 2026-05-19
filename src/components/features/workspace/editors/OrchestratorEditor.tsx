@@ -8,6 +8,17 @@ import { useWorkspace } from "@/src/lib/contexts/WorkspaceContext";
 import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
 import { OrchestratorConfig } from "@/src/lib/types/constants";
+import {
+  WORKSPACE_ENTITY_FIELD_FOCUS_CLASS,
+  WORKSPACE_ENTITY_FIELD_SOFT_FOCUS_CLASS,
+  WORKSPACE_ENTITY_HEADER_CLASS,
+  WORKSPACE_ENTITY_ICON_SHELL_CLASS,
+  WORKSPACE_ENTITY_PRIMARY_BUTTON_CLASS,
+  WORKSPACE_ENTITY_SECONDARY_BUTTON_CLASS,
+  WORKSPACE_ENTITY_SECONDARY_ICON_CLASS,
+  WORKSPACE_ENTITY_SECTION_ICON_CLASS,
+  WORKSPACE_ENTITY_THEME,
+} from "../workspaceEntityTheme";
 
 interface OrchestratorEditorProps {
   id: string;
@@ -16,6 +27,7 @@ interface OrchestratorEditorProps {
 export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
   const { currentProject } = useProject();
   const { refreshTree, lastUpdated } = useWorkspace();
+  const theme = WORKSPACE_ENTITY_THEME.orchestrator;
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -102,8 +114,11 @@ export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-white rounded-xl shadow-sm border border-slate-200 m-4">
-        <Loader2 className="w-8 h-8 text-sky-500 animate-spin mb-4" />
+      <div
+        style={theme.style}
+        className="flex flex-col items-center justify-center h-full bg-white rounded-xl shadow-sm border border-slate-200 m-4"
+      >
+        <Loader2 className="w-8 h-8 text-[var(--entity-500)] animate-spin mb-4" />
         <p className="text-sm text-slate-500 font-medium">
           Loading orchestrator settings...
         </p>
@@ -112,12 +127,18 @@ export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
   }
 
   return (
-    <div className="h-full w-full flex overflow-hidden bg-slate-50">
+    <div
+      style={theme.style}
+      className="relative h-full w-full flex overflow-hidden bg-slate-50"
+    >
       <div className="flex flex-col h-full min-w-0 flex-1 bg-white rounded-xl shadow-sm border border-slate-200 m-4 overflow-hidden relative">
-        {/* Header (Standardized to h-[60px] and solid bg-sky-50) */}
-        <div className="flex items-center justify-between px-6 h-[60px] border-b border-sky-100 bg-sky-50 shrink-0">
+        <div
+          className={`flex items-center justify-between px-6 h-[60px] shrink-0 ${WORKSPACE_ENTITY_HEADER_CLASS}`}
+        >
           <div className="flex items-center gap-3 flex-1">
-            <div className="p-2 bg-sky-100 text-sky-600 rounded-lg shrink-0">
+            <div
+              className={`p-2 rounded-lg shrink-0 ${WORKSPACE_ENTITY_ICON_SHELL_CLASS}`}
+            >
               <Layers className="w-5 h-5" />
             </div>
             <div className="flex-1 max-w-sm">
@@ -127,7 +148,7 @@ export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
                 value={formData.name}
                 onChange={handleChange}
                 placeholder="Untitled Orchestrator"
-                className="w-full bg-transparent font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/50 rounded px-1 -ml-1 text-lg placeholder:text-slate-400 truncate"
+                className={`w-full bg-transparent font-semibold text-slate-800 rounded px-1 -ml-1 text-lg placeholder:text-slate-400 truncate ${WORKSPACE_ENTITY_FIELD_SOFT_FOCUS_CLASS}`}
               />
               <p className="text-[10px] text-slate-500 font-mono leading-none mt-1 ml-0.5">
                 ID: {id}
@@ -137,16 +158,16 @@ export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              className="flex items-center gap-2 px-4 py-1.5 bg-white text-slate-700 border border-sky-200 text-sm font-medium rounded-md hover:bg-sky-50 transition-colors shadow-sm ml-1"
+              className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md ml-1 ${WORKSPACE_ENTITY_SECONDARY_BUTTON_CLASS}`}
               onClick={() => setIsPlaygroundOpen(true)}
             >
-              <Play className="w-4 h-4 text-sky-500 fill-sky-500" />
+              <Play className={`w-4 h-4 ${WORKSPACE_ENTITY_SECONDARY_ICON_CLASS}`} />
               Playground
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center gap-2 px-4 py-1.5 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className={`flex items-center gap-2 px-4 py-1.5 text-sm font-bold rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${WORKSPACE_ENTITY_PRIMARY_BUTTON_CLASS}`}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -181,7 +202,7 @@ export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
                   value={formData.description}
                   onChange={handleChange}
                   placeholder="Briefly describe what this orchestrator manages..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-sm resize-none"
+                  className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm resize-none ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS}`}
                 />
               </div>
             </div>
@@ -189,7 +210,7 @@ export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
             {/* Core Logic Section */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
-                <Layers className="w-4 h-4 text-sky-500" />
+                <Layers className={`w-4 h-4 ${WORKSPACE_ENTITY_SECTION_ICON_CLASS}`} />
                 <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                   Routing & Logic
                 </h2>
@@ -213,7 +234,7 @@ export function OrchestratorEditor({ id }: OrchestratorEditorProps) {
                   value={formData.system_prompt}
                   onChange={handleChange}
                   placeholder="e.g., You are the top-level orchestrator. Evaluate user intent and route to the correct agent..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-sm font-mono text-slate-700 leading-relaxed"
+                  className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-mono text-slate-700 leading-relaxed ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS}`}
                 />
               </div>
             </div>

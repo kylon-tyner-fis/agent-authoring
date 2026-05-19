@@ -33,11 +33,25 @@ import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroun
 import { SkillConfig, ToolConfig, MCPServerConfig, Message, DEFAULT_SKILL_CONFIG } from "@/src/lib/types/constants";
 import { NodePalette } from "./NodePalette";
 import { useToast } from "@/src/components/layout/Toast";
+import {
+  WORKSPACE_ENTITY_DROPDOWN_ACTIVE_CLASS,
+  WORKSPACE_ENTITY_DROPDOWN_IDLE_CLASS,
+  WORKSPACE_ENTITY_ICON_SHELL_CLASS,
+  WORKSPACE_ENTITY_PRIMARY_BUTTON_CLASS,
+  WORKSPACE_ENTITY_SECTION_ICON_CLASS,
+  WORKSPACE_ENTITY_THEME,
+  WORKSPACE_ENTITY_TOGGLE_ACTIVE_CLASS,
+  WORKSPACE_ENTITY_TOGGLE_IDLE_CLASS,
+} from "../workspaceEntityTheme";
+
+const SIDE_PANEL_WIDTH = 380;
+const SIDE_PANEL_GAP = 16;
 
 export function SkillEditor({ id }: SkillEditorProps) {
   const { currentProject } = useProject();
   const { refreshTree, lastUpdated, selectedNode, setSelectedNode } = useWorkspace();
   const { addToast } = useToast();
+  const theme = WORKSPACE_ENTITY_THEME.skill;
 
   const [skillConfig, setSkillConfig] = useState<SkillConfig>(DEFAULT_SKILL_CONFIG);
   const [availableTools, setAvailableTools] = useState<ToolConfig[]>([]);
@@ -48,12 +62,18 @@ export function SkillEditor({ id }: SkillEditorProps) {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [activePanel, setActivePanel] = useState<"palette" | "settings" | "playground" | null>(null);
+  const [isCanvasSidePanelOpen, setIsCanvasSidePanelOpen] = useState(false);
+  const [isMemoryPanelOpen, setIsMemoryPanelOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
   const canvasRef = useRef<OrchestrationCanvasRef>(null);
 
   const isReadOnly = skillConfig.status === "published";
+  const isMemoryActive = activePanel === null && isMemoryPanelOpen;
+  const floatingActionOffset = activePanel || isCanvasSidePanelOpen || isMemoryPanelOpen
+    ? (SIDE_PANEL_WIDTH + SIDE_PANEL_GAP) / 2
+    : 0;
 
   useEffect(() => {
     const loadSkill = async () => {
@@ -226,18 +246,30 @@ export function SkillEditor({ id }: SkillEditorProps) {
         viewport,
       };
 
-      const res = await fetch(`/api/skills/publish?projectId=${currentProject.id}`, {
+      const res = await fetch(
+        `/api/skills/${id}/publish?projectId=${currentProject.id}`,
+        {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          skillId: id,
+          ...skillConfig,
+          id,
+          project_id: currentProject.id,
           orchestration,
           state_schema: inferredState,
         }),
-      });
+      },
+      );
 
       if (!res.ok) throw new Error("Failed to publish");
 
+      const data = await res.json();
+
+      setSkillConfig((prev) => ({
+        ...prev,
+        ...data.skill,
+        versions: prev.versions,
+      }));
       setPublishSuccess(true);
       setTimeout(() => setPublishSuccess(false), 2000);
       addToast("Version published", "success");
@@ -263,11 +295,24 @@ export function SkillEditor({ id }: SkillEditorProps) {
     setActivePanel(activePanel === panel ? null : panel);
   };
 
+  const toggleMemoryPanel = () => {
+    if (isMemoryActive) {
+      canvasRef.current?.clearSelection();
+      return;
+    }
+
+    setActivePanel(null);
+    canvasRef.current?.openStateSchema();
+  };
+
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-50">
+      <div
+        style={theme.style}
+        className="flex h-full items-center justify-center bg-slate-50"
+      >
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-violet-500" />
+          <Loader2 className="h-10 w-10 animate-spin text-[var(--entity-500)]" />
           <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Initialising Workspace...</p>
         </div>
       </div>
@@ -275,14 +320,17 @@ export function SkillEditor({ id }: SkillEditorProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white relative overflow-hidden">
+    <div
+      style={theme.style}
+      className="flex flex-col h-full bg-white relative overflow-hidden"
+    >
       <div className="flex-1 min-w-0 relative h-full">
         <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-40"></div>
 
         {/* 1. IDENTITY CLUSTER (Top-Left) */}
         <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
           <div className="flex items-center gap-4 p-2.5 bg-white/95 backdrop-blur-xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-2xl transition-all duration-300 hover:shadow-[0_12px_40px_rgb(0,0,0,0.12)] hover:border-slate-300/80 group/identity">
-            <div className="w-11 h-11 bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20 shrink-0 ml-0.5 transition-transform duration-500 group-hover/identity:scale-110 group-hover/identity:rotate-3">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ml-0.5 transition-transform duration-500 group-hover/identity:scale-110 group-hover/identity:rotate-3 ${WORKSPACE_ENTITY_ICON_SHELL_CLASS}`}>
               <Network className="w-6 h-6" />
             </div>
 
@@ -292,7 +340,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
                 value={skillConfig.name || ""}
                 disabled={isReadOnly}
                 onChange={(e) => setSkillConfig({ ...skillConfig, name: e.target.value })}
-                className={`bg-transparent font-bold text-lg tracking-tight focus:outline-none focus:ring-0 placeholder:text-slate-200 truncate transition-all duration-300 ${isReadOnly ? "text-slate-500 cursor-not-allowed" : "text-slate-900 hover:text-violet-600"}`}
+                className={`bg-transparent font-bold text-lg tracking-tight focus:outline-none focus:ring-0 placeholder:text-slate-200 truncate transition-all duration-300 ${isReadOnly ? "text-slate-500 cursor-not-allowed" : "text-slate-900 hover:text-[var(--entity-600)]"}`}
                 placeholder="Untitled Skill"
               />
 
@@ -301,31 +349,69 @@ export function SkillEditor({ id }: SkillEditorProps) {
                   trigger={(selected, isOpen) => (
                     <div className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-all duration-300 cursor-pointer group
                       ${isOpen 
-                        ? "bg-violet-600 border-violet-500 shadow-lg shadow-violet-500/20" 
-                        : "bg-slate-50 border-slate-200 hover:border-violet-200 hover:bg-violet-50/50"
+                        ? WORKSPACE_ENTITY_DROPDOWN_ACTIVE_CLASS
+                        : WORKSPACE_ENTITY_DROPDOWN_IDLE_CLASS
                       }`}>
-                      <History className={`w-3.5 h-3.5 transition-colors ${isOpen ? "text-violet-100" : "text-slate-400 group-hover:text-violet-500"}`} />
+                      <History className={`w-3.5 h-3.5 transition-colors ${isOpen ? "text-white/80" : "text-slate-400 group-hover:text-[var(--entity-500)]"}`} />
                       <div className="flex flex-col leading-none">
-                        <span className={`text-[9px] font-black uppercase tracking-widest mb-0.5 transition-colors ${isOpen ? "text-violet-200" : "text-slate-400"}`}>
+                        <span className={`text-[9px] font-black uppercase tracking-widest mb-0.5 transition-colors ${isOpen ? "text-white/70" : "text-slate-400"}`}>
                           Version
                         </span>
                         <span className={`text-[11px] font-bold tracking-tight transition-colors ${isOpen ? "text-white" : "text-slate-700"}`}>
                           {selected?.label || 'v1.0'}
                         </span>
                       </div>
-                      <ChevronDown className={`w-3.5 h-3.5 transition-all duration-300 ${isOpen ? 'rotate-180 text-violet-100' : 'text-slate-400 group-hover:text-violet-500 group-hover:translate-y-0.5'}`} />
+                      <ChevronDown className={`w-3.5 h-3.5 transition-all duration-300 ${isOpen ? 'rotate-180 text-white/80' : 'text-slate-400 group-hover:text-[var(--entity-500)] group-hover:translate-y-0.5'}`} />
                     </div>
                   )}
                   value={id}
                   options={skillConfig.versions || []}
-                  onChange={(newId) => {
+                  onChange={async (newId) => {
                     const selected = (skillConfig.versions || []).find(v => v.id === newId);
-                    if (selected && selectedNode) {
+                    if (!selected || !selectedNode) return;
+
+                    try {
+                      if (selectedNode.parentId && currentProject?.id) {
+                        const agentRes = await fetch(
+                          `/api/agents/${selectedNode.parentId}?projectId=${currentProject.id}`
+                        );
+                        const agentData = await agentRes.json();
+
+                        if (!agentRes.ok) {
+                          throw new Error(agentData.error || "Failed to load agent");
+                        }
+
+                        const agent = agentData.agent;
+                        const nextSkills = (agent.skills || []).map((skillId: string) =>
+                          skillId === id ? newId : skillId
+                        );
+
+                        const updateRes = await fetch(
+                          `/api/agents/${selectedNode.parentId}?projectId=${currentProject.id}`,
+                          {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ ...agent, skills: nextSkills }),
+                          }
+                        );
+
+                        if (!updateRes.ok) {
+                          throw new Error("Failed to update agent skill version");
+                        }
+
+                        await refreshTree();
+                      }
+
                       setSelectedNode({
                         ...selectedNode,
                         id: newId,
                       });
                       addToast(`Switched to ${selected.label}`, "success");
+                    } catch (err) {
+                      addToast(
+                        err instanceof Error ? err.message : "Failed to switch skill version",
+                        "error"
+                      );
                     }
                   }}
                 />
@@ -353,10 +439,12 @@ export function SkillEditor({ id }: SkillEditorProps) {
             activeNodeId={activeNodeId}
             readOnly={isReadOnly}
             onSelectionChange={(hasSelection) => {
+              setIsCanvasSidePanelOpen(hasSelection);
               if (hasSelection) {
                 setActivePanel(null);
               }
             }}
+            onStateSchemaOpenChange={setIsMemoryPanelOpen}
           />
         </div>
 
@@ -367,8 +455,8 @@ export function SkillEditor({ id }: SkillEditorProps) {
               <button
                 onClick={() => togglePanel("palette")}
                 className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all border ${activePanel === "palette"
-                  ? "bg-violet-600 text-white border-transparent shadow-lg shadow-violet-600/20"
-                  : "bg-white border-slate-200 text-slate-500 hover:border-violet-500 hover:text-violet-600"
+                  ? WORKSPACE_ENTITY_TOGGLE_ACTIVE_CLASS
+                  : WORKSPACE_ENTITY_TOGGLE_IDLE_CLASS
                   }`}
               >
                 <Blocks className="w-4 h-4" />
@@ -379,8 +467,8 @@ export function SkillEditor({ id }: SkillEditorProps) {
             <button
               onClick={() => togglePanel("settings")}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all border ${activePanel === "settings"
-                ? "bg-violet-600 text-white border-transparent shadow-lg shadow-violet-600/20"
-                : "bg-white border-slate-200 text-slate-500 hover:border-violet-500 hover:text-violet-600"
+                ? WORKSPACE_ENTITY_TOGGLE_ACTIVE_CLASS
+                : WORKSPACE_ENTITY_TOGGLE_IDLE_CLASS
                 }`}
             >
               <SettingsIcon className="w-4 h-4" />
@@ -388,18 +476,15 @@ export function SkillEditor({ id }: SkillEditorProps) {
             </button>
 
             <button
-              onClick={() => {
-                setActivePanel(null);
-                canvasRef.current?.openStateSchema();
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all border ${activePanel === null && canvasRef.current?.isStateSchemaOpen()
-                ? "bg-violet-600 text-white border-transparent shadow-lg shadow-violet-600/20"
-                : "bg-white border-slate-200 text-slate-500 hover:border-violet-500 hover:text-violet-600"
+              onClick={toggleMemoryPanel}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all border ${isMemoryActive
+                ? WORKSPACE_ENTITY_TOGGLE_ACTIVE_CLASS
+                : WORKSPACE_ENTITY_TOGGLE_IDLE_CLASS
                 }`}
             >
-              <Brain className={`w-4 h-4 ${activePanel === null && canvasRef.current?.isStateSchemaOpen() ? "text-white" : "text-violet-500"}`} />
+              <Brain className="w-4 h-4" />
               Memory
-              <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${activePanel === null && canvasRef.current?.isStateSchemaOpen() ? "bg-violet-500 text-white" : "bg-slate-100 text-slate-500"}`}>
+              <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${isMemoryActive ? "bg-[var(--entity-500)] text-white" : "bg-slate-100 text-slate-500"}`}>
                 {Object.keys(skillConfig.state_schema || {}).length}
               </span>
             </button>
@@ -409,7 +494,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
             <button
               onClick={() => togglePanel("playground")}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all border ${activePanel === "playground"
-                ? "bg-emerald-500 text-white border-transparent shadow-lg shadow-emerald-500/20"
+                ? "bg-linear-to-br from-emerald-500 to-teal-600 text-white border-transparent shadow-lg shadow-emerald-500/20"
                 : "bg-white border-slate-200 text-slate-600 hover:border-emerald-500 hover:text-emerald-600"
                 }`}
             >
@@ -426,10 +511,11 @@ export function SkillEditor({ id }: SkillEditorProps) {
             ? "opacity-100 translate-x-0 scale-100 pointer-events-auto"
             : "opacity-0 translate-x-8 scale-95 pointer-events-none"
             }`}
+          style={{ right: SIDE_PANEL_GAP, width: SIDE_PANEL_WIDTH }}
         >
           <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <Blocks className="w-4 h-4 text-violet-500" />
+              <Blocks className={`w-4 h-4 ${WORKSPACE_ENTITY_SECTION_ICON_CLASS}`} />
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Node Palette</h2>
             </div>
             <button onClick={() => setActivePanel(null)} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
@@ -451,10 +537,11 @@ export function SkillEditor({ id }: SkillEditorProps) {
             ? "opacity-100 translate-x-0 scale-100 pointer-events-auto"
             : "opacity-0 translate-x-8 scale-95 pointer-events-none"
             }`}
+          style={{ right: SIDE_PANEL_GAP, width: SIDE_PANEL_WIDTH }}
         >
           <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <SettingsIcon className="w-4 h-4 text-violet-500" />
+              <SettingsIcon className={`w-4 h-4 ${WORKSPACE_ENTITY_SECTION_ICON_CLASS}`} />
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Skill Configuration</h2>
             </div>
             <button onClick={() => setActivePanel(null)} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
@@ -481,7 +568,10 @@ export function SkillEditor({ id }: SkillEditorProps) {
         </SlidingPlaygroundPanel>
 
         {/* 5. ACTION CLUSTER (Bottom-Center) */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 p-1.5 bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-slate-200/50 rounded-2xl transition-all hover:scale-[1.02]">
+        <div
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 p-1.5 bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-slate-200/50 rounded-2xl transition-all duration-300 ease-out hover:scale-[1.02]"
+          style={{ left: `calc(50% - ${floatingActionOffset}px)` }}
+        >
           {!isReadOnly && (
             <button
               onClick={handleSave}
@@ -489,7 +579,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
               className={`flex items-center gap-2 px-5 py-2 text-xs font-black uppercase tracking-[0.1em] rounded-xl transition-all disabled:opacity-50 border
                 ${saveSuccess
                   ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-violet-300 hover:text-violet-600"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-[var(--entity-50)] hover:border-[var(--entity-border)] hover:text-[var(--entity-600)] shadow-sm"
                 }`}
             >
               {isSaving ? (
@@ -507,7 +597,7 @@ export function SkillEditor({ id }: SkillEditorProps) {
             <button
               onClick={handlePublish}
               disabled={isSaving || isPublishing}
-              className="flex items-center gap-2 px-6 py-2 text-xs font-black uppercase tracking-[0.1em] bg-violet-600 text-white rounded-xl hover:bg-violet-700 shadow-lg shadow-violet-600/20 transition-all disabled:opacity-50"
+              className={`flex items-center gap-2 px-6 py-2 text-xs font-black uppercase tracking-[0.1em] rounded-xl transition-all disabled:opacity-50 ${WORKSPACE_ENTITY_PRIMARY_BUTTON_CLASS}`}
             >
               {isPublishing ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />

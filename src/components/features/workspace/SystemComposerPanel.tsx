@@ -6,8 +6,10 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   useWorkspace,
   SystemTreeNode,
@@ -16,12 +18,26 @@ import {
 import { useProject } from "@/src/lib/contexts/ProjectContext";
 import { useToast } from "@/src/components/layout/Toast";
 import { DEFAULT_SKILL_CONFIG } from "@/src/lib/types/constants";
-
+import {
+  WORKSPACE_ENTITY_DASHED_ADD_BUTTON_CLASS,
+  WORKSPACE_ENTITY_DOT_CLASS,
+  WORKSPACE_ENTITY_INLINE_ACTION_CLASS,
+  WORKSPACE_ENTITY_INLINE_ACTION_SELECTED_CLASS,
+  WORKSPACE_ENTITY_THEME,
+  WORKSPACE_ENTITY_TREE_EDITING_CLASS,
+  WORKSPACE_ENTITY_TREE_SELECTED_CLASS,
+  WORKSPACE_ENTITY_TREE_SURFACE_CLASS,
+  WORKSPACE_PANEL_CONTROL_CLASS,
+  WORKSPACE_PANEL_CONTROL_SHELL_CLASS,
+  WORKSPACE_PANEL_THEME,
+  WorkspaceEntityThemeKey,
+} from "./workspaceEntityTheme";
 
 const DEFAULT_AGENT_CONFIG = {
   name: "New Agent",
   description: "A reasoning agent that can delegate tasks to skills.",
-  system_prompt: "You are a helpful AI agent. Use the provided skills to fulfill user requests.",
+  system_prompt:
+    "You are a helpful AI agent. Use the provided skills to fulfill user requests.",
   skills: [],
   sub_agents: [],
 };
@@ -29,7 +45,8 @@ const DEFAULT_AGENT_CONFIG = {
 const DEFAULT_ORCHESTRATOR_CONFIG = {
   name: "New Orchestrator",
   description: "High-level controller for agentic workflows.",
-  system_prompt: "You are an orchestrator. Route user requests to the most appropriate agent.",
+  system_prompt:
+    "You are an orchestrator. Route user requests to the most appropriate agent.",
   agents: [],
 };
 
@@ -46,9 +63,10 @@ import {
   Unlink,
   Copy,
   Edit2,
-  Lock,
   History,
   Check,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 // --- TREE STATE MANAGEMENT ---
@@ -67,32 +85,36 @@ const useTreeContext = () => {
   return ctx;
 };
 
-const ENTITY_THEME = {
-  orchestrator: {
-    icon: "text-sky-600",
-    defaultClass:
-      "bg-sky-50 border-transparent hover:bg-sky-100 text-slate-700",
-    selectedClass: "bg-sky-600 border-sky-700 shadow-md text-white",
-    addBtn:
-      "text-sky-700 border-sky-300 bg-white hover:bg-sky-50 hover:border-sky-400",
-  },
-  agent: {
-    icon: "text-fuchsia-600",
-    defaultClass:
-      "bg-fuchsia-50 border-transparent hover:bg-fuchsia-100 text-slate-700",
-    selectedClass: "bg-fuchsia-600 border-fuchsia-700 shadow-md text-white",
-    addBtn:
-      "text-fuchsia-700 border-fuchsia-300 bg-white hover:bg-fuchsia-50 hover:border-fuchsia-400",
-  },
-  skill: {
-    icon: "text-violet-600",
-    defaultClass:
-      "bg-violet-50 border-transparent hover:bg-violet-100 text-slate-700",
-    selectedClass: "bg-violet-600 border-violet-700 shadow-md text-white",
-    addBtn:
-      "text-violet-700 border-violet-300 bg-white hover:bg-violet-50 hover:border-violet-400",
-  },
+type SkillVersionSummary = {
+  id: string;
+  version: string;
+  status: string;
+  updated_at?: string;
 };
+
+type SkillListVersion = {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  status?: "draft" | "published" | "archived";
+};
+
+type SkillFamily = {
+  id: string;
+  name: string;
+  description?: string;
+  status?: "draft" | "published" | "archived";
+  versions?: SkillListVersion[];
+};
+
+const TREE_CONNECTOR_HORIZONTAL_CLASS = "w-1.5";
+const TREE_NODE_INDENT_CLASS = "pl-2";
+const TREE_CHILDREN_OFFSET_CLASS = "ml-3";
+const CONTEXT_MENU_WIDTH = 224;
+const CONTEXT_SUBMENU_WIDTH = 192;
+const CONTEXT_MENU_VIEWPORT_PADDING = 12;
+const CONTEXT_MENU_OFFSET = 6;
 
 const getEntityIcon = (type: EntityType, className?: string) => {
   const baseClass = className || "w-4 h-4";
@@ -136,15 +158,181 @@ function TreeNode({
   const isMenuOpen = activeMenuId === menuId;
   const isSelected =
     selectedNode?.id === node.id && selectedNode?.type === node.type;
+  const isSkill = node.type === "skill";
   const theme =
-    ENTITY_THEME[node.type as keyof typeof ENTITY_THEME] ||
-    ENTITY_THEME.orchestrator;
+    WORKSPACE_ENTITY_THEME[node.type as WorkspaceEntityThemeKey] ||
+    WORKSPACE_ENTITY_THEME.orchestrator;
+  const isDraftSkill = isSkill && node.data?.status !== "published";
+  const skillVersionLabel = isSkill ? `v${node.data?.version || "1.0"}` : null;
 
   // --- In-place Editing State ---
   const [isEditing, setIsEditing] = useState(false);
   const [isAddingSkill, setIsAddingSkill] = useState(false);
+  const [isAddSkillMenuOpen, setIsAddSkillMenuOpen] = useState(false);
+  const [addSkillMenuRect, setAddSkillMenuRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const [availableSkillFamilies, setAvailableSkillFamilies] = useState<
+    SkillFamily[]
+  >([]);
+  const [isLoadingSkillFamilies, setIsLoadingSkillFamilies] = useState(false);
+  const [isAttachingExistingSkill, setIsAttachingExistingSkill] =
+    useState(false);
+  const [selectedSkillFamilyId, setSelectedSkillFamilyId] = useState("");
+  const [selectedSkillVersionId, setSelectedSkillVersionId] = useState("");
   const [editValue, setEditValue] = useState(node.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const addSkillButtonRef = useRef<HTMLButtonElement>(null);
+  const addSkillMenuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [menuRect, setMenuRect] = useState<{
+    top: number;
+    left: number;
+    maxHeight: number;
+  } | null>(null);
+  const skillVersionChipClass = isSkill
+    ? isDraftSkill
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : "border-[var(--entity-border)] bg-[var(--entity-50)] text-[var(--entity-700)]"
+    : "";
+  const entityIconClass =
+    isSelected && !isEditing
+      ? "border border-[var(--entity-border)] bg-[var(--entity-50)] text-[var(--entity-700)]"
+      : "border border-[var(--entity-border-subtle)] bg-[var(--entity-50)] text-[var(--entity-600)]";
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      setMenuRect(null);
+      return;
+    }
+
+    const updateMenuRect = () => {
+      const triggerRect = menuTriggerRef.current?.getBoundingClientRect();
+      if (!triggerRect) return;
+      const availableBelow =
+        window.innerHeight -
+        triggerRect.bottom -
+        CONTEXT_MENU_OFFSET -
+        CONTEXT_MENU_VIEWPORT_PADDING;
+      const availableAbove =
+        triggerRect.top -
+        CONTEXT_MENU_OFFSET -
+        CONTEXT_MENU_VIEWPORT_PADDING;
+      const shouldOpenUpward =
+        availableBelow < 220 && availableAbove > availableBelow;
+      const maxHeight = Math.max(
+        120,
+        shouldOpenUpward ? availableAbove : availableBelow,
+      );
+
+      const left = Math.min(
+        Math.max(
+          triggerRect.right - CONTEXT_MENU_WIDTH,
+          CONTEXT_MENU_VIEWPORT_PADDING,
+        ),
+        window.innerWidth -
+          CONTEXT_MENU_WIDTH -
+          CONTEXT_MENU_VIEWPORT_PADDING,
+      );
+
+      const top = shouldOpenUpward
+        ? Math.max(
+            CONTEXT_MENU_VIEWPORT_PADDING,
+            triggerRect.top - CONTEXT_MENU_OFFSET - maxHeight,
+          )
+        : Math.min(
+            triggerRect.bottom + CONTEXT_MENU_OFFSET,
+            window.innerHeight -
+              CONTEXT_MENU_VIEWPORT_PADDING -
+              maxHeight,
+          );
+
+      setMenuRect({
+        top,
+        left,
+        maxHeight,
+      });
+    };
+
+    updateMenuRect();
+    window.addEventListener("resize", updateMenuRect);
+    window.addEventListener("scroll", updateMenuRect, true);
+
+    return () => {
+      window.removeEventListener("resize", updateMenuRect);
+      window.removeEventListener("scroll", updateMenuRect, true);
+    };
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    if (!isAddSkillMenuOpen) {
+      setAddSkillMenuRect(null);
+      return;
+    }
+
+    const updateAddSkillMenuRect = () => {
+      const triggerRect = addSkillButtonRef.current?.getBoundingClientRect();
+      if (!triggerRect) return;
+
+      const width = 320;
+      const availableBelow =
+        window.innerHeight -
+        triggerRect.bottom -
+        CONTEXT_MENU_OFFSET -
+        CONTEXT_MENU_VIEWPORT_PADDING;
+      const availableAbove =
+        triggerRect.top -
+        CONTEXT_MENU_OFFSET -
+        CONTEXT_MENU_VIEWPORT_PADDING;
+      const shouldOpenUpward =
+        availableBelow < 280 && availableAbove > availableBelow;
+      const left = Math.min(
+        Math.max(
+          triggerRect.left,
+          CONTEXT_MENU_VIEWPORT_PADDING,
+        ),
+        window.innerWidth - width - CONTEXT_MENU_VIEWPORT_PADDING,
+      );
+      const top = shouldOpenUpward
+        ? Math.max(
+            CONTEXT_MENU_VIEWPORT_PADDING,
+            triggerRect.top - CONTEXT_MENU_OFFSET - 300,
+          )
+        : Math.min(
+            triggerRect.bottom + CONTEXT_MENU_OFFSET,
+            window.innerHeight - CONTEXT_MENU_VIEWPORT_PADDING - 300,
+          );
+
+      setAddSkillMenuRect({
+        top,
+        left,
+        width,
+      });
+    };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isButtonClick = addSkillButtonRef.current?.contains(target);
+      const isMenuClick = addSkillMenuRef.current?.contains(target);
+
+      if (!isButtonClick && !isMenuClick) {
+        setIsAddSkillMenuOpen(false);
+      }
+    };
+
+    updateAddSkillMenuRect();
+    window.addEventListener("resize", updateAddSkillMenuRect);
+    window.addEventListener("scroll", updateAddSkillMenuRect, true);
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      window.removeEventListener("resize", updateAddSkillMenuRect);
+      window.removeEventListener("scroll", updateAddSkillMenuRect, true);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isAddSkillMenuOpen]);
 
   // UseEffect to handle focus and selection timing
   useEffect(() => {
@@ -158,6 +346,118 @@ function TreeNode({
       return () => clearTimeout(timer);
     }
   }, [isEditing]);
+
+  const getSkillFamilyIds = (family: SkillFamily) => [
+    family.id,
+    ...((family.versions || []).map((version) => version.id) || []),
+  ];
+
+  const assignedSkillIds = useMemo(
+    () => (Array.isArray(node.data?.skills) ? node.data.skills : []),
+    [node.data?.skills],
+  );
+  const attachableSkillFamilies = useMemo(
+    () =>
+      availableSkillFamilies.filter((family) => {
+        const familyIds = getSkillFamilyIds(family);
+        return !familyIds.some((id) => assignedSkillIds.includes(id));
+      }),
+    [availableSkillFamilies, assignedSkillIds],
+  );
+
+  const selectedSkillFamily = useMemo(
+    () =>
+      attachableSkillFamilies.find((family) => family.id === selectedSkillFamilyId),
+    [attachableSkillFamilies, selectedSkillFamilyId],
+  );
+  const selectedSkillVersionOptions = useMemo(
+    () =>
+      selectedSkillFamily
+        ? [
+            {
+              id: selectedSkillFamily.id,
+              label: "Draft (Latest)",
+              badge: "DRAFT",
+            },
+            ...(selectedSkillFamily.versions || []).map((version) => ({
+              id: version.id,
+              label: `v${version.version}`,
+              badge:
+                version.status === "published"
+                  ? "LIVE"
+                  : version.status?.toUpperCase() || "",
+            })),
+          ]
+        : [],
+    [selectedSkillFamily],
+  );
+
+  useEffect(() => {
+    if (!isAddSkillMenuOpen || node.type !== "agent" || !currentProject?.id) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadSkillFamilies = async () => {
+      setIsLoadingSkillFamilies(true);
+
+      try {
+        const response = await fetch(`/api/skills?projectId=${currentProject.id}`);
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Failed to load skills");
+        }
+
+        if (isCancelled) return;
+
+        const fetchedFamilies = (payload.skills || []) as SkillFamily[];
+        setAvailableSkillFamilies(fetchedFamilies);
+
+        const nextAttachableFamilies = fetchedFamilies.filter((family) => {
+          const familyIds = getSkillFamilyIds(family);
+          return !familyIds.some((id) => assignedSkillIds.includes(id));
+        });
+        const initialFamily = nextAttachableFamilies[0];
+
+        setSelectedSkillFamilyId(initialFamily?.id || "");
+        setSelectedSkillVersionId(initialFamily?.id || "");
+      } catch (error) {
+        if (!isCancelled) {
+          addToast(
+            error instanceof Error ? error.message : "Failed to load skills",
+            "error",
+          );
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingSkillFamilies(false);
+        }
+      }
+    };
+
+    loadSkillFamilies();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAddSkillMenuOpen, node.type, currentProject?.id, assignedSkillIds, addToast]);
+
+  useEffect(() => {
+    if (!selectedSkillFamily) {
+      setSelectedSkillVersionId("");
+      return;
+    }
+
+    const selectedVersionStillExists = selectedSkillVersionOptions.some(
+      (option) => option.id === selectedSkillVersionId,
+    );
+
+    if (!selectedVersionStillExists) {
+      setSelectedSkillVersionId(selectedSkillFamily.id);
+    }
+  }, [selectedSkillFamily, selectedSkillVersionId, selectedSkillVersionOptions]);
 
   const handleSelect = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -243,7 +543,8 @@ function TreeNode({
         `/api/agents/${parentId}?projectId=${currentProject.id}`,
       );
       const agentData = await agentRes.json();
-      if (!agentRes.ok) throw new Error(agentData.error || "Failed to load agent");
+      if (!agentRes.ok)
+        throw new Error(agentData.error || "Failed to load agent");
 
       const agent = agentData.agent;
       const currentSkills = Array.isArray(agent?.skills) ? agent.skills : [];
@@ -354,10 +655,47 @@ function TreeNode({
     return `New Skill ${suffix}`;
   };
 
-  const handleAddSkill = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    setActiveMenuId(null);
+  const updateAgentSkills = async (
+    agentId: string,
+    updater: (currentSkills: string[]) => string[],
+  ) => {
+    const agentResponse = await fetch(
+      `/api/agents/${agentId}?projectId=${currentProject.id}`,
+    );
+    const agentPayload = await agentResponse.json();
 
+    if (!agentResponse.ok) {
+      throw new Error(agentPayload.error || "Failed to load agent");
+    }
+
+    const agent = agentPayload.agent;
+    const currentSkills = Array.isArray(agent?.skills) ? agent.skills : [];
+    const nextSkills = updater(currentSkills);
+
+    const updateResponse = await fetch(
+      `/api/agents/${agentId}?projectId=${currentProject.id}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: agent.name || "",
+          description: agent.description || "",
+          system_prompt: agent.system_prompt || "",
+          skills: nextSkills,
+          sub_agents: agent.sub_agents || [],
+        }),
+      },
+    );
+    const updatePayload = await updateResponse.json();
+
+    if (!updateResponse.ok) {
+      throw new Error(updatePayload.error || "Failed to assign skill to agent");
+    }
+
+    return { agent, nextSkills };
+  };
+
+  const handleCreateSkillForAgent = async () => {
     if (node.type !== "agent") {
       addToast("Select an agent before adding a skill.", "error");
       return;
@@ -369,6 +707,7 @@ function TreeNode({
     }
 
     setIsAddingSkill(true);
+    setIsAddSkillMenuOpen(false);
     let createdSkillId: string | null = null;
 
     try {
@@ -410,47 +749,80 @@ function TreeNode({
         throw new Error(createPayload.error || "Failed to create skill");
       }
 
-      const currentSkills = Array.isArray(agent?.skills) ? agent.skills : [];
-      const nextSkills = Array.from(new Set([...currentSkills, skillId]));
-
-      const updateResponse = await fetch(
-        `/api/agents/${node.id}?projectId=${currentProject.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: agent.name || "",
-            description: agent.description || "",
-            system_prompt: agent.system_prompt || "",
-            skills: nextSkills,
-            sub_agents: agent.sub_agents || [],
-          }),
-        },
+      await updateAgentSkills(node.id, (currentSkills) =>
+        Array.from(new Set([...currentSkills, skillId])),
       );
-      const updatePayload = await updateResponse.json();
-
-      if (!updateResponse.ok) {
-        throw new Error(updatePayload.error || "Failed to assign skill to agent");
-      }
 
       if (collapsedNodes.has(node.id)) toggleNode(node.id);
       await refreshTree();
       setSelectedNode({ id: skillId, type: "skill", parentId: node.id });
-      addToast(`Created ${skillName} under ${agent.name || node.name}.`, "success");
+      addToast(
+        `Created ${skillName} under ${agent.name || node.name}.`,
+        "success",
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to add skill.";
       console.error("Failed to add skill:", error);
 
       if (createdSkillId && currentProject?.id) {
-        await fetch(`/api/skills/${createdSkillId}?projectId=${currentProject.id}`, {
-          method: "DELETE",
-        });
+        await fetch(
+          `/api/skills/${createdSkillId}?projectId=${currentProject.id}`,
+          {
+            method: "DELETE",
+          },
+        );
       }
 
       addToast(message, "error");
     } finally {
       setIsAddingSkill(false);
+    }
+  };
+
+  const handleAttachExistingSkill = async () => {
+    if (node.type !== "agent") {
+      addToast("Select an agent before attaching a skill.", "error");
+      return;
+    }
+
+    if (!currentProject?.id || !selectedSkillFamily || !selectedSkillVersionId) {
+      addToast("Choose a skill and version to attach.", "error");
+      return;
+    }
+
+    setIsAttachingExistingSkill(true);
+
+    try {
+      const familyIds = getSkillFamilyIds(selectedSkillFamily);
+      await updateAgentSkills(node.id, (currentSkills) => {
+        const assignedFamilyId = familyIds.find((id) => currentSkills.includes(id));
+
+        if (assignedFamilyId) {
+          return currentSkills.map((id) =>
+            id === assignedFamilyId ? selectedSkillVersionId : id,
+          );
+        }
+
+        return Array.from(new Set([...currentSkills, selectedSkillVersionId]));
+      });
+
+      if (collapsedNodes.has(node.id)) toggleNode(node.id);
+      await refreshTree();
+      setSelectedNode({
+        id: selectedSkillVersionId,
+        type: "skill",
+        parentId: node.id,
+      });
+      setIsAddSkillMenuOpen(false);
+      addToast(`Attached ${selectedSkillFamily.name}`, "success");
+    } catch (error) {
+      addToast(
+        error instanceof Error ? error.message : "Failed to attach skill",
+        "error",
+      );
+    } finally {
+      setIsAttachingExistingSkill(false);
     }
   };
 
@@ -515,14 +887,16 @@ function TreeNode({
         },
       );
 
-      if (!updateResponse.ok) throw new Error("Failed to link agent to orchestrator");
+      if (!updateResponse.ok)
+        throw new Error("Failed to link agent to orchestrator");
 
       if (collapsedNodes.has(node.id)) toggleNode(node.id);
       await refreshTree();
       setSelectedNode({ id: agentId, type: "agent", parentId: node.id });
       addToast(`Created ${agentName} under ${node.name}.`, "success");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to add agent.";
+      const message =
+        error instanceof Error ? error.message : "Failed to add agent.";
       console.error("Failed to add agent:", error);
       addToast(message, "error");
     }
@@ -532,10 +906,66 @@ function TreeNode({
     setActiveMenuId(null);
     if (!currentProject?.id) return;
 
+    const createdSkillIds: string[] = [];
+    let createdPrimaryEntityId: string | null = null;
+
+    const duplicateSkillRecord = async ({
+      skillId,
+      nameOverride,
+    }: {
+      skillId: string;
+      nameOverride?: string;
+    }) => {
+      const sourceRes = await fetch(
+        `/api/skills/${skillId}?projectId=${currentProject.id}`,
+      );
+      const sourceData = await sourceRes.json();
+
+      if (!sourceRes.ok) {
+        throw new Error(sourceData.error || "Failed to load skill");
+      }
+
+      const sourceSkill = { ...(sourceData.skill || {}) };
+      delete sourceSkill.id;
+      delete sourceSkill.created_at;
+      delete sourceSkill.updated_at;
+
+      const duplicatedSkillId = crypto.randomUUID();
+      const duplicatedSkillPayload = {
+        ...sourceSkill,
+        id: duplicatedSkillId,
+        project_id: currentProject.id,
+        parent_id: null,
+        version: "1",
+        status: "draft",
+        name:
+          nameOverride ||
+          sourceData.skill?.name ||
+          sourceSkill.name ||
+          "Untitled Skill",
+      };
+
+      const createRes = await fetch("/api/skills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(duplicatedSkillPayload),
+      });
+      const createData = await createRes.json();
+
+      if (!createRes.ok) {
+        throw new Error(createData.error || "Failed to duplicate skill");
+      }
+
+      const persistedSkillId = createData.skill?.id || duplicatedSkillId;
+      createdSkillIds.push(persistedSkillId);
+      return persistedSkillId;
+    };
+
     try {
       let endpoint = "";
       let createEndpoint = "";
-      let newEntity: any = {};
+      let newEntity: Record<string, unknown> = {};
+      let createdEntityId = "";
       const newId = crypto.randomUUID();
 
       if (node.type === "orchestrator") {
@@ -543,48 +973,69 @@ function TreeNode({
         createEndpoint = "/api/orchestrators";
         const res = await fetch(endpoint);
         const data = await res.json();
+        const orchestratorData = { ...(data.orchestrator || {}) };
+        delete orchestratorData.id;
+        delete orchestratorData.created_at;
+        delete orchestratorData.updated_at;
         newEntity = {
-          ...data.orchestrator,
+          ...orchestratorData,
           id: newId,
+          project_id: currentProject.id,
           name: `${data.orchestrator.name} (Copy)`,
+          agents: Array.isArray(orchestratorData.agents)
+            ? [...orchestratorData.agents]
+            : [],
         };
       } else if (node.type === "agent") {
         endpoint = `/api/agents/${node.id}?projectId=${currentProject.id}`;
         createEndpoint = "/api/agents";
         const res = await fetch(endpoint);
         const data = await res.json();
+        const agentData = { ...(data.agent || {}) };
+        delete agentData.id;
+        delete agentData.created_at;
+        delete agentData.updated_at;
+        const visibleAssignedSkillIds = (node.children || [])
+          .filter((child) => child.type === "skill")
+          .map((child) => child.id);
         newEntity = {
-          ...data.agent,
+          ...agentData,
           id: newId,
+          project_id: currentProject.id,
           name: `${data.agent.name} (Copy)`,
+          skills: visibleAssignedSkillIds,
+          sub_agents: Array.isArray(agentData.sub_agents)
+            ? [...agentData.sub_agents]
+            : [],
         };
       } else if (node.type === "skill") {
-        endpoint = `/api/skills/${node.id}?projectId=${currentProject.id}`;
-        createEndpoint = "/api/skills";
-        const res = await fetch(endpoint);
-        const data = await res.json();
-        newEntity = {
-          ...data.skill,
-          id: newId,
-          name: `${data.skill.name} (Copy)`,
-          status: "draft", // Always duplicate as draft
-        };
-        // Remove DB specific fields if any
-        delete newEntity.created_at;
-        delete newEntity.updated_at;
+        createdEntityId = await duplicateSkillRecord({
+          skillId: node.id,
+          nameOverride: `${node.name} (Copy)`,
+        });
       }
 
-      // 1. Create the new entity
-      const createRes = await fetch(createEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newEntity),
-      });
+      if (node.type !== "skill") {
+        // 1. Create the new entity
+        const createRes = await fetch(createEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newEntity),
+        });
 
-      if (!createRes.ok) {
-        const err = await createRes.json();
-        throw new Error(err.error || `Failed to duplicate ${node.type}`);
+        const createData = await createRes.json();
+
+        if (!createRes.ok) {
+          throw new Error(createData.error || `Failed to duplicate ${node.type}`);
+        }
+
+        if (node.type === "orchestrator") {
+          createdEntityId = createData.orchestrator?.id || newId;
+        } else if (node.type === "agent") {
+          createdEntityId = createData.agent?.id || newId;
+        }
       }
+      createdPrimaryEntityId = createdEntityId || null;
 
       // 2. If it's an agent or skill, link it to the parent
       if (parentId) {
@@ -595,12 +1046,17 @@ function TreeNode({
           );
           const orchData = await orchRes.json();
           const orchestrator = orchData.orchestrator;
-          const nextAgents = [...(orchestrator.agents || []), newId];
-          await fetch(`/api/orchestrators/${parentId}?projectId=${currentProject.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...orchestrator, agents: nextAgents }),
-          });
+          const nextAgents = Array.from(
+            new Set([...(orchestrator.agents || []), createdEntityId]),
+          );
+          await fetch(
+            `/api/orchestrators/${parentId}?projectId=${currentProject.id}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...orchestrator, agents: nextAgents }),
+            },
+          );
         } else if (node.type === "skill") {
           // Parent is an Agent
           const agentRes = await fetch(
@@ -608,20 +1064,45 @@ function TreeNode({
           );
           const agentData = await agentRes.json();
           const agent = agentData.agent;
-          const nextSkills = [...(agent.skills || []), newId];
-          await fetch(`/api/agents/${parentId}?projectId=${currentProject.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...agent, skills: nextSkills }),
-          });
+          const nextSkills = Array.from(
+            new Set([...(agent.skills || []), createdEntityId]),
+          );
+          await fetch(
+            `/api/agents/${parentId}?projectId=${currentProject.id}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...agent, skills: nextSkills }),
+            },
+          );
         }
       }
 
       await refreshTree();
-      setSelectedNode({ id: newId, type: node.type, parentId });
+      setSelectedNode({ id: createdEntityId || newId, type: node.type, parentId });
       addToast(`Duplicated ${node.name}`, "success");
     } catch (error) {
       console.error("Failed to duplicate:", error);
+      if (currentProject?.id) {
+        if (createdPrimaryEntityId) {
+          const primaryEntityType =
+            node.type === "skill" ? "skills" : node.type === "agent" ? "agents" : null;
+
+          if (primaryEntityType) {
+            await fetch(
+              `/api/${primaryEntityType}/${createdPrimaryEntityId}?projectId=${currentProject.id}`,
+              { method: "DELETE" },
+            );
+          }
+        }
+
+        for (const skillId of createdSkillIds) {
+          if (skillId === createdPrimaryEntityId) continue;
+          await fetch(`/api/skills/${skillId}?projectId=${currentProject.id}`, {
+            method: "DELETE",
+          });
+        }
+      }
       addToast("Failed to duplicate", "error");
     }
   };
@@ -637,256 +1118,468 @@ function TreeNode({
           <div
             className={`absolute left-0 top-0 w-px bg-slate-300 ${isLast ? "h-[16px]" : "h-full"}`}
           />
-          <div className="absolute left-0 top-[16px] w-[14px] h-px bg-slate-300" />
+          <div
+            className={`absolute left-0 top-[16px] h-px bg-slate-300 ${TREE_CONNECTOR_HORIZONTAL_CLASS}`}
+          />
         </>
       )}
 
-      <div className={`${level > 0 ? "pl-5" : ""} pb-1`}>
+      <div className={`${level > 0 ? TREE_NODE_INDENT_CLASS : ""} pb-1`}>
         <div
           onClick={handleSelect}
           onDoubleClick={startEditing}
-          className={`group/row relative flex items-center h-8 px-1.5 rounded-md cursor-pointer select-none transition-all border
-            ${isSelected && !isEditing ? theme.selectedClass : theme.defaultClass}
-            ${isEditing ? "bg-white border-sky-300 shadow-sm ring-2 ring-sky-100" : ""}
+          style={theme.style}
+          className={`group/row relative flex items-center h-8 px-1 rounded-md cursor-pointer select-none transition-all
+            ${isSelected && !isEditing ? WORKSPACE_ENTITY_TREE_SELECTED_CLASS : WORKSPACE_ENTITY_TREE_SURFACE_CLASS}
+            ${isEditing ? WORKSPACE_ENTITY_TREE_EDITING_CLASS : "border-transparent"}
           `}
         >
-          {visibleChildren.length > 0 ? (
-            <div
-              className={`w-5 h-5 flex items-center justify-center mr-0.5 rounded cursor-pointer shrink-0 transition-colors
-                ${isSelected && !isEditing ? "text-white/80 hover:text-white" : "text-slate-400 hover:text-slate-600"}
-                ${isEditing ? "opacity-50 pointer-events-none" : ""}
-              `}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleNode(node.id);
-              }}
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
-              )}
-            </div>
-          ) : (
-            <div className="w-5 h-5 mr-0.5 shrink-0" />
-          )}
-
-          <div
-            className={`mr-2 flex-shrink-0 ${isSelected && !isEditing ? "text-white" : theme.icon}`}
-          >
-            {getEntityIcon(node.type)}
-          </div>
-
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={handleRenameSubmit}
-              onKeyDown={handleKeyDown}
-              onClick={(e) => e.stopPropagation()}
-              onDoubleClick={(e) => e.stopPropagation()}
-              className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-800 border-none outline-none p-0 m-0 focus:ring-0"
-              spellCheck={false}
-            />
-          ) : (
-            <span
-              className={`truncate flex-1 text-sm ${isSelected ? "font-semibold text-white" : "font-medium"}`}
-            >
-              {node.name}
-              {node.type === "skill" && node.data?.version && (
-                <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-md font-mono border ${isSelected
-                  ? "bg-white/20 border-white/30 text-white"
-                  : node.data?.status === "published"
-                    ? "bg-slate-100 border-slate-200 text-slate-500"
-                    : "bg-violet-100 border-violet-200 text-violet-600"
-                  }`}>
-                  v{node.data.version}
-                </span>
-              )}
-            </span>
-          )}
-
-          {node.type === "skill" && node.data?.status === "published" && (
-            <Lock className={`w-3 h-3 mr-2 ${isSelected ? "text-white/60" : "text-slate-400"}`} />
-          )}
-
-          {!isEditing && (
-            <div
-              className={`flex items-center gap-1 transition-opacity ${isMenuOpen ? "opacity-100" : "opacity-0 group-hover/row:opacity-100"}`}
-            >
-              {/* Creation Buttons */}
-              {node.type === "orchestrator" && (
-                <button
-                  onClick={handleAddAgent}
-                  className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm ${isSelected ? "text-white/80 hover:text-white hover:bg-black/20" : "bg-white text-slate-400 border border-slate-200 hover:text-fuchsia-600 hover:bg-fuchsia-50 hover:border-fuchsia-200"}`}
-                  title="Add Agent"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-
-              {node.type === "agent" && (
-                <button
-                  onClick={handleAddSkill}
-                  disabled={isAddingSkill}
-                  className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm disabled:cursor-wait disabled:opacity-70 ${isSelected ? "text-white/80 hover:text-white hover:bg-black/20" : "bg-white text-slate-400 border border-slate-200 hover:text-violet-600 hover:bg-violet-50 hover:border-violet-200"}`}
-                  title="Add Skill"
-                >
-                  {isAddingSkill ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Plus className="w-3.5 h-3.5" />
-                  )}
-                </button>
-              )}
-
-              {/* Context Menu Button */}
-              <div className="relative">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveMenuId(isMenuOpen ? null : menuId);
-                  }}
-                  className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm ${isSelected ? (isMenuOpen ? "bg-black/30 text-white" : "text-white/80 hover:text-white hover:bg-black/20") : isMenuOpen ? "bg-slate-200 text-slate-800 border border-slate-300" : "bg-white text-slate-400 border border-slate-200 hover:text-slate-700 hover:bg-slate-100 hover:border-slate-300"}`}
-                  title="More Actions"
-                >
-                  <MoreHorizontal className="w-3.5 h-3.5" />
-                </button>
-
-                {isMenuOpen && (
-                  <div
-                    className="context-menu-container absolute right-0 top-full mt-1.5 w-56 bg-white rounded-lg shadow-xl border border-slate-200 z-[100] animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/80">
-                      <div className="font-semibold text-slate-800 text-sm break-words leading-tight">
-                        {node.name}
-                      </div>
-                      <div className="text-slate-500 capitalize text-[10px] mt-0.5 flex items-center gap-1.5 font-medium">
-                        <span
-                          className={`w-2 h-2 rounded-full inline-block ${theme.icon.replace("text-", "bg-")}`}
-                        ></span>
-                        {node.type}
-                      </div>
-                    </div>
-
-                    <div className="p-1">
-                      <button
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          startEditing();
-                        }}
-                        className="w-full text-left px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-md flex items-center gap-2 transition-colors"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" /> Rename
-                      </button>
-
-                      {node.type === "skill" && node.data?.allVersions?.length > 1 && (
-                        <div className="relative group/submenu">
-                          <button
-                            className="w-full text-left px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-md flex items-center justify-between transition-colors"
-                          >
-                            <div className="flex items-center gap-2">
-                              <History className="w-3.5 h-3.5" /> Switch Version
-                            </div>
-                            <ChevronRight className="w-3 h-3" />
-                          </button>
-
-                          <div className="absolute left-full top-0 ml-1 w-48 bg-white rounded-lg shadow-xl border border-slate-200 hidden group-hover/submenu:block animate-in fade-in slide-in-from-left-2 duration-150 p-1">
-                            <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-50 mb-1">
-                              Available Versions
-                            </div>
-                            {node.data.allVersions.map((v: any) => (
-                              <button
-                                key={v.id}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (v.id === node.id) return;
-
-                                  // TRIGGER SWITCH
-                                  if (!parentId || !currentProject?.id) return;
-                                  try {
-                                    const agentRes = await fetch(`/api/agents/${parentId}?projectId=${currentProject.id}`);
-                                    const agentData = await agentRes.json();
-                                    if (!agentRes.ok) throw new Error("Failed to load agent");
-
-                                    const agent = agentData.agent;
-                                    const nextSkills = (agent.skills || []).map((sid: string) =>
-                                      sid === node.id ? v.id : sid
-                                    );
-
-                                    const updateRes = await fetch(`/api/agents/${parentId}?projectId=${currentProject.id}`, {
-                                      method: "PUT",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ ...agent, skills: nextSkills })
-                                    });
-
-                                    if (!updateRes.ok) throw new Error("Failed to update agent skill version");
-
-                                    addToast(`Switched ${node.name} to v${v.version}`, "success");
-                                    await refreshTree();
-                                    setSelectedNode({ id: v.id, type: "skill", parentId });
-                                    setActiveMenuId(null);
-                                  } catch (err: any) {
-                                    addToast(err.message, "error");
-                                  }
-                                }}
-                                className={`w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center justify-between transition-colors ${v.id === node.id
-                                  ? "bg-violet-50 text-violet-700 font-semibold"
-                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                                  }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span>v{v.version}</span>
-                                  <span className={`text-[9px] uppercase px-1 rounded ${v.status === "published" ? "bg-slate-100 text-slate-500" : "bg-emerald-100 text-emerald-600"
-                                    }`}>
-                                    {v.status}
-                                  </span>
-                                </div>
-                                {v.id === node.id && <Check className="w-3 h-3" />}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={handleDuplicate}
-                        className="w-full text-left px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-md flex items-center gap-2 transition-colors"
-                      >
-                        <Copy className="w-3.5 h-3.5" /> Duplicate
-                      </button>
-
-                      <div className="h-px bg-slate-100 my-1 mx-1"></div>
-                      {node.type === "skill" ? (
-                        <button
-                          onClick={handleRemoveFromAgent}
-                          className="w-full text-left px-2 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800 rounded-md flex items-center gap-2 transition-colors"
-                        >
-                          <Unlink className="w-3.5 h-3.5" /> Remove from Agent
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleDelete}
-                          className="w-full text-left px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 rounded-md flex items-center gap-2 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete {node.type}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+          <div className="relative z-10 flex items-center gap-1 min-w-0 w-full">
+            {visibleChildren.length > 0 ? (
+              <div
+                className={`flex h-5 w-4 items-center justify-center rounded cursor-pointer shrink-0 transition-colors
+                  ${isSelected && !isEditing ? "text-[var(--entity-500)] hover:text-[var(--entity-700)]" : "text-slate-400 hover:text-slate-600"}
+                  ${isEditing ? "opacity-50 pointer-events-none" : ""}
+                `}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleNode(node.id);
+                }}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
                 )}
               </div>
+            ) : isSkill ? null : (
+              <div className="h-5 w-4 shrink-0" />
+            )}
+
+            {isSkill ? (
+              <div
+                className={`flex h-5 shrink-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold font-mono tracking-tight transition-colors ${skillVersionChipClass}`}
+                title={`${isDraftSkill ? "Draft" : "Published"} version: ${skillVersionLabel}`}
+              >
+                <span className="truncate leading-none">
+                  {skillVersionLabel}
+                </span>
+              </div>
+            ) : null}
+
+            <div
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${entityIconClass}`}
+            >
+              {getEntityIcon(node.type, "w-3.5 h-3.5")}
             </div>
-          )}
+
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleRenameSubmit}
+                onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-800 border-none outline-none p-0 m-0 focus:ring-0"
+                spellCheck={false}
+              />
+            ) : (
+              <div className="flex min-w-0 flex-1 items-center">
+                <span
+                  className={`truncate text-sm ${isSelected ? "font-semibold text-slate-900" : "font-medium text-slate-800"}`}
+                  title={node.name}
+                >
+                  {node.name}
+                </span>
+              </div>
+            )}
+
+            {!isEditing && (
+              <div
+                className={`flex items-center gap-1 transition-opacity ${isMenuOpen ? "opacity-100" : "opacity-0 group-hover/row:opacity-100"}`}
+              >
+                {/* Creation Buttons */}
+                {node.type === "orchestrator" && (
+                  <button
+                    onClick={handleAddAgent}
+                    style={WORKSPACE_ENTITY_THEME.agent.style}
+                    className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm ${isSelected ? WORKSPACE_ENTITY_INLINE_ACTION_SELECTED_CLASS : WORKSPACE_ENTITY_INLINE_ACTION_CLASS}`}
+                    title="Add Agent"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {node.type === "agent" && (
+                  <button
+                    ref={addSkillButtonRef}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveMenuId(null);
+                      setIsAddSkillMenuOpen((current) => !current);
+                    }}
+                    disabled={isAddingSkill || isAttachingExistingSkill}
+                    style={WORKSPACE_ENTITY_THEME.skill.style}
+                    className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm disabled:cursor-wait disabled:opacity-70 ${isSelected ? WORKSPACE_ENTITY_INLINE_ACTION_SELECTED_CLASS : WORKSPACE_ENTITY_INLINE_ACTION_CLASS}`}
+                    title="Add Skill"
+                  >
+                    {isAddingSkill || isAttachingExistingSkill ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
+
+                {node.type === "agent" &&
+                  isAddSkillMenuOpen &&
+                  addSkillMenuRect &&
+                  createPortal(
+                    <div
+                      ref={addSkillMenuRef}
+                      style={{
+                        ...WORKSPACE_ENTITY_THEME.skill.style,
+                        top: `${addSkillMenuRect.top}px`,
+                        left: `${addSkillMenuRect.left}px`,
+                        width: `${addSkillMenuRect.width}px`,
+                      }}
+                      className="fixed z-[10000] animate-in fade-in zoom-in-95 duration-100"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="overflow-hidden rounded-xl border border-[var(--entity-border)] bg-white shadow-2xl shadow-slate-300/35">
+                        <div className="border-b border-[var(--entity-border-subtle)] bg-linear-to-r from-[var(--entity-50)] to-white px-4 py-3">
+                          <div className="text-sm font-semibold text-slate-800">
+                            Add Skill
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            Create a new deterministic workflow or attach an
+                            existing skill version.
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 p-4">
+                          <div className="rounded-xl border border-[var(--entity-border-subtle)] bg-[var(--entity-50)]/45 p-3">
+                            <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--entity-700)]">
+                              Create New
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCreateSkillForAgent}
+                              disabled={isAddingSkill || isAttachingExistingSkill}
+                              className="flex w-full items-center justify-center gap-2 rounded-lg bg-linear-to-br from-[var(--entity-gradient-from)] to-[var(--entity-gradient-to)] px-3 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_var(--entity-shadow-color)] transition-all hover:from-[var(--entity-gradient-hover-from)] hover:to-[var(--entity-gradient-hover-to)] disabled:cursor-wait disabled:opacity-70"
+                            >
+                              {isAddingSkill ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Plus className="h-4 w-4" />
+                              )}
+                              New Skill
+                            </button>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-200 p-3">
+                            <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                              Attach Existing
+                            </div>
+
+                            {isLoadingSkillFamilies ? (
+                              <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <Loader2 className="h-4 w-4 animate-spin text-[var(--entity-500)]" />
+                                Loading skills...
+                              </div>
+                            ) : attachableSkillFamilies.length === 0 ? (
+                              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+                                No unassigned skills are available. Use the
+                                version switcher on an attached skill to change
+                                versions.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                                    Skill
+                                  </label>
+                                  <select
+                                    value={selectedSkillFamilyId}
+                                    onChange={(e) =>
+                                      setSelectedSkillFamilyId(e.target.value)
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition-colors focus:border-[var(--entity-500)]"
+                                  >
+                                    {attachableSkillFamilies.map((family) => (
+                                      <option key={family.id} value={family.id}>
+                                        {family.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {selectedSkillFamily?.description ? (
+                                    <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                                      {selectedSkillFamily.description}
+                                    </p>
+                                  ) : null}
+                                </div>
+
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                                    Version
+                                  </label>
+                                  <select
+                                    value={selectedSkillVersionId}
+                                    onChange={(e) =>
+                                      setSelectedSkillVersionId(e.target.value)
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition-colors focus:border-[var(--entity-500)]"
+                                  >
+                                    {selectedSkillVersionOptions.map((option) => (
+                                      <option key={option.id} value={option.id}>
+                                        {option.label}
+                                        {option.badge ? ` - ${option.badge}` : ""}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={handleAttachExistingSkill}
+                                  disabled={
+                                    isAttachingExistingSkill ||
+                                    !selectedSkillFamily ||
+                                    !selectedSkillVersionId
+                                  }
+                                  className="flex w-full items-center justify-center rounded-lg border border-[var(--entity-border)] bg-white px-3 py-2.5 text-sm font-semibold text-[var(--entity-700)] shadow-sm transition-all hover:border-[var(--entity-border-strong)] hover:bg-[var(--entity-50)] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isAttachingExistingSkill ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    "Attach Selected Version"
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>,
+                    document.body,
+                  )}
+
+                {/* Context Menu Button */}
+                <div className="relative">
+                  <button
+                    ref={menuTriggerRef}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveMenuId(isMenuOpen ? null : menuId);
+                    }}
+                    className={`flex items-center justify-center w-6 h-6 rounded-md transition-all shadow-sm ${isSelected ? (isMenuOpen ? "bg-white text-slate-700 border border-white/80" : "bg-white/85 text-slate-500 border border-white/80 hover:bg-white hover:text-slate-700") : isMenuOpen ? "bg-slate-200 text-slate-800 border border-slate-300" : "bg-white text-slate-400 border border-slate-200 hover:text-slate-700 hover:bg-slate-100 hover:border-slate-300"}`}
+                    title="More Actions"
+                  >
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                  </button>
+
+                  {isMenuOpen &&
+                    menuRect &&
+                    createPortal(
+                      <div
+                        className="context-menu-container fixed z-[10000] w-56 animate-in fade-in zoom-in-95 duration-100"
+                        style={{
+                          ...theme.style,
+                          top: `${menuRect.top}px`,
+                          left: `${menuRect.left}px`,
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="overflow-visible rounded-lg border border-slate-200 bg-white shadow-2xl shadow-slate-300/35">
+                          <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/80 rounded-t-lg">
+                            <div className="font-semibold text-slate-800 text-sm break-words leading-tight">
+                              {node.name}
+                            </div>
+                            <div className="text-slate-500 capitalize text-[10px] mt-0.5 flex items-center gap-1.5 font-medium">
+                              <span
+                                className={`w-2 h-2 rounded-full inline-block ${WORKSPACE_ENTITY_DOT_CLASS}`}
+                              ></span>
+                              {node.type}
+                            </div>
+                          </div>
+
+                          <div
+                            className="p-1 overflow-y-auto rounded-b-lg"
+                            style={{ maxHeight: `${menuRect.maxHeight}px` }}
+                          >
+                            <button
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                startEditing();
+                              }}
+                              className="w-full text-left px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-md flex items-center gap-2 transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" /> Rename
+                            </button>
+
+                            {node.type === "skill" &&
+                              node.data?.allVersions?.length > 1 && (
+                                <div className="relative group/submenu">
+                                  <button className="w-full text-left px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-md flex items-center justify-between transition-colors">
+                                    <div className="flex items-center gap-2">
+                                      <History className="w-3.5 h-3.5" />{" "}
+                                      Switch Version
+                                    </div>
+                                    <ChevronRight className="w-3 h-3" />
+                                  </button>
+
+                                  <div
+                                    className="absolute top-0 hidden group-hover/submenu:block animate-in fade-in slide-in-from-left-2 duration-150 p-1 rounded-lg border border-slate-200 bg-white shadow-2xl shadow-slate-300/35"
+                                    style={{
+                                      left: `calc(100% + ${CONTEXT_MENU_OFFSET}px)`,
+                                      width: `${CONTEXT_SUBMENU_WIDTH}px`,
+                                      maxHeight: `${menuRect.maxHeight}px`,
+                                      overflowY: "auto",
+                                    }}
+                                  >
+                                    <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-50 mb-1">
+                                      Available Versions
+                                    </div>
+                                    {(
+                                      node.data.allVersions as SkillVersionSummary[]
+                                    ).map((v) => (
+                                      <button
+                                        key={v.id}
+                                        style={WORKSPACE_ENTITY_THEME.skill.style}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (v.id === node.id) return;
+
+                                          if (!parentId || !currentProject?.id)
+                                            return;
+                                          try {
+                                            const agentRes = await fetch(
+                                              `/api/agents/${parentId}?projectId=${currentProject.id}`,
+                                            );
+                                            const agentData =
+                                              await agentRes.json();
+                                            if (!agentRes.ok)
+                                              throw new Error(
+                                                "Failed to load agent",
+                                              );
+
+                                            const agent = agentData.agent;
+                                            const nextSkills = (
+                                              agent.skills || []
+                                            ).map((sid: string) =>
+                                              sid === node.id ? v.id : sid,
+                                            );
+
+                                            const updateRes = await fetch(
+                                              `/api/agents/${parentId}?projectId=${currentProject.id}`,
+                                              {
+                                                method: "PUT",
+                                                headers: {
+                                                  "Content-Type":
+                                                    "application/json",
+                                                },
+                                                body: JSON.stringify({
+                                                  ...agent,
+                                                  skills: nextSkills,
+                                                }),
+                                              },
+                                            );
+
+                                            if (!updateRes.ok)
+                                              throw new Error(
+                                                "Failed to update agent skill version",
+                                              );
+
+                                            addToast(
+                                              `Switched ${node.name} to v${v.version}`,
+                                              "success",
+                                            );
+                                            await refreshTree();
+                                            setSelectedNode({
+                                              id: v.id,
+                                              type: "skill",
+                                              parentId,
+                                            });
+                                            setActiveMenuId(null);
+                                          } catch (err) {
+                                            addToast(
+                                              err instanceof Error
+                                                ? err.message
+                                                : "Failed to switch skill version",
+                                              "error",
+                                            );
+                                          }
+                                        }}
+                                        className={`w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center justify-between transition-colors ${
+                                          v.id === node.id
+                                            ? "bg-[var(--entity-50)] text-[var(--entity-700)] font-semibold"
+                                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span>v{v.version}</span>
+                                          <span
+                                            className={`text-[9px] uppercase px-1 rounded ${
+                                              v.status === "published"
+                                                ? "bg-slate-100 text-slate-500"
+                                                : "bg-emerald-100 text-emerald-600"
+                                            }`}
+                                          >
+                                            {v.status}
+                                          </span>
+                                        </div>
+                                        {v.id === node.id && (
+                                          <Check className="w-3 h-3" />
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                            <button
+                              onClick={handleDuplicate}
+                              className="w-full text-left px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-md flex items-center gap-2 transition-colors"
+                            >
+                              <Copy className="w-3.5 h-3.5" /> Duplicate
+                            </button>
+
+                            <div className="h-px bg-slate-100 my-1 mx-1"></div>
+                            {node.type === "skill" ? (
+                              <button
+                                onClick={handleRemoveFromAgent}
+                                className="w-full text-left px-2 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800 rounded-md flex items-center gap-2 transition-colors"
+                              >
+                                <Unlink className="w-3.5 h-3.5" /> Remove from
+                                Agent
+                              </button>
+                            ) : (
+                              <button
+                                onClick={handleDelete}
+                                className="w-full text-left px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 rounded-md flex items-center gap-2 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Delete{" "}
+                                {node.type}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>,
+                      document.body,
+                    )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {isExpanded && visibleChildren.length > 0 && (
-          <ul className="relative mt-1 ml-3.5">
+          <ul className={`relative mt-1 ${TREE_CHILDREN_OFFSET_CLASS}`}>
             {visibleChildren.map((child, index) => {
               const isLastChild = index === visibleChildren.length - 1;
               return (
@@ -906,20 +1599,23 @@ function TreeNode({
   );
 }
 
-export function SystemComposerPanel() {
-  const {
-    projectTree,
-    refreshTree,
-    setActiveOrchestratorId,
-    setSelectedNode,
-  } = useWorkspace();
+interface SystemComposerPanelProps {
+  isMinimized: boolean;
+  onToggleMinimized: () => void;
+}
+
+export function SystemComposerPanel({
+  isMinimized,
+  onToggleMinimized,
+}: SystemComposerPanelProps) {
+  const { projectTree, refreshTree, setActiveOrchestratorId, setSelectedNode } =
+    useWorkspace();
   const { currentProject } = useProject();
   const { addToast } = useToast();
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   const toggleNode = (id: string) => {
-
     setCollapsedNodes((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -979,12 +1675,53 @@ export function SystemComposerPanel() {
       value={{ collapsedNodes, toggleNode, activeMenuId, setActiveMenuId }}
     >
       <div className="h-full flex flex-col pt-4 bg-white relative z-10">
-        <div className="px-4 mb-4 flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-            System Hierarchy
-          </h2>
+        <div
+          className={`mb-4 flex ${isMinimized ? "px-2 justify-center" : "px-4 items-start justify-between gap-3"}`}
+        >
+          {isMinimized ? (
+            <div
+              style={WORKSPACE_PANEL_THEME.composer.style}
+              className={`flex flex-col items-center gap-3 rounded-2xl border border-slate-200 px-2 py-3 ${WORKSPACE_PANEL_CONTROL_SHELL_CLASS}`}
+            >
+              <button
+                onClick={onToggleMinimized}
+                title="Maximize panel"
+                className={`flex h-9 w-9 items-center justify-center rounded-xl shadow-sm transition-all ${WORKSPACE_PANEL_CONTROL_CLASS}`}
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </button>
+              <span
+                className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400"
+                style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+              >
+                Composer
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                  System Hierarchy
+                </h2>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Manage the system structure without crowding the canvas.
+                </p>
+              </div>
+              <button
+                onClick={onToggleMinimized}
+                title="Minimize panel"
+                style={WORKSPACE_PANEL_THEME.composer.style}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-all ${WORKSPACE_PANEL_CONTROL_CLASS} ${WORKSPACE_PANEL_CONTROL_SHELL_CLASS}`}
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
-        <div className="flex-1 overflow-y-auto px-2 pb-8">
+        <div
+          className={`flex-1 overflow-y-auto pb-8 transition-all duration-200 ${isMinimized ? "pointer-events-none opacity-0 px-0" : "px-2 opacity-100"}`}
+          aria-hidden={isMinimized}
+        >
           <ul className="m-0 p-0">
             {projectTree?.children?.map((orch, index) => (
               <TreeNode
@@ -1001,7 +1738,8 @@ export function SystemComposerPanel() {
                     e.stopPropagation();
                     handleCreateOrchestrator();
                   }}
-                  className={`flex items-center h-8 px-3 rounded-md text-xs font-semibold border border-dashed shadow-sm transition-all ${ENTITY_THEME.orchestrator.addBtn} hover:scale-[1.02] active:scale-[0.98]`}
+                  style={WORKSPACE_ENTITY_THEME.orchestrator.style}
+                  className={`flex items-center h-8 px-3 rounded-md text-xs font-semibold border border-dashed shadow-sm transition-all ${WORKSPACE_ENTITY_DASHED_ADD_BUTTON_CLASS} hover:scale-[1.02] active:scale-[0.98]`}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   New Orchestrator

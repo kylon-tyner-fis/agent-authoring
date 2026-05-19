@@ -126,30 +126,34 @@ export async function POST(req: Request) {
 
     const { data, error } = await supabase
       .from("skills")
-      .upsert(
-        [
-          {
-            id: payload.id,
-            project_id: payload.project_id,
-            name: payload.name,
-            version: payload.version,
-            description: payload.description,
-            status: payload.status,
-            parent_id: payload.parent_id || null,
-            model: payload.model,
-            mcp_servers: payload.mcp_servers,
-            system_prompt: payload.system_prompt,
-            state_schema: payload.state_schema,
-            orchestration: payload.orchestration,
-            compiled_manifest: compiledManifest,
-          },
-        ],
-        { onConflict: "id" },
-      )
+      .insert({
+        id: payload.id,
+        project_id: payload.project_id,
+        name: payload.name,
+        version: payload.version,
+        description: payload.description,
+        status: payload.status,
+        parent_id: payload.parent_id || null,
+        model: payload.model,
+        mcp_servers: payload.mcp_servers,
+        system_prompt: payload.system_prompt,
+        state_schema: payload.state_schema,
+        orchestration: payload.orchestration,
+        compiled_manifest: compiledManifest,
+      })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "A skill with this id already exists." },
+          { status: 409 },
+        );
+      }
+
+      throw error;
+    }
 
     return NextResponse.json({ success: true, skill: data });
   } catch (error: unknown) {

@@ -87,6 +87,7 @@ export interface OrchestrationCanvasProps {
   activeNodeId?: string | null;
   readOnly?: boolean;
   onSelectionChange?: (hasSelection: boolean) => void;
+  onStateSchemaOpenChange?: (isOpen: boolean) => void;
 }
 
 const flattenSchemaKeys = (schema: any, prefix = ""): string[] => {
@@ -395,6 +396,7 @@ const CanvasEditor = forwardRef<
       setSelectedEdgeId(null);
       setIsStateSchemaOpen(true);
       props.onSelectionChange?.(true);
+      props.onStateSchemaOpenChange?.(true);
     },
     isStateSchemaOpen: () => isStateSchemaOpen,
     clearSelection: () => {
@@ -402,6 +404,7 @@ const CanvasEditor = forwardRef<
       setSelectedEdgeId(null);
       setIsStateSchemaOpen(false);
       props.onSelectionChange?.(false);
+      props.onStateSchemaOpenChange?.(false);
     },
   }));
 
@@ -933,18 +936,21 @@ const CanvasEditor = forwardRef<
             setSelectedNodeId(node.id);
             setSelectedEdgeId(null);
             props.onSelectionChange?.(true);
+            props.onStateSchemaOpenChange?.(false);
           }}
           onEdgeClick={(_, edge) => {
             setIsStateSchemaOpen(false);
             setSelectedEdgeId(edge.id);
             setSelectedNodeId(null);
             props.onSelectionChange?.(true);
+            props.onStateSchemaOpenChange?.(false);
           }}
           onPaneClick={() => {
             setSelectedNodeId(null);
             setSelectedEdgeId(null);
             setIsStateSchemaOpen(false);
             props.onSelectionChange?.(false);
+            props.onStateSchemaOpenChange?.(false);
           }}
           snapToGrid={true}
           snapGrid={[COLUMN_WIDTH, ROW_HEIGHT]}
@@ -1010,6 +1016,7 @@ const CanvasEditor = forwardRef<
             onClick={() => {
               setIsStateSchemaOpen(false);
               props.onSelectionChange?.(false);
+              props.onStateSchemaOpenChange?.(false);
             }}
             className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-md transition-colors"
             title="Close Memory"

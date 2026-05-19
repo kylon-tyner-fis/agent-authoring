@@ -149,6 +149,7 @@ export async function PUT(
       .from("skills")
       .update({
         name: updatedConfig.name,
+        version: updatedConfig.version || "1.0",
         description: updatedConfig.description,
         orchestration: updatedConfig.orchestration,
         model: updatedConfig.model,

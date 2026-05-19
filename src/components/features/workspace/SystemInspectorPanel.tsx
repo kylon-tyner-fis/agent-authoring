@@ -20,12 +20,35 @@ import {
   History,
   Lock,
   Check,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import { Dropdown } from "../../ui/Dropdown";
 import { useToast } from "../../layout/Toast";
 import { useProject } from "@/src/lib/contexts/ProjectContext";
+import {
+  WORKSPACE_PANEL_BADGE_INFO_CLASS,
+  WORKSPACE_PANEL_CONTROL_CLASS,
+  WORKSPACE_PANEL_CONTROL_SHELL_CLASS,
+  WORKSPACE_PANEL_PRIMARY_BUTTON_CLASS,
+  WORKSPACE_PANEL_SECONDARY_BUTTON_CLASS,
+  WORKSPACE_PANEL_SECONDARY_ICON_CLASS,
+  WORKSPACE_PANEL_THEME,
+  WORKSPACE_PANEL_TITLE_ICON_CLASS,
+  WORKSPACE_ENTITY_SECTION_ICON_CLASS,
+  WORKSPACE_ENTITY_STAT_CARD_CLASS,
+  WORKSPACE_ENTITY_THEME,
+} from "./workspaceEntityTheme";
 
-export function SystemInspectorPanel() {
+interface SystemInspectorPanelProps {
+  isMinimized: boolean;
+  onToggleMinimized: () => void;
+}
+
+export function SystemInspectorPanel({
+  isMinimized,
+  onToggleMinimized,
+}: SystemInspectorPanelProps) {
   const { systemTree, selectedNode, setSelectedNode, refreshTree } = useWorkspace();
   const { currentProject } = useProject();
   const { addToast } = useToast();
@@ -298,24 +321,70 @@ export function SystemInspectorPanel() {
   return (
     <div className="flex flex-col h-full bg-white animate-in fade-in slide-in-from-right-4 duration-300">
       {/* Header */}
-      <div className="flex justify-between items-center p-5 border-b border-slate-100 shrink-0 bg-slate-50/50">
-        <div className="flex items-center gap-2 text-slate-700">
-          <Activity className="w-5 h-5 text-indigo-500" />
-          <h2 className="text-sm font-bold uppercase tracking-wider">
-            System Inspector
-          </h2>
-        </div>
-        <span
-          className={`text-[10px] font-bold px-2 py-1 rounded-full border uppercase tracking-wider ${isReady
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-            : "bg-amber-50 text-amber-700 border-amber-200"
-            }`}
-        >
-          {isReady ? "Ready" : "Incomplete"}
-        </span>
+      <div
+        className={`border-b border-slate-100 shrink-0 bg-slate-50/50 ${isMinimized ? "px-2 py-4" : "p-5"}`}
+      >
+        {isMinimized ? (
+          <div
+            style={WORKSPACE_PANEL_THEME.inspector.style}
+            className={`flex flex-col items-center gap-3 rounded-2xl border border-slate-200 px-2 py-3 ${WORKSPACE_PANEL_CONTROL_SHELL_CLASS}`}
+          >
+            <button
+              onClick={onToggleMinimized}
+              title="Maximize panel"
+              className={`flex h-9 w-9 items-center justify-center rounded-xl shadow-sm transition-all ${WORKSPACE_PANEL_CONTROL_CLASS}`}
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400"
+              style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+            >
+              Inspector
+            </span>
+          </div>
+        ) : (
+          <div className="flex justify-between items-start gap-3">
+            <div className="min-w-0">
+              <div
+                style={WORKSPACE_PANEL_THEME.inspector.style}
+                className="flex items-center gap-2 text-slate-700"
+              >
+                <Activity className={`w-5 h-5 ${WORKSPACE_PANEL_TITLE_ICON_CLASS}`} />
+                <h2 className="text-sm font-bold uppercase tracking-wider">
+                  System Inspector
+                </h2>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Check readiness and system health without occupying extra space.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                style={WORKSPACE_PANEL_THEME.inspector.style}
+                className={`text-[10px] font-bold px-2 py-1 rounded-full border uppercase tracking-wider ${isReady
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : WORKSPACE_PANEL_BADGE_INFO_CLASS
+                  }`}
+              >
+                {isReady ? "Ready" : "Incomplete"}
+              </span>
+              <button
+                onClick={onToggleMinimized}
+                title="Minimize panel"
+                style={WORKSPACE_PANEL_THEME.inspector.style}
+                className={`flex h-10 w-10 items-center justify-center rounded-2xl transition-all ${WORKSPACE_PANEL_CONTROL_CLASS} ${WORKSPACE_PANEL_CONTROL_SHELL_CLASS}`}
+              >
+                <PanelRightClose className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-
-      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-8">
+      <div
+        className={`flex-1 overflow-y-auto custom-scrollbar space-y-8 transition-all duration-200 ${isMinimized ? "pointer-events-none opacity-0 p-0" : "p-5 opacity-100"}`}
+        aria-hidden={isMinimized}
+      >
         {/* System Validation & Warnings */}
         <div>
           <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between">
@@ -377,7 +446,7 @@ export function SystemInspectorPanel() {
                               <div key={idx} className="bg-white border border-slate-200 rounded p-2 shadow-sm text-[10px] text-slate-600">
                                 Validated <code className="bg-slate-100 px-1 rounded text-slate-700">{check.key}</code> in <strong>{check.skillName}</strong>:
                                 <span className="block mt-0.5 text-slate-400">
-                                  Written by {check.writes} node{check.writes !== 1 ? 's' : ''}, Read by {check.reads} node{check.reads !== 1 ? 's' : ''}
+                                  Written by {check.writes} node{check.writes !== 1 ? "s" : ""}, Read by {check.reads} node{check.reads !== 1 ? "s" : ""}
                                 </span>
                               </div>
                             ))
@@ -441,7 +510,7 @@ export function SystemInspectorPanel() {
                         <div key={fIdx} className="bg-white border border-blue-100 rounded p-2 shadow-sm text-[10px] text-slate-600">
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-bold text-blue-700">{field.skillName}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${field.type === 'Input' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${field.type === "Input" ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"}`}>
                               {field.type}
                             </span>
                           </div>
@@ -465,17 +534,23 @@ export function SystemInspectorPanel() {
             System Weight
           </h3>
           <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-col items-center justify-center gap-1 shadow-sm">
-              <Bot className="w-4 h-4 text-fuchsia-500" />
+            <div
+              style={WORKSPACE_ENTITY_THEME.agent.style}
+              className={`rounded-lg p-3 flex flex-col items-center justify-center gap-1 shadow-sm ${WORKSPACE_ENTITY_STAT_CARD_CLASS}`}
+            >
+              <Bot className={`w-4 h-4 ${WORKSPACE_ENTITY_SECTION_ICON_CLASS}`} />
               <span className="text-lg font-bold text-slate-700">{agentCount}</span>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Agents</span>
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-col items-center justify-center gap-1 shadow-sm">
-              <Network className="w-4 h-4 text-violet-500" />
+            <div
+              style={WORKSPACE_ENTITY_THEME.skill.style}
+              className={`rounded-lg p-3 flex flex-col items-center justify-center gap-1 shadow-sm ${WORKSPACE_ENTITY_STAT_CARD_CLASS}`}
+            >
+              <Network className={`w-4 h-4 ${WORKSPACE_ENTITY_SECTION_ICON_CLASS}`} />
               <span className="text-lg font-bold text-slate-700">{skillCount}</span>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Skills</span>
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-col items-center justify-center gap-1 shadow-sm">
+            <div className="bg-linear-to-br from-amber-50 to-white border border-amber-100 rounded-lg p-3 flex flex-col items-center justify-center gap-1 shadow-sm">
               <Wrench className="w-4 h-4 text-amber-500" />
               <span className="text-lg font-bold text-slate-700">{toolCount}</span>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Tools</span>
@@ -512,16 +587,21 @@ export function SystemInspectorPanel() {
       </div>
 
       {/* Footer Actions */}
-      <div className="p-5 border-t border-slate-200 shrink-0 space-y-3 bg-slate-50/50">
+      <div
+        className={`border-t border-slate-200 shrink-0 space-y-3 bg-slate-50/50 transition-all duration-200 ${isMinimized ? "pointer-events-none opacity-0 p-0" : "p-5 opacity-100"}`}
+        aria-hidden={isMinimized}
+      >
         <button
-          className="w-full py-2.5 bg-white text-indigo-700 border border-indigo-200 rounded-lg text-sm font-bold hover:bg-indigo-50 hover:border-indigo-300 transition-colors flex items-center justify-center gap-2 shadow-sm"
+          style={WORKSPACE_PANEL_THEME.inspector.style}
+          className={`w-full py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${WORKSPACE_PANEL_SECONDARY_BUTTON_CLASS}`}
         >
-          <Play className="w-4 h-4 fill-indigo-700" />
+          <Play className={`w-4 h-4 ${WORKSPACE_PANEL_SECONDARY_ICON_CLASS}`} />
           Test in Sandbox
         </button>
         <button
           disabled={!isReady}
-          className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+          style={WORKSPACE_PANEL_THEME.inspector.style}
+          className={`w-full py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${WORKSPACE_PANEL_PRIMARY_BUTTON_CLASS}`}
         >
           Publish System
         </button>

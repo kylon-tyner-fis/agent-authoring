@@ -71,13 +71,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [validationReadiness, setValidationReadiness] =
     useState<ValidationReadiness | null>(null);
-  const [lastUpdated, setLastUpdated] = useState(Date.now());
+  const [lastUpdated, setLastUpdated] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
   const refreshTree = async () => {
     if (!currentProject?.id) return;
     setIsLoading(true);
-    setLastUpdated(Date.now());
+    setLastUpdated((current) => current + 1);
 
     try {
       // 1. Fetch all orchestrators for this project

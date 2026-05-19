@@ -8,6 +8,16 @@ import { useWorkspace } from "@/src/lib/contexts/WorkspaceContext";
 import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
 import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
 import { AgentConfig } from "@/src/lib/types/constants";
+import {
+  WORKSPACE_ENTITY_FIELD_FOCUS_CLASS,
+  WORKSPACE_ENTITY_HEADER_CLASS,
+  WORKSPACE_ENTITY_ICON_SHELL_CLASS,
+  WORKSPACE_ENTITY_PRIMARY_BUTTON_CLASS,
+  WORKSPACE_ENTITY_SECONDARY_BUTTON_CLASS,
+  WORKSPACE_ENTITY_SECONDARY_ICON_CLASS,
+  WORKSPACE_ENTITY_SECTION_ICON_CLASS,
+  WORKSPACE_ENTITY_THEME,
+} from "../workspaceEntityTheme";
 
 interface AgentEditorProps {
   id: string;
@@ -16,6 +26,7 @@ interface AgentEditorProps {
 export function AgentEditor({ id }: AgentEditorProps) {
   const { currentProject } = useProject();
   const { refreshTree, lastUpdated } = useWorkspace();
+  const theme = WORKSPACE_ENTITY_THEME.agent;
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -104,8 +115,11 @@ export function AgentEditor({ id }: AgentEditorProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-white rounded-xl shadow-sm border border-slate-200 m-4">
-        <Loader2 className="w-8 h-8 text-fuchsia-500 animate-spin mb-4" />
+      <div
+        style={theme.style}
+        className="flex flex-col items-center justify-center h-full bg-white rounded-xl shadow-sm border border-slate-200 m-4"
+      >
+        <Loader2 className="w-8 h-8 text-[var(--entity-500)] animate-spin mb-4" />
         <p className="text-sm text-slate-500 font-medium">
           Loading agent settings...
         </p>
@@ -114,12 +128,18 @@ export function AgentEditor({ id }: AgentEditorProps) {
   }
 
   return (
-    <div className="h-full w-full flex overflow-hidden bg-slate-50">
+    <div
+      style={theme.style}
+      className="relative h-full w-full flex overflow-hidden bg-slate-50"
+    >
       <div className="flex flex-col h-full min-w-0 flex-1 bg-white rounded-xl shadow-sm border border-slate-200 m-4 overflow-hidden relative">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-fuchsia-50 shrink-0">
+        <div
+          className={`flex items-center justify-between px-6 h-[60px] shrink-0 ${WORKSPACE_ENTITY_HEADER_CLASS}`}
+        >
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-fuchsia-100 text-fuchsia-600 rounded-lg">
+            <div
+              className={`p-2 rounded-lg shrink-0 ${WORKSPACE_ENTITY_ICON_SHELL_CLASS}`}
+            >
               <Bot className="w-5 h-5" />
             </div>
             <div>
@@ -130,18 +150,17 @@ export function AgentEditor({ id }: AgentEditorProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* We'll hook this up to open the AgentPlayground next */}
             <button
-              className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-200 text-sm font-medium rounded-md hover:bg-slate-50 transition-colors shadow-sm"
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md ${WORKSPACE_ENTITY_SECONDARY_BUTTON_CLASS}`}
               onClick={() => setIsPlaygroundOpen(true)}
             >
-              <Play className="w-4 h-4 text-fuchsia-500 fill-fuchsia-500" />
+              <Play className={`w-4 h-4 ${WORKSPACE_ENTITY_SECONDARY_ICON_CLASS}`} />
               Playground
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center gap-2 px-4 py-2 bg-fuchsia-600 text-white text-sm font-medium rounded-md hover:bg-fuchsia-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${WORKSPACE_ENTITY_PRIMARY_BUTTON_CLASS}`}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -176,7 +195,7 @@ export function AgentEditor({ id }: AgentEditorProps) {
                   value={formData.name}
                   onChange={handleChange}
                   placeholder="e.g., Research Assistant"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-fuchsia-500 text-sm"
+                  className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS}`}
                 />
               </div>
 
@@ -194,7 +213,7 @@ export function AgentEditor({ id }: AgentEditorProps) {
                   value={formData.description}
                   onChange={handleChange}
                   placeholder="Briefly describe this agent's purpose..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-fuchsia-500 text-sm resize-none"
+                  className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm resize-none ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS}`}
                 />
               </div>
             </div>
@@ -202,7 +221,7 @@ export function AgentEditor({ id }: AgentEditorProps) {
             {/* Core Logic Section */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
-                <Bot className="w-4 h-4 text-fuchsia-500" />
+                <Bot className={`w-4 h-4 ${WORKSPACE_ENTITY_SECTION_ICON_CLASS}`} />
                 <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                   Core Logic
                 </h2>
@@ -227,7 +246,7 @@ export function AgentEditor({ id }: AgentEditorProps) {
                   value={formData.system_prompt}
                   onChange={handleChange}
                   placeholder="e.g., You are an expert data researcher. Your goal is to gather facts using the Web Research skill and format them into comprehensive reports."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-fuchsia-500 text-sm font-mono text-slate-700 leading-relaxed"
+                  className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-mono text-slate-700 leading-relaxed ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS}`}
                 />
               </div>
             </div>

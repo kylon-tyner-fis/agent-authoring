@@ -1,7 +1,11 @@
 // src/components/features/workspace/editors/NodePalette.tsx
 import React from "react";
-import { Flag, ArrowRight, Zap, Hand, Code2, Database } from "lucide-react";
+import { Flag, ArrowRight, Hand, Code2, Database } from "lucide-react";
 import { ToolConfig, MCPServerConfig } from "@/src/lib/types/constants";
+import {
+  WORKSPACE_PANEL_NODE_CARD_HOVER_CLASS,
+  WORKSPACE_PANEL_NODE_CARD_LABEL_HOVER_CLASS,
+} from "../workspaceEntityTheme";
 
 interface NodePaletteProps {
   onDragStart: (event: React.DragEvent, nodeType: string, itemId: string) => void;
@@ -16,21 +20,23 @@ export function NodePalette({ onDragStart, availableTools, availableServers }: N
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Flow Control</span>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { type: "trigger", icon: Flag, color: "bg-rose-500", label: "Trigger" },
-            { type: "response", icon: ArrowRight, color: "bg-emerald-500", label: "Response" },
-            { type: "agent", icon: Zap, color: "bg-blue-500", label: "Agent Node" },
-            { type: "interrupt", icon: Hand, color: "bg-amber-500", label: "Interrupt" }
+            { type: "trigger", icon: Flag, color: "bg-linear-to-br from-rose-400 to-rose-600 shadow-rose-500/20", label: "Trigger" },
+            { type: "response", icon: ArrowRight, color: "bg-linear-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/20", label: "Response" },
+            { type: "interrupt", icon: Hand, color: "bg-linear-to-br from-amber-400 to-orange-500 shadow-amber-500/20", label: "Interrupt" }
           ].map((item) => (
             <div
               key={item.type}
               draggable
               onDragStart={(e) => onDragStart(e, item.type, "")}
-              className="group flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl hover:border-violet-500 hover:shadow-md transition-all cursor-grab active:cursor-grabbing"
+              className={`group flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl transition-all cursor-grab active:cursor-grabbing ${WORKSPACE_PANEL_NODE_CARD_HOVER_CLASS}`}
             >
-              <div className={`w-8 h-8 ${item.color} text-white rounded-lg flex items-center justify-center shadow-sm`}>
+              <div
+                style={item.style}
+                className={`w-8 h-8 ${item.color} text-white rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-110`}
+              >
                 <item.icon className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-slate-600 group-hover:text-violet-700">{item.label}</span>
+              <span className={`text-xs font-bold text-slate-600 ${WORKSPACE_PANEL_NODE_CARD_LABEL_HOVER_CLASS}`}>{item.label}</span>
             </div>
           ))}
         </div>
@@ -44,7 +50,7 @@ export function NodePalette({ onDragStart, availableTools, availableServers }: N
               key={t.id}
               draggable
               onDragStart={(e) => onDragStart(e, "tool", t.id)}
-              className="px-3 py-2 border border-amber-200 bg-white text-amber-700 rounded-xl cursor-grab hover:bg-amber-50 flex items-center gap-2 text-xs font-bold shadow-sm"
+              className="px-3 py-2 border border-amber-200 bg-linear-to-br from-amber-50 to-white text-amber-700 rounded-xl cursor-grab hover:border-amber-400 hover:shadow-md transition-all flex items-center gap-2 text-xs font-bold shadow-sm"
             >
               <Code2 className="w-3.5 h-3.5" /> {t.name}
             </div>
@@ -65,7 +71,7 @@ export function NodePalette({ onDragStart, availableTools, availableServers }: N
               key={s.id}
               draggable
               onDragStart={(e) => onDragStart(e, "mcp_node", s.id)}
-              className="px-3 py-2 border border-emerald-200 bg-white text-emerald-700 rounded-xl cursor-grab hover:bg-emerald-50 flex items-center gap-2 text-xs font-bold shadow-sm"
+              className="px-3 py-2 border border-emerald-200 bg-linear-to-br from-emerald-50 to-white text-emerald-700 rounded-xl cursor-grab hover:border-emerald-400 hover:shadow-md transition-all flex items-center gap-2 text-xs font-bold shadow-sm"
             >
               <Database className="w-3.5 h-3.5" /> {s.name}
             </div>

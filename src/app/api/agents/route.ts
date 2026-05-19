@@ -7,6 +7,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const projectId = searchParams.get("projectId");
@@ -27,8 +31,8 @@ export async function GET(req: Request) {
 
     if (error) throw error;
     return NextResponse.json({ agents: data });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -57,13 +61,22 @@ export async function POST(req: Request) {
 
     const { data, error } = await supabase
       .from("agents")
-      .upsert([payload], { onConflict: "id" })
+      .insert(payload)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "An agent with this id already exists." },
+          { status: 409 },
+        );
+      }
+
+      throw error;
+    }
     return NextResponse.json({ success: true, agent: data });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

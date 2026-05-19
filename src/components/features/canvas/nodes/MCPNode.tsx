@@ -15,9 +15,9 @@ export type MCPNodeType = Node<MCPNodeData, "mcp_node">;
 
 export function MCPNode({ data, selected }: NodeProps<MCPNodeType>) {
   const theme = {
-    bg: "bg-emerald-50/50",
+    bg: "bg-linear-to-br from-emerald-50 to-white",
     border: "border-emerald-100",
-    iconBg: "bg-emerald-100",
+    iconBg: "bg-linear-to-br from-emerald-400 to-teal-500 shadow-md shadow-emerald-500/20",
     text: "text-emerald-700",
     ring: "border-emerald-500 shadow-md ring-4 ring-emerald-50",
     label: "MCP Action",
@@ -64,7 +64,7 @@ export function MCPNode({ data, selected }: NodeProps<MCPNodeType>) {
         className={`${theme.bg} border-b ${theme.border} p-3 flex items-center gap-3 rounded-t-xl`}
       >
         <div
-          className={`w-8 h-8 rounded-lg ${theme.iconBg} flex items-center justify-center shrink-0 ${theme.text}`}
+          className={`w-8 h-8 rounded-lg ${theme.iconBg} flex items-center justify-center shrink-0 text-white`}
         >
           <theme.Icon className="w-4 h-4" />
         </div>

@@ -26,9 +26,9 @@ export function WorkflowNode({
   selected,
 }: NodeProps<WorkflowNodeType>) {
   let theme = {
-    bg: "bg-amber-50/50",
+    bg: "bg-linear-to-br from-amber-50 to-white",
     border: "border-amber-100",
-    iconBg: "bg-amber-100",
+    iconBg: "bg-linear-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/20",
     text: "text-amber-700",
     ring: "border-amber-500 shadow-md ring-4 ring-amber-50",
     label: "Tool Node",
@@ -37,9 +37,9 @@ export function WorkflowNode({
 
   if (type === "interrupt") {
     theme = {
-      bg: "bg-orange-50/50",
+      bg: "bg-linear-to-br from-orange-50 to-white",
       border: "border-orange-100",
-      iconBg: "bg-orange-100",
+      iconBg: "bg-linear-to-br from-orange-400 to-red-500 shadow-md shadow-orange-500/20",
       text: "text-orange-600",
       ring: "border-orange-500 shadow-md ring-4 ring-orange-50",
       label: "Interrupt",
@@ -87,7 +87,7 @@ export function WorkflowNode({
         className={`${theme.bg} border-b ${theme.border} p-3 flex items-center gap-3 rounded-t-xl`}
       >
         <div
-          className={`w-8 h-8 rounded-lg ${theme.iconBg} flex items-center justify-center shrink-0 ${theme.text}`}
+          className={`w-8 h-8 rounded-lg ${theme.iconBg} flex items-center justify-center shrink-0 text-white`}
         >
           <theme.Icon className="w-4 h-4" />
         </div>
