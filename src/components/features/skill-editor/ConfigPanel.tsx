@@ -283,7 +283,7 @@ export const ConfigPanel = ({
 
       const finalId = config.id || uuidv4();
 
-      const finalConfig = {
+      const finalConfig: SkillConfig = {
         ...config,
         id: finalId,
         status: "draft",

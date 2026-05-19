@@ -31,7 +31,6 @@ export function NodePalette({ onDragStart, availableTools, availableServers }: N
               className={`group flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl transition-all cursor-grab active:cursor-grabbing ${WORKSPACE_PANEL_NODE_CARD_HOVER_CLASS}`}
             >
               <div
-                style={item.style}
                 className={`w-8 h-8 ${item.color} text-white rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-110`}
               >
                 <item.icon className="w-4 h-4" />

@@ -659,8 +659,14 @@ function TreeNode({
     agentId: string,
     updater: (currentSkills: string[]) => string[],
   ) => {
+    const projectId = currentProject?.id;
+
+    if (!projectId) {
+      throw new Error("Choose a project before updating agent skills.");
+    }
+
     const agentResponse = await fetch(
-      `/api/agents/${agentId}?projectId=${currentProject.id}`,
+      `/api/agents/${agentId}?projectId=${projectId}`,
     );
     const agentPayload = await agentResponse.json();
 
@@ -673,7 +679,7 @@ function TreeNode({
     const nextSkills = updater(currentSkills);
 
     const updateResponse = await fetch(
-      `/api/agents/${agentId}?projectId=${currentProject.id}`,
+      `/api/agents/${agentId}?projectId=${projectId}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
