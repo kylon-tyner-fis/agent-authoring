@@ -1,0 +1,271 @@
+// src/components/features/workspace/editors/AgentEditor.tsx
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { Bot, Save, Loader2, Play } from "lucide-react";
+import { useProject } from "@/src/lib/contexts/ProjectContext";
+import { useWorkspace } from "@/src/lib/contexts/WorkspaceContext";
+import { SlidingPlaygroundPanel } from "@/src/components/layout/SlidingPlaygroundPanel";
+import { AgentPlayground } from "@/src/components/features/agent-editor/AgentPlayground";
+import { AgentConfig } from "@/src/lib/types/constants";
+import {
+  WORKSPACE_ENTITY_FIELD_FOCUS_CLASS,
+  WORKSPACE_ENTITY_HEADER_CLASS,
+  WORKSPACE_ENTITY_ICON_SHELL_CLASS,
+  WORKSPACE_ENTITY_PRIMARY_BUTTON_CLASS,
+  WORKSPACE_ENTITY_SECONDARY_BUTTON_CLASS,
+  WORKSPACE_ENTITY_SECONDARY_ICON_CLASS,
+  WORKSPACE_ENTITY_SECTION_ICON_CLASS,
+  WORKSPACE_ENTITY_THEME,
+} from "../workspaceEntityTheme";
+
+interface AgentEditorProps {
+  id: string;
+}
+
+export function AgentEditor({ id }: AgentEditorProps) {
+  const { currentProject } = useProject();
+  const { refreshTree, lastUpdated } = useWorkspace();
+  const theme = WORKSPACE_ENTITY_THEME.agent;
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPlaygroundOpen, setIsPlaygroundOpen] = useState(false);
+
+  // Form State aligned with your DB schema
+  const [formData, setFormData] = useState<AgentConfig>({
+    id,
+    project_id: currentProject?.id || "",
+    name: "",
+    description: "",
+    system_prompt: "",
+    skills: [],
+  });
+
+  // REAL FETCH
+  useEffect(() => {
+    async function fetchAgent() {
+      if (!currentProject?.id) return;
+      setIsLoading(true);
+      try {
+        const res = await fetch(
+          `/api/agents/${id}?projectId=${currentProject.id}`,
+        );
+        if (!res.ok) throw new Error("Failed to fetch agent");
+        const data = await res.json();
+
+        if (data.agent) {
+          setFormData({
+            id: data.agent.id || id,
+            project_id: data.agent.project_id || currentProject.id,
+            name: data.agent.name || "",
+            description: data.agent.description || "",
+            system_prompt: data.agent.system_prompt || "",
+            skills: data.agent.skills || [],
+          });
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchAgent();
+  }, [id, currentProject?.id, lastUpdated]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  // REAL SAVE
+  const handleSave = async () => {
+    if (!currentProject?.id) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch(
+        `/api/agents/${id}?projectId=${currentProject.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.name,
+            description: formData.description,
+            system_prompt: formData.system_prompt,
+            skills: formData.skills,
+          }),
+        },
+      );
+
+      if (!res.ok) throw new Error("Failed to save agent");
+
+      // Refresh the left panel tree so the new name reflects immediately!
+      await refreshTree();
+
+      // Optional: Add a toast notification here for success
+    } catch (error) {
+      console.error(error);
+      // Optional: Add a toast notification here for error
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div
+        style={theme.style}
+        className="flex flex-col items-center justify-center h-full bg-white rounded-xl shadow-sm border border-slate-200 m-4"
+      >
+        <Loader2 className="w-8 h-8 text-[var(--entity-500)] animate-spin mb-4" />
+        <p className="text-sm text-slate-500 font-medium">
+          Loading agent settings...
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={theme.style}
+      className="relative h-full w-full flex overflow-hidden bg-slate-50"
+    >
+      <div className="flex flex-col h-full min-w-0 flex-1 bg-white rounded-xl shadow-sm border border-slate-200 m-4 overflow-hidden relative">
+        <div
+          className={`flex items-center justify-between px-6 h-[60px] shrink-0 ${WORKSPACE_ENTITY_HEADER_CLASS}`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-2 rounded-lg shrink-0 ${WORKSPACE_ENTITY_ICON_SHELL_CLASS}`}
+            >
+              <Bot className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-slate-800">
+                Agent Configuration
+              </h1>
+              <p className="text-xs text-slate-500 font-mono">ID: {id}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md ${WORKSPACE_ENTITY_SECONDARY_BUTTON_CLASS}`}
+              onClick={() => setIsPlaygroundOpen(true)}
+            >
+              <Play className={`w-4 h-4 ${WORKSPACE_ENTITY_SECONDARY_ICON_CLASS}`} />
+              Playground
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${WORKSPACE_ENTITY_PRIMARY_BUTTON_CLASS}`}
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {isSaving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable Form Content */}
+        <div className="p-6 flex-1 overflow-y-auto bg-slate-50/30">
+          <div className="max-w-3xl mx-auto space-y-6">
+            {/* Identity Section */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">
+                Agent Identity
+              </h2>
+
+              <div>
+                <label
+                  htmlFor="name"
+                  className="block text-sm font-medium text-slate-700 mb-1"
+                >
+                  Agent Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="e.g., Research Assistant"
+                  className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS}`}
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="description"
+                  className="block text-sm font-medium text-slate-700 mb-1"
+                >
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  rows={2}
+                  value={formData.description}
+                  onChange={handleChange}
+                  placeholder="Briefly describe this agent's purpose..."
+                  className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm resize-none ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS}`}
+                />
+              </div>
+            </div>
+
+            {/* Core Logic Section */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
+                <Bot className={`w-4 h-4 ${WORKSPACE_ENTITY_SECTION_ICON_CLASS}`} />
+                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Core Logic
+                </h2>
+              </div>
+
+              <div className="pt-2">
+                <label
+                  htmlFor="system_prompt"
+                  className="block text-sm font-medium text-slate-700 mb-1"
+                >
+                  System Prompt / Instructions
+                </label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Define exactly how this agent should behave. What is its
+                  persona? What are its goals? (Global system instructions will
+                  be prepended to this automatically).
+                </p>
+                <textarea
+                  id="system_prompt"
+                  name="system_prompt"
+                  rows={12}
+                  value={formData.system_prompt}
+                  onChange={handleChange}
+                  placeholder="e.g., You are an expert data researcher. Your goal is to gather facts using the Web Research skill and format them into comprehensive reports."
+                  className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-mono text-slate-700 leading-relaxed ${WORKSPACE_ENTITY_FIELD_FOCUS_CLASS}`}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <SlidingPlaygroundPanel isOpen={isPlaygroundOpen}>
+        <AgentPlayground
+          config={{
+            ...formData,
+            id,
+            project_id: formData.project_id || currentProject?.id || "",
+          }}
+          apiEndpoint="/api/agents/simulate"
+          accent="agent"
+          onClose={() => setIsPlaygroundOpen(false)}
+        />
+      </SlidingPlaygroundPanel>
+    </div>
+  );
+}

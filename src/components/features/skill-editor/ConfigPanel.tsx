@@ -21,7 +21,7 @@ import {
 import {
   OrchestrationCanvas,
   OrchestrationCanvasRef,
-} from "./OrchestrationCanvas";
+} from "../canvas/OrchestrationCanvas";
 import { useToast } from "../../layout/Toast";
 import { SchemaNode } from "../../shared/json-tools/SchemaEditor";
 import { SchemaViewer } from "../../shared/json-tools/SchemaViewer";
@@ -78,78 +78,7 @@ export const ConfigPanel = ({
     }));
   };
 
-  const parseConfigToNodes = (schema: any): SchemaNode[] => {
-    if (!schema) return [];
-    return Object.entries(schema).map(([key, val]) => {
-      if (Array.isArray(val) && typeof val[0] === "object") {
-        return {
-          id: Math.random().toString(),
-          key,
-          typeHint: "array<object>",
-          isNullable: false,
-          children: parseConfigToNodes(val[0]),
-        };
-      }
-      if (typeof val === "object" && val !== null) {
-        return {
-          id: Math.random().toString(),
-          key,
-          typeHint: "object",
-          isNullable: false,
-          children: parseConfigToNodes(val),
-        };
-      }
-      const strVal = String(val);
-      const isNullable = strVal.endsWith("?");
-      return {
-        id: Math.random().toString(),
-        key,
-        typeHint: isNullable ? strVal.slice(0, -1) : strVal,
-        isNullable,
-      };
-    });
-  };
-
-  const [schemaNodes, setSchemaNodes] = useState<SchemaNode[]>([]);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setSchemaNodes(parseConfigToNodes(config.state_schema));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
-
-  useEffect(() => {
-    if (isLoading) return;
-
-    const compileNodes = (nodes: SchemaNode[]): any => {
-      const result: any = {};
-      nodes.forEach((n) => {
-        if (!n.key.trim()) return;
-        const typeLower = n.typeHint.toLowerCase().trim();
-        const isObject = typeLower === "object" || typeLower === "dict";
-        const isArrayOfObject =
-          typeLower === "array<object>" || typeLower === "object[]";
-
-        if (isObject && n.children && n.children.length > 0) {
-          result[n.key.trim()] = compileNodes(n.children);
-        } else if (isArrayOfObject && n.children && n.children.length > 0) {
-          result[n.key.trim()] = [compileNodes(n.children)];
-        } else {
-          result[n.key.trim()] = n.typeHint + (n.isNullable ? "?" : "");
-        }
-      });
-      return result;
-    };
-
-    setConfig((prev) => {
-      const newSchema = compileNodes(schemaNodes);
-      if (JSON.stringify(prev?.state_schema) === JSON.stringify(newSchema)) {
-        return prev;
-      }
-      return { ...prev, state_schema: newSchema, status: "draft" };
-    });
-  }, [schemaNodes, setConfig, isLoading]);
+  // Removed legacy manual schema parsing logic
 
   const syncCanvasToConfig = () => {
     if (activeTab === "orchestration" && canvasRef.current) {
@@ -354,7 +283,7 @@ export const ConfigPanel = ({
 
       const finalId = config.id || uuidv4();
 
-      const finalConfig = {
+      const finalConfig: SkillConfig = {
         ...config,
         id: finalId,
         status: "draft",
@@ -451,7 +380,6 @@ export const ConfigPanel = ({
             {[
               { id: "identity", label: "Identity", icon: Fingerprint },
               { id: "engine", label: "AI Engine", icon: Cpu },
-              { id: "schema", label: "State Schema", icon: Braces },
               { id: "orchestration", label: "Orchestration", icon: Network },
             ].map((tab) => (
               <button
@@ -803,25 +731,6 @@ export const ConfigPanel = ({
               </div>
             )}
 
-            {activeTab === "schema" && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
-                <div className="flex flex-col gap-1 mb-4">
-                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                    Graph State Schema
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    Define the memory structure for your StateGraph.
-                  </p>
-                </div>
-                <SchemaViewer
-                  title="Graph State Schema"
-                  nodes={schemaNodes}
-                  setNodes={setSchemaNodes}
-                  addButtonText="Add State Variable"
-                  readOnly={isReadOnly} // <-- Passed down
-                />
-              </div>
-            )}
 
             {activeTab === "orchestration" && (
               <div className="space-y-6 h-full flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">

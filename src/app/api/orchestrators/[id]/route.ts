@@ -41,7 +41,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Missing projectId" }, { status: 400 });
 
     const { error } = await supabase
-      .from("agents")
+      .from("orchestrators")
       .delete()
       .eq("id", id)
       .eq("project_id", projectId);
